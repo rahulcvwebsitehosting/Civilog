@@ -1,0 +1,20 @@
+
+{
+  "name": "antigravity-civlog",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Civil Engineering OD-Track System",
+  "scripts": {
+    "start": "serve .",
+    "build": "echo 'No build step required for ESM-based SPA'"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.95.3",
+    "exifr": "^7.1.3",
+    "jspdf": "^4.1.0",
+    "lucide-react": "^0.564.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-router-dom": "^7.13.0"
+  }
+}

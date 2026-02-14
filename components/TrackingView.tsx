@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { ODRequest, ODStatus } from '../types';
 // Fixed: Aliased Search to SearchIcon to resolve errors on lines 103 and 110 where SearchIcon was referenced but not defined
-import { Search as SearchIcon, Loader2, Download, Image as ImageIcon, Award, FileCheck, Info, MapPin, CheckCircle2 } from 'lucide-react';
+import { Search as SearchIcon, Loader2, Download, Image as ImageIcon, Award, FileCheck, Info, MapPin, CheckCircle2, Calendar } from 'lucide-react';
 import exifr from 'exifr';
 
 const TrackingView: React.FC = () => {
@@ -154,7 +154,15 @@ const TrackingView: React.FC = () => {
                   <div>
                     <h3 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter">{request.event_title}</h3>
                     <p className="text-pencil-gray font-bold text-sm">{request.organization_name}</p>
-                    <p className="text-[10px] text-blue-600 font-black uppercase mt-2">TECHNICAL DATE: {request.event_date}</p>
+                    <div className="flex items-center gap-1.5 mt-2">
+                      <Calendar size={12} className="text-blueprint-blue" />
+                      <p className="text-[10px] text-blue-600 font-black uppercase">
+                        TECHNICAL PERIOD: {request.event_date === request.event_end_date || !request.event_end_date 
+                          ? request.event_date 
+                          : `${request.event_date} to ${request.event_end_date}`
+                        }
+                      </p>
+                    </div>
                   </div>
 
                   <div className="flex flex-wrap gap-4 pt-4">

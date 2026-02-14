@@ -2,10 +2,11 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { ODRequest, ODStatus, Profile } from '../types';
-import { Plus, XCircle, Loader2, HardHat } from 'lucide-react';
+import { Plus, XCircle, Loader2, HardHat, Terminal } from 'lucide-react';
 import SubmissionForm from './SubmissionForm';
 import FeedCard from './FeedCard';
 import exifr from 'exifr';
+import { Link } from 'react-router-dom';
 
 const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
   const [requests, setRequests] = useState<ODRequest[]>([]);
@@ -102,7 +103,7 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
   };
 
   return (
-    <div className="max-w-2xl mx-auto pb-24">
+    <div className="max-w-2xl mx-auto pb-24 relative">
       <div className="mb-8 flex justify-between items-end bg-white/50 backdrop-blur-sm p-6 rounded-2xl border border-blueprint-blue/10">
         <div>
           <h2 className="text-3xl font-black text-blueprint-blue tracking-tighter uppercase italic">ACTIVITY FEED</h2>
@@ -163,6 +164,18 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
           ))}
         </div>
       )}
+
+      {/* CTO FAB */}
+      <Link 
+        to="/profile/rahul-shyam" 
+        className="fixed bottom-24 lg:bottom-12 right-6 lg:right-12 w-14 h-14 bg-blueprint-blue text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-110 active:scale-95 transition-all z-[90] group"
+        title="CTO Terminal"
+      >
+        <Terminal size={24} className="group-hover:rotate-12 transition-transform" />
+        <div className="absolute right-full mr-4 bg-blueprint-blue text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-xl">
+           CTO PROFILE
+        </div>
+      </Link>
     </div>
   );
 };

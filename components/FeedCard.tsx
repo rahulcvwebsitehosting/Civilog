@@ -1,15 +1,19 @@
 
 import React, { useState } from 'react';
 import { ODRequest, ODStatus } from '../types';
-import { Trash2, Users, FileText, MapPin, Image as ImageIcon, ExternalLink, Phone, CreditCard, X, Download } from 'lucide-react';
+import { Trash2, Users, FileText, MapPin, Image as ImageIcon, ExternalLink, Phone, CreditCard, X, Download, CheckCircle, XCircle, Loader2, Calendar } from 'lucide-react';
 
 interface FeedCardProps {
   request: ODRequest;
-  onUploadEvidence: (type: 'photo' | 'certificate') => void;
+  onUploadEvidence?: (type: 'photo' | 'certificate') => void;
   onDelete?: (id: string) => void;
-  isUploading: boolean;
+  onApprove?: (req: ODRequest) => void;
+  onReject?: (req: ODRequest) => void;
+  isUploading?: boolean;
   uploadType?: 'photo' | 'certificate';
   currentUserId?: string;
+  isFaculty?: boolean;
+  isProcessing?: boolean;
 }
 
 const ImagePreviewModal: React.FC<{ url: string; onClose: () => void; label: string }> = ({ url, onClose, label }) => {
@@ -53,7 +57,18 @@ const ImagePreviewModal: React.FC<{ url: string; onClose: () => void; label: str
   );
 };
 
-const FeedCard: React.FC<FeedCardProps> = ({ request, onUploadEvidence, onDelete, isUploading, uploadType, currentUserId }) => {
+const FeedCard: React.FC<FeedCardProps> = ({ 
+  request, 
+  onUploadEvidence, 
+  onDelete, 
+  onApprove, 
+  onReject,
+  isUploading, 
+  uploadType, 
+  currentUserId,
+  isFaculty,
+  isProcessing
+}) => {
   const [previewImage, setPreviewImage] = useState<{ url: string, label: string } | null>(null);
 
   const getStatusColor = (status: ODStatus) => {
@@ -111,7 +126,7 @@ const FeedCard: React.FC<FeedCardProps> = ({ request, onUploadEvidence, onDelete
           onClose={() => setPreviewImage(null)} 
         />
       )}
-      <article className="bg-white mb-6 border border-slate-200 shadow-sm overflow-hidden rounded-2xl group/card">
+      <article className="bg-white mb-6 border border-slate-200 shadow-sm overflow-hidden rounded-2xl group/card relative animate-in fade-in slide-in-from-bottom-2 duration-300">
         <div className="p-5 pb-3">
           <div className="flex items-start justify-between mb-4 gap-4">
             <div className="flex items-center gap-3 overflow-hidden">
@@ -120,7 +135,7 @@ const FeedCard: React.FC<FeedCardProps> = ({ request, onUploadEvidence, onDelete
               </div>
               <div className="overflow-hidden">
                 <div className="flex items-center gap-1.5">
-                  <h3 className="font-black text-sm text-gray-900 truncate tracking-tight">{request.student_name}</h3>
+                  <h3 className="font-black text-sm text-gray-900 truncate tracking-tight uppercase tracking-tighter">{request.student_name}</h3>
                   <span className="material-symbols-outlined text-blueprint-blue text-[16px]">verified</span>
                 </div>
                 <p className="text-[10px] text-pencil-gray font-technical uppercase tracking-wider leading-tight">
@@ -135,7 +150,7 @@ const FeedCard: React.FC<FeedCardProps> = ({ request, onUploadEvidence, onDelete
             </div>
             <div className="flex items-center gap-3">
               <span className="text-[10px] text-gray-400 font-technical uppercase shrink-0 font-bold">{timeAgo(request.created_at)}</span>
-              {currentUserId === request.user_id && onDelete && (
+              {!isFaculty && currentUserId === request.user_id && onDelete && (
                 <button 
                   onClick={(e) => {
                     e.stopPropagation();
@@ -162,18 +177,20 @@ const FeedCard: React.FC<FeedCardProps> = ({ request, onUploadEvidence, onDelete
                   <MapPin size={10} /> {request.organization_location}
                 </div>
               )}
-              <div className="text-[11px] font-bold text-slate-600 mt-1 uppercase">
-                Schedule: <span className="font-technical text-[12px] font-black">{request.event_date}</span>
+              <div className="text-[11px] font-bold text-slate-600 mt-1 uppercase flex items-center gap-1.5">
+                <Calendar size={12} className="text-blueprint-blue" />
+                Schedule: <span className="font-technical text-[12px] font-black">
+                  {request.event_date === request.event_end_date || !request.event_end_date 
+                    ? request.event_date 
+                    : `${request.event_date} to ${request.event_end_date}`
+                  }
+                </span>
               </div>
             </div>
             
             {request.team_members && request.team_members.length > 0 && (
               <div className="mt-3 space-y-1.5">
                 <div className="flex items-center gap-2 text-blueprint-blue font-black uppercase text-[9px] tracking-[0.1em]">
-                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                  <circle cx="9" cy="7" r="4" />
-                  <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                   <Users size={12} /> Unit Strength: {request.team_members.length + 1} Members
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -244,8 +261,8 @@ const FeedCard: React.FC<FeedCardProps> = ({ request, onUploadEvidence, onDelete
           )}
         </div>
 
-        <div className="px-5 py-4 flex items-center justify-between border-t border-slate-50 bg-slate-50/50">
-          <div className="flex flex-wrap gap-x-6 gap-y-3">
+        <div className="px-5 py-4 flex flex-col sm:flex-row items-center justify-between border-t border-slate-50 bg-slate-50/50 gap-4">
+          <div className="flex flex-wrap gap-x-6 gap-y-3 w-full sm:w-auto">
             {request.od_letter_url && (
               <button onClick={() => window.open(request.od_letter_url!, '_blank')} className="flex items-center gap-1.5 text-blueprint-blue font-black uppercase text-[10px] tracking-widest hover:scale-105 transition-transform">
                 <span className="material-symbols-outlined text-[18px]">description</span> Letter
@@ -261,23 +278,51 @@ const FeedCard: React.FC<FeedCardProps> = ({ request, onUploadEvidence, onDelete
                 <span className="material-symbols-outlined text-[18px]">payments</span> Receipt
               </button>
             )}
-            {request.status === 'Approved' ? (
+            {!isFaculty && request.status === 'Approved' && onUploadEvidence && (
               <button onClick={() => onUploadEvidence('photo')} className="flex items-center gap-1.5 text-primary font-black uppercase text-[10px] tracking-widest hover:scale-105 transition-transform">
                 <span className="material-symbols-outlined text-[18px]">location_on</span>
                 {isUploading && uploadType === 'photo' ? 'Syncing...' : 'Field Evidence'}
               </button>
-            ) : request.status === 'Completed' ? (
+            )}
+            {!isFaculty && request.status === 'Completed' && (
               <div className="flex items-center gap-1.5 text-green-600 font-black uppercase text-[10px] tracking-widest">
                 <span className="material-symbols-outlined text-[18px]">verified_user</span> Authenticated
               </div>
-            ) : null}
+            )}
           </div>
 
-          <div className="flex items-center gap-2 shrink-0 ml-4">
-            <span className={`w-2.5 h-2.5 rounded-full ring-4 ring-offset-2 ${getStatusColor(request.status).split(' ')[1].replace('bg-', 'ring-')}/20 ${getStatusColor(request.status).split(' ')[1]}`}></span>
-            <span className={`text-[11px] font-black uppercase tracking-[0.2em] italic ${getStatusColor(request.status).split(' ')[0]}`}>
-              {request.status}
-            </span>
+          <div className="flex items-center gap-4 shrink-0 w-full sm:w-auto justify-between sm:justify-end">
+            {isFaculty && request.status === 'Pending' && onApprove && onReject ? (
+              <div className="flex items-center gap-2">
+                {isProcessing ? (
+                  <div className="flex items-center gap-2 text-blueprint-blue text-[10px] font-black uppercase tracking-widest">
+                    <Loader2 className="animate-spin" size={16} /> Authorizing...
+                  </div>
+                ) : (
+                  <>
+                    <button 
+                      onClick={() => onReject(request)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-red-600 hover:bg-red-50 border border-red-100 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all"
+                    >
+                      <XCircle size={14} /> Deny
+                    </button>
+                    <button 
+                      onClick={() => onApprove(request)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-blueprint-blue text-white rounded-lg text-[9px] font-black uppercase tracking-widest shadow-lg shadow-blue-900/10 hover:bg-blue-900 transition-all"
+                    >
+                      <CheckCircle size={14} /> Authorize
+                    </button>
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 ml-auto">
+                <span className={`w-2.5 h-2.5 rounded-full ring-4 ring-offset-2 ${getStatusColor(request.status).split(' ')[1].replace('bg-', 'ring-')}/20 ${getStatusColor(request.status).split(' ')[1]}`}></span>
+                <span className={`text-[11px] font-black uppercase tracking-[0.2em] italic ${getStatusColor(request.status).split(' ')[0]}`}>
+                  {request.status}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </article>

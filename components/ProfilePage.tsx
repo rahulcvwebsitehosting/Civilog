@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { Profile } from '../types';
-import { Loader2, User, Fingerprint, Briefcase, GraduationCap, Building2, CheckCircle2, AlertCircle, Save } from 'lucide-react';
+import { Loader2, User, Fingerprint, Briefcase, GraduationCap, Building2, CheckCircle2, AlertCircle, Save, PenTool, Upload, FileImage, Trash2, Info } from 'lucide-react';
 
 interface ProfilePageProps {
   profile: Profile;
@@ -13,6 +13,8 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ profile, onUpdate }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [selectedSignatureFile, setSelectedSignatureFile] = useState<File | null>(null);
+  const [signaturePreview, setSignaturePreview] = useState<string | null>(profile.signature_url || null);
   
   const [formData, setFormData] = useState({
     full_name: profile.full_name || '',
@@ -28,6 +30,47 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ profile, onUpdate }) => {
     setSuccess(false);
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        setError('Signature file must be under 2MB.');
+        return;
+      }
+      setSelectedSignatureFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setSignaturePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+      setError(null);
+      setSuccess(false);
+    }
+  };
+
+  const saveSignature = async (): Promise<string | null> => {
+    if (!selectedSignatureFile) return profile.signature_url || null;
+
+    const fileExt = selectedSignatureFile.name.split('.').pop();
+    const fileName = `signature_${profile.id}_${Date.now()}.${fileExt}`;
+    const filePath = `signatures/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('od-files')
+      .upload(filePath, selectedSignatureFile, {
+        contentType: selectedSignatureFile.type,
+        upsert: true
+      });
+
+    if (uploadError) throw uploadError;
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('od-files')
+      .getPublicUrl(filePath);
+
+    return publicUrl;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -35,9 +78,12 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ profile, onUpdate }) => {
     setSuccess(false);
 
     try {
+      const signatureUrl = await saveSignature();
+
       const { error: updateError } = await supabase.auth.updateUser({
         data: {
-          ...formData
+          ...formData,
+          signature_url: signatureUrl
         }
       });
 
@@ -49,6 +95,12 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ profile, onUpdate }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const removeSignature = () => {
+    setSelectedSignatureFile(null);
+    setSignaturePreview(null);
+    setSuccess(false);
   };
 
   return (
@@ -69,7 +121,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ profile, onUpdate }) => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Profile Sidebar */}
         <div className="lg:col-span-1 space-y-6">
           <div className="bg-white rounded-[2rem] border border-slate-200 p-8 text-center shadow-sm">
             <div className="w-24 h-24 bg-blueprint-blue text-white rounded-[1.5rem] flex items-center justify-center mx-auto mb-6 text-4xl font-black shadow-xl shadow-blue-900/20">
@@ -89,9 +140,22 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ profile, onUpdate }) => {
               </div>
             </div>
           </div>
+
+          <div className="bg-white rounded-[2rem] border border-slate-200 p-6 shadow-sm space-y-4">
+            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+              <PenTool size={14} /> System Registry
+            </h4>
+            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-3">
+              <div className="flex items-center gap-2 text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                <Info size={12} className="text-blueprint-blue" /> User Note
+              </div>
+              <p className="text-[10px] text-slate-600 leading-relaxed font-medium">
+                Ensure all technical identification matches institutional records for automated document validation.
+              </p>
+            </div>
+          </div>
         </div>
 
-        {/* Edit Form */}
         <div className="lg:col-span-2">
           <form onSubmit={handleSubmit} className="bg-white rounded-[2rem] border border-slate-200 shadow-xl shadow-slate-200/50 overflow-hidden">
             <div className="bg-slate-50 border-b border-slate-100 px-8 py-5 flex items-center justify-between">
@@ -170,16 +234,58 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ profile, onUpdate }) => {
                     />
                   </div>
                 )}
+              </div>
 
-                <div className="space-y-1.5 md:col-span-2">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Assigned Department</label>
-                  <input
-                    name="department"
-                    readOnly
-                    value={formData.department}
-                    className="w-full px-5 py-3.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-400 font-display text-sm cursor-not-allowed"
-                  />
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-1.5">
+                    <Upload size={14} className="text-blueprint-blue" /> Structural Digital Signature
+                  </label>
+                  {signaturePreview && (
+                    <button 
+                      type="button" 
+                      onClick={removeSignature}
+                      className="text-[9px] font-black text-red-500 uppercase tracking-widest hover:underline flex items-center gap-1"
+                    >
+                      <Trash2 size={12} /> Remove
+                    </button>
+                  )}
                 </div>
+
+                <div className="bg-amber-50 border border-amber-100 p-4 rounded-2xl flex items-start gap-3">
+                  <div className="bg-amber-100 p-1.5 rounded-lg text-amber-600">
+                    <Info size={16} />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest">Aesthetic Guideline</p>
+                    <p className="text-[10px] text-amber-600 leading-tight">
+                      For a professional appearance on generated documents, please <b>remove the background</b> of your signature image before uploading. Use a high-contrast ink (Blue/Black) on a white surface.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="relative group">
+                  {signaturePreview ? (
+                    <div className="w-full h-40 bg-white border-2 border-slate-100 rounded-[2rem] flex items-center justify-center p-6 shadow-inner">
+                      <img src={signaturePreview} alt="Signature Preview" className="max-w-full max-h-full object-contain" />
+                    </div>
+                  ) : (
+                    <label className="w-full h-40 bg-slate-50 border-2 border-dashed border-slate-200 rounded-[2rem] flex flex-col items-center justify-center cursor-pointer hover:border-blueprint-blue hover:bg-blueprint-blue/5 transition-all group">
+                      <div className="bg-white p-4 rounded-2xl shadow-sm mb-3 group-hover:scale-110 transition-transform">
+                        <FileImage size={24} className="text-slate-400 group-hover:text-blueprint-blue" />
+                      </div>
+                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest group-hover:text-blueprint-blue">Upload Signature File</span>
+                      <span className="text-[9px] text-slate-400 mt-1 uppercase">PNG, JPG or PDF • MAX 2MB</span>
+                      <input 
+                        type="file" 
+                        className="sr-only" 
+                        accept="image/*" 
+                        onChange={handleFileChange} 
+                      />
+                    </label>
+                  )}
+                </div>
+                <p className="text-[9px] text-slate-400 italic">Signature will be used for official automated submittal generation.</p>
               </div>
 
               {error && (

@@ -1,8 +1,9 @@
 
 import React, { useState, useMemo } from 'react';
 import { supabase } from '../supabaseClient';
-import { Loader2, UserPlus, Trash2, Phone, Tag, MapPin } from 'lucide-react';
-import { SubmissionFormData, Profile, TeamMember } from '../types';
+import { Loader2, UserPlus, Trash2, Phone, Tag, MapPin, AlertCircle, Upload, Info, CheckCircle2, Calendar } from 'lucide-react';
+import { SubmissionFormData, Profile, TeamMember, ODRequest } from '../types';
+import { generateODDocument } from '../services/pdfService';
 
 interface SubmissionFormProps {
   onSuccess: () => void;
@@ -15,17 +16,18 @@ const ALLOWED_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
 
 const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, profile }) => {
   const [formData, setFormData] = useState<SubmissionFormData>({
-    student_name: '',
-    register_no: '',
-    roll_no: '',
+    student_name: profile.full_name || '',
+    register_no: profile.identification_no || '',
+    roll_no: profile.roll_no || '',
     phone_number: '',
-    year: '2', 
+    year: profile.year || '2', 
     semester: '3',
     event_title: '',
     organization_name: '',
     organization_location: '',
     event_type: 'Symposium',
     event_date: '',
+    event_end_date: '',
     team_members: [],
   });
 
@@ -38,8 +40,12 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
     name: '',
     register_no: '',
     roll_no: '',
-    year: '2'
+    year: '2',
+    signature_url: null
   });
+
+  const [memberSigFile, setMemberSigFile] = useState<File | null>(null);
+  const [isAddingMember, setIsAddingMember] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +60,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
       formData.organization_name.trim(),
       formData.organization_location.trim(),
       formData.event_date.trim(),
+      formData.event_end_date.trim(),
       regFile ? 'file' : '',
       posterFile ? 'file' : ''
     ];
@@ -93,23 +100,6 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
     }
   };
 
-  const addTeamMember = () => {
-    if (teamMemberInput.name && teamMemberInput.register_no && teamMemberInput.roll_no) {
-      setFormData(prev => ({ 
-        ...prev, 
-        team_members: [...prev.team_members, { ...teamMemberInput }] 
-      }));
-      setTeamMemberInput({ name: '', register_no: '', roll_no: '', year: '2' });
-      setError(null);
-    } else {
-      setError('Please fill all team member fields.');
-    }
-  };
-
-  const removeTeamMember = (index: number) => {
-    setFormData(prev => ({ ...prev, team_members: prev.team_members.filter((_, i) => i !== index) }));
-  };
-
   const uploadFile = async (file: File, path: string) => {
     const fileExt = file.name.split('.').pop();
     const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
@@ -128,14 +118,49 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
     return publicUrl;
   };
 
+  const addTeamMember = async () => {
+    if (teamMemberInput.name && teamMemberInput.register_no && teamMemberInput.roll_no && memberSigFile) {
+      setIsAddingMember(true);
+      setError(null);
+      try {
+        const sigUrl = await uploadFile(memberSigFile, 'member_signatures');
+        setFormData(prev => ({ 
+          ...prev, 
+          team_members: [...prev.team_members, { ...teamMemberInput, signature_url: sigUrl }] 
+        }));
+        setTeamMemberInput({ name: '', register_no: '', roll_no: '', year: '2', signature_url: null });
+        setMemberSigFile(null);
+      } catch (err: any) {
+        setError("Member signature upload failed: " + err.message);
+      } finally {
+        setIsAddingMember(false);
+      }
+    } else {
+      setError('Please fill all member fields and upload a signature with background removed.');
+    }
+  };
+
+  const removeTeamMember = (index: number) => {
+    setFormData(prev => ({ ...prev, team_members: prev.team_members.filter((_, i) => i !== index) }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!profile.signature_url) {
+      setError('Your E-Signature is required to generate the requisition letter. Please register it in your profile first.');
+      return;
+    }
     if (!regFile) {
       setError('Registration proof is mandatory.');
       return;
     }
     if (!posterFile) {
       setError('Event poster is mandatory for preview.');
+      return;
+    }
+    if (formData.event_end_date && new Date(formData.event_end_date) < new Date(formData.event_date)) {
+      setError('End date cannot be earlier than start date.');
       return;
     }
 
@@ -152,15 +177,50 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
 
       const finalEventType = formData.event_type === 'Other' ? customEventType : formData.event_type;
 
+      const requestData = {
+        user_id: profile.id,
+        created_at: new Date().toISOString(),
+        student_name: formData.student_name,
+        register_no: formData.register_no,
+        roll_no: formData.roll_no,
+        phone_number: formData.phone_number,
+        year: formData.year,
+        semester: formData.semester,
+        event_title: formData.event_title,
+        organization_name: formData.organization_name,
+        organization_location: formData.organization_location,
+        event_type: finalEventType,
+        event_date: formData.event_date,
+        event_end_date: formData.event_end_date || formData.event_date,
+        team_members: formData.team_members,
+        remarks: profile.signature_url, // LEAD SIGNATURE STORED HERE
+        status: 'Pending' as const,
+        registration_proof_url: regUrl,
+        payment_proof_url: payUrl,
+        event_poster_url: posterUrl,
+        od_letter_url: null,
+        geotag_photo_url: null,
+        certificate_url: null
+      };
+
+      const letterBlob = await generateODDocument({ ...requestData, id: 'PENDING' } as ODRequest, profile);
+      const letterFileName = `Requisition_${formData.register_no}_${Date.now()}.pdf`;
+      const letterPath = `od_requisitions/${letterFileName}`;
+
+      const { error: letterUploadError } = await supabase.storage
+        .from('od-files')
+        .upload(letterPath, letterBlob);
+
+      if (letterUploadError) throw letterUploadError;
+
+      const { data: { publicUrl: letterUrl } } = supabase.storage
+        .from('od-files')
+        .getPublicUrl(letterPath);
+
       const { error: dbError } = await supabase.from('od_requests').insert([
         {
-          ...formData,
-          event_type: finalEventType,
-          user_id: profile.id,
-          registration_proof_url: regUrl,
-          payment_proof_url: payUrl,
-          event_poster_url: posterUrl,
-          status: 'Pending'
+          ...requestData,
+          od_letter_url: letterUrl
         },
       ]);
 
@@ -203,6 +263,16 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
       </div>
 
       <form onSubmit={handleSubmit} className="p-8 space-y-8 max-h-[65vh] overflow-y-auto custom-scrollbar bg-topo">
+        {!profile.signature_url && (
+          <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex items-start gap-3 text-amber-700">
+            <AlertCircle className="shrink-0 mt-0.5" size={18} />
+            <div className="space-y-1">
+              <p className="text-xs font-black uppercase tracking-widest">Lead Signature Missing</p>
+              <p className="text-[10px] leading-tight font-bold">You must register your e-signature in your Profile section before you can generate requisition letters.</p>
+            </div>
+          </div>
+        )}
+
         <div className="space-y-4">
           <div className="flex items-center gap-3">
             <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] font-mono">01 LEAD IDENTIFICATION</h2>
@@ -278,18 +348,18 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
               <div className="h-px bg-gray-300 dark:bg-gray-600 flex-grow"></div>
             </div>
             
-            <div className="bg-slate-50 dark:bg-slate-900/40 p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
-              <div className="grid grid-cols-2 gap-2">
+            <div className="bg-white dark:bg-slate-900/40 p-5 rounded-2xl border-2 border-slate-200 dark:border-slate-800 space-y-4 shadow-inner">
+              <div className="grid grid-cols-2 gap-3">
                 <input 
                   value={teamMemberInput.name}
                   onChange={(e) => setTeamMemberInput(prev => ({...prev, name: e.target.value}))}
-                  placeholder="Member Name (Ex: Kamaleshganth)"
-                  className="bg-white dark:bg-gray-800 text-sm p-2.5 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-primary font-mono" 
+                  placeholder="Member Name"
+                  className="bg-slate-50 dark:bg-gray-800 text-sm p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-primary font-mono" 
                 />
                 <select 
                   value={teamMemberInput.year}
                   onChange={(e) => setTeamMemberInput(prev => ({...prev, year: e.target.value}))}
-                  className="bg-white dark:bg-gray-800 text-sm p-2.5 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-primary font-mono"
+                  className="bg-slate-50 dark:bg-gray-800 text-sm p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-primary font-mono"
                 >
                   <option value="1">1st Year</option>
                   <option value="2">2nd Year</option>
@@ -297,35 +367,69 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
                   <option value="4">4th Year</option>
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-3">
                 <input 
                   value={teamMemberInput.register_no}
                   onChange={(e) => setTeamMemberInput(prev => ({...prev, register_no: e.target.value}))}
-                  placeholder="Reg No (Ex: 240373...)"
-                  className="bg-white dark:bg-gray-800 text-sm p-2.5 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-primary font-mono" 
+                  placeholder="Reg No"
+                  className="bg-slate-50 dark:bg-gray-800 text-sm p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-primary font-mono" 
                 />
                 <input 
                   value={teamMemberInput.roll_no}
                   onChange={(e) => setTeamMemberInput(prev => ({...prev, roll_no: e.target.value}))}
-                  placeholder="Roll No (Ex: 22CE02)"
-                  className="bg-white dark:bg-gray-800 text-sm p-2.5 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-primary font-mono" 
+                  placeholder="Roll No"
+                  className="bg-slate-50 dark:bg-gray-800 text-sm p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-primary font-mono" 
                 />
               </div>
+
+              <div className="space-y-3">
+                <div className="bg-amber-50 border border-amber-100 p-3 rounded-xl flex items-start gap-2">
+                  <Info className="text-amber-600 shrink-0" size={14} />
+                  <p className="text-[9px] text-amber-700 leading-tight font-bold">
+                    MANDATORY: Upload signature in <b>Horizontal (Landscape)</b> with <b>Background Removed</b> for structural clarity in final document.
+                  </p>
+                </div>
+                
+                <label className={`w-full py-4 border-2 border-dashed rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer ${memberSigFile ? 'border-primary bg-primary/5' : 'border-slate-300 bg-slate-50 hover:border-primary'}`}>
+                  {memberSigFile ? (
+                    <div className="flex items-center gap-2 text-primary font-black uppercase text-[10px]">
+                      <CheckCircle2 size={16} /> Signature Staged
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-slate-400 font-black uppercase text-[10px]">
+                      <Upload size={16} /> Upload Member Signature
+                    </div>
+                  )}
+                  <input 
+                    type="file" 
+                    className="sr-only" 
+                    accept="image/*" 
+                    onChange={(e) => handleFileChange(e, setMemberSigFile)} 
+                  />
+                </label>
+              </div>
+
               <button 
                 type="button" 
                 onClick={addTeamMember}
-                className="w-full bg-blueprint-blue text-white py-2 rounded-lg hover:bg-blue-900 transition-all font-black uppercase text-[10px] flex items-center justify-center gap-2"
+                disabled={isAddingMember}
+                className="w-full bg-blueprint-blue text-white py-3 rounded-xl hover:bg-blue-900 transition-all font-black uppercase text-[10px] flex items-center justify-center gap-2 disabled:opacity-50"
               >
-                <UserPlus size={14} /> Add Team Member
+                {isAddingMember ? <Loader2 className="animate-spin" size={14} /> : <><UserPlus size={14} /> Add Team Member</>}
               </button>
             </div>
 
             <div className="space-y-2">
               {formData.team_members.map((member, i) => (
                 <div key={i} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-lg shadow-sm">
-                  <div className="overflow-hidden">
-                    <p className="text-[11px] font-black text-slate-800 truncate">{member.name} ({member.year} Year)</p>
-                    <p className="text-[9px] text-slate-500 font-mono">Reg: {member.register_no} • Roll: {member.roll_no}</p>
+                  <div className="flex items-center gap-3 overflow-hidden">
+                    <div className="w-8 h-8 rounded-lg bg-blueprint-blue/10 flex items-center justify-center shrink-0">
+                      <span className="text-blueprint-blue text-[10px] font-black">{i + 1}</span>
+                    </div>
+                    <div className="overflow-hidden">
+                      <p className="text-[11px] font-black text-slate-800 truncate uppercase tracking-tighter">{member.name} ({member.year} Year)</p>
+                      <p className="text-[9px] text-slate-500 font-mono">Reg: {member.register_no} • Roll: {member.roll_no}</p>
+                    </div>
                   </div>
                   <button type="button" onClick={() => removeTeamMember(i)} className="text-red-400 hover:text-red-600 p-1">
                     <Trash2 size={16} />
@@ -344,7 +448,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="sm:col-span-2">
-              <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase mb-1.5 ml-1">Activity Title</label>
+              <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase mb-1.5 ml-1">Title</label>
               <input 
                 name="event_title" 
                 required 
@@ -393,6 +497,23 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
               </div>
             )}
 
+            <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase mb-1.5 ml-1">Start Date</label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                  <input name="event_date" required type="date" value={formData.event_date} onChange={handleInputChange} className="w-full bg-gray-100 dark:bg-gray-800 text-sm pl-10 pr-3.5 py-3.5 rounded-lg steel-border input-inset font-mono outline-none" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase mb-1.5 ml-1">End Date</label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                  <input name="event_end_date" required type="date" value={formData.event_end_date} onChange={handleInputChange} className="w-full bg-gray-100 dark:bg-gray-800 text-sm pl-10 pr-3.5 py-3.5 rounded-lg steel-border input-inset font-mono outline-none" />
+                </div>
+              </div>
+            </div>
+
             <div>
               <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase mb-1.5 ml-1">College / Organization Name</label>
               <input 
@@ -401,7 +522,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
                 value={formData.organization_name} 
                 onChange={handleInputChange} 
                 className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg steel-border input-inset font-mono outline-none" 
-                placeholder="Ex: Anna University, Chennai"
+                placeholder="Ex: Anna University"
               />
             </div>
 
@@ -418,11 +539,6 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
                   placeholder="Ex: Guindy, Chennai"
                 />
               </div>
-            </div>
-
-            <div className="sm:col-span-2">
-              <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase mb-1.5 ml-1">Event Date</label>
-              <input name="event_date" required type="date" value={formData.event_date} onChange={handleInputChange} className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg steel-border input-inset font-mono outline-none" />
             </div>
           </div>
         </div>
@@ -477,7 +593,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
           
           <button 
             type="submit"
-            disabled={loading}
+            disabled={loading || !profile.signature_url}
             className="w-full bg-primary hover:bg-primary-dark text-white font-black py-5 px-8 rounded-xl shadow-xl transform active:scale-[0.97] transition-all disabled:opacity-50"
           >
             {loading ? <Loader2 className="animate-spin mx-auto" /> : <span className="tracking-widest uppercase">Transmit OD Request</span>}

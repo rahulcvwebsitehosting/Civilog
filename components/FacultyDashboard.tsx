@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
-import { ODRequest } from '../types';
+import { ODRequest, Profile } from '../types';
 import { CheckCircle, XCircle, ExternalLink, Loader2, RefreshCw, Paperclip, CreditCard } from 'lucide-react';
 import { generateODLetter } from '../services/pdfService';
 
@@ -9,9 +9,23 @@ const FacultyDashboard: React.FC = () => {
   const [requests, setRequests] = useState<ODRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [facultyProfile, setFacultyProfile] = useState<Profile | null>(null);
 
   const fetchRequests = async () => {
     setLoading(true);
+    
+    // Fetch the current faculty profile to include their signature in approved letters
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      setFacultyProfile({
+        id: user.id,
+        email: user.email || '',
+        role: user.user_metadata?.role || 'faculty',
+        full_name: user.user_metadata?.full_name || '',
+        signature_url: user.user_metadata?.signature_url || null,
+      });
+    }
+
     const { data, error } = await supabase
       .from('od_requests')
       .select('*')
@@ -32,7 +46,18 @@ const FacultyDashboard: React.FC = () => {
     setProcessingId(request.id);
     try {
       if (approve) {
-        const pdfBlob = await generateODLetter(request);
+        // Fix: generateODLetter requires studentProfile and optionally facultyProfile.
+        // We fetch the lead student's metadata to retrieve their digital signature for the PDF.
+        const { data: userData } = await supabase.auth.admin.getUserById(request.user_id);
+        const studentProfile: Profile = {
+          id: request.user_id,
+          email: '',
+          role: 'student',
+          full_name: request.student_name,
+          signature_url: userData?.user?.user_metadata?.signature_url || null
+        };
+
+        const pdfBlob = await generateODLetter(request, studentProfile, facultyProfile || undefined);
         const fileName = `OD_Letter_${request.register_no}_${Date.now()}.pdf`;
         
         const { error: uploadError } = await supabase.storage

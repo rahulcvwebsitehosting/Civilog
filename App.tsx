@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { HashRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
-import { LogOut, Search as SearchIcon, LayoutDashboard, Settings, User } from 'lucide-react';
+import { LogOut, Search as SearchIcon, LayoutDashboard, Settings, User, Home, Terminal } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import Auth from './components/Auth';
 import StudentDashboard from './components/StudentDashboard';
@@ -9,6 +9,7 @@ import FacultyAdmin from './components/FacultyAdmin';
 import TrackingView from './components/TrackingView';
 import ProfileSetup from './components/ProfileSetup';
 import ProfilePage from './components/ProfilePage';
+import CTOProfile from './components/CTOProfile';
 import { Profile } from './types';
 
 const NavLink: React.FC<{ to: string; children: React.ReactNode; icon: React.ReactNode }> = ({ to, children, icon }) => {
@@ -26,6 +27,30 @@ const NavLink: React.FC<{ to: string; children: React.ReactNode; icon: React.Rea
       {icon}
       <span className="font-bold text-xs uppercase tracking-wider">{children}</span>
     </Link>
+  );
+};
+
+const MobileNav: React.FC<{ profile: Profile | null }> = ({ profile }) => {
+  const location = useLocation();
+  if (!profile || !profile.is_profile_complete) return null;
+
+  const isActive = (path: string) => location.pathname === path;
+
+  return (
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 px-6 py-3 flex justify-around items-center z-[50] shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
+      <Link to={profile.role === 'faculty' ? '/faculty-admin' : '/dashboard'} className={`flex flex-col items-center gap-1 ${isActive('/dashboard') || isActive('/faculty-admin') ? 'text-blueprint-blue' : 'text-slate-400'}`}>
+        <Home size={22} className={isActive('/dashboard') || isActive('/faculty-admin') ? 'fill-blueprint-blue/10' : ''} />
+        <span className="text-[8px] font-black uppercase tracking-tighter">Terminal</span>
+      </Link>
+      <Link to="/track" className={`flex flex-col items-center gap-1 ${isActive('/track') ? 'text-blueprint-blue' : 'text-slate-400'}`}>
+        <SearchIcon size={22} className={isActive('/track') ? 'fill-blueprint-blue/10' : ''} />
+        <span className="text-[8px] font-black uppercase tracking-tighter">Track</span>
+      </Link>
+      <Link to="/profile" className={`flex flex-col items-center gap-1 ${isActive('/profile') ? 'text-blueprint-blue' : 'text-slate-400'}`}>
+        <User size={22} className={isActive('/profile') ? 'fill-blueprint-blue/10' : ''} />
+        <span className="text-[8px] font-black uppercase tracking-tighter">Profile</span>
+      </Link>
+    </nav>
   );
 };
 
@@ -61,10 +86,15 @@ const Header: React.FC<{ profile: Profile | null; onLogout: () => void }> = ({ p
 
         {profile && (
           <div className="flex items-center gap-3 pl-4 border-l border-blueprint-blue/10">
-            <div className="text-right hidden sm:block">
-              <p className="text-[10px] font-technical font-bold text-blueprint-blue uppercase">{profile.full_name || profile.email.split('@')[0]}</p>
-              <p className="text-[9px] uppercase text-pencil-gray font-black tracking-widest opacity-60">{profile.role}</p>
-            </div>
+            <Link to="/profile" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+              <div className="text-right hidden sm:block">
+                <p className="text-[10px] font-technical font-bold text-blueprint-blue uppercase">{profile.full_name || profile.email.split('@')[0]}</p>
+                <p className="text-[9px] uppercase text-pencil-gray font-black tracking-widest opacity-60">{profile.role}</p>
+              </div>
+              <div className="w-9 h-9 rounded-xl bg-blueprint-blue text-white flex items-center justify-center text-sm font-black shadow-lg shadow-blue-900/10 border-2 border-white">
+                {profile.full_name?.charAt(0) || profile.email.charAt(0).toUpperCase()}
+              </div>
+            </Link>
             <button 
               onClick={onLogout}
               className="w-10 h-10 flex items-center justify-center rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-red-600 hover:border-red-100 transition-all shadow-sm"
@@ -96,6 +126,7 @@ const App: React.FC = () => {
       year: user.user_metadata?.year || '',
       designation: user.user_metadata?.designation || '',
       department: user.user_metadata?.department || '',
+      signature_url: user.user_metadata?.signature_url || null,
       is_profile_complete: !!user.user_metadata?.is_profile_complete
     });
     setLoading(false);
@@ -148,7 +179,7 @@ const App: React.FC = () => {
     <HashRouter>
       <div className="min-h-screen flex flex-col font-display">
         <Header profile={profile} onLogout={handleLogout} />
-        <main className="flex-1 max-w-7xl mx-auto w-full px-6 py-8">
+        <main className="flex-1 max-w-7xl mx-auto w-full px-6 py-8 pb-24 lg:pb-8">
           <Routes>
             <Route path="/" element={
               session ? (
@@ -190,6 +221,10 @@ const App: React.FC = () => {
               )
             } />
 
+            <Route path="/profile/rahul-shyam" element={
+              <CTOProfile signature={profile?.signature_url} />
+            } />
+
             <Route path="/dashboard" element={
               session && profile?.role === 'student' && profile?.is_profile_complete ? (
                 <StudentDashboard profile={profile!} />
@@ -210,7 +245,8 @@ const App: React.FC = () => {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
-        <footer className="bg-white/50 backdrop-blur-sm border-t border-blueprint-blue/10 py-8">
+        <MobileNav profile={profile} />
+        <footer className="hidden lg:block bg-white/50 backdrop-blur-sm border-t border-blueprint-blue/10 py-8">
           <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="flex items-center gap-2 opacity-40 grayscale">
               <span className="material-symbols-outlined">engineering</span>

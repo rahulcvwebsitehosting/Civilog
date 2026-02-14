@@ -12,6 +12,7 @@ export interface Profile {
   year?: string;
   department?: string;
   designation?: string;
+  signature_url?: string | null;
   is_profile_complete?: boolean;
 }
 
@@ -20,6 +21,7 @@ export interface TeamMember {
   register_no: string;
   roll_no: string;
   year: string;
+  signature_url?: string | null;
 }
 
 export interface ODRequest {
@@ -37,6 +39,7 @@ export interface ODRequest {
   organization_location: string;
   event_type: string;
   event_date: string;
+  event_end_date: string | null;
   status: ODStatus;
   registration_proof_url: string | null;
   payment_proof_url: string | null;
@@ -60,5 +63,6 @@ export interface SubmissionFormData {
   organization_location: string;
   event_type: string;
   event_date: string;
+  event_end_date: string;
   team_members: TeamMember[];
 }

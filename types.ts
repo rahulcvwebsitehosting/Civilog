@@ -1,4 +1,3 @@
-
 export type ODStatus = 'Pending' | 'Approved' | 'Rejected' | 'Completed';
 export type UserRole = 'student' | 'faculty';
 
@@ -39,6 +38,7 @@ export interface ODRequest {
   organization_location: string;
   event_type: string;
   event_date: string;
+  // Fix: Added missing event_end_date property to match usage in pdfService and other components
   event_end_date: string | null;
   status: ODStatus;
   registration_proof_url: string | null;
@@ -63,6 +63,7 @@ export interface SubmissionFormData {
   organization_location: string;
   event_type: string;
   event_date: string;
+  // Fix: Added missing event_end_date property to support multi-day events in the submission form
   event_end_date: string;
   team_members: TeamMember[];
 }

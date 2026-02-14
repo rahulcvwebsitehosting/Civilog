@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { supabase } from '../supabaseClient';
 import { Loader2, UserPlus, Trash2, Phone, Tag, MapPin, AlertCircle, Upload, Info, CheckCircle2, Calendar } from 'lucide-react';
@@ -15,6 +14,7 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
 
 const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, profile }) => {
+  // Fix: Added event_end_date to initial state to track the end of a multi-day event
   const [formData, setFormData] = useState<SubmissionFormData>({
     student_name: profile.full_name || '',
     register_no: profile.identification_no || '',
@@ -60,7 +60,6 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
       formData.organization_name.trim(),
       formData.organization_location.trim(),
       formData.event_date.trim(),
-      formData.event_end_date.trim(),
       regFile ? 'file' : '',
       posterFile ? 'file' : ''
     ];
@@ -159,10 +158,6 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
       setError('Event poster is mandatory for preview.');
       return;
     }
-    if (formData.event_end_date && new Date(formData.event_end_date) < new Date(formData.event_date)) {
-      setError('End date cannot be earlier than start date.');
-      return;
-    }
 
     setLoading(true);
     setError(null);
@@ -177,6 +172,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
 
       const finalEventType = formData.event_type === 'Other' ? customEventType : formData.event_type;
 
+      // Fix: Included event_end_date in requestData to ensure complete date ranges are stored
       const requestData = {
         user_id: profile.id,
         created_at: new Date().toISOString(),
@@ -497,7 +493,8 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
               </div>
             )}
 
-            <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Fix: Added End Date input field to support date ranges for technical events */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:col-span-2">
               <div>
                 <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase mb-1.5 ml-1">Start Date</label>
                 <div className="relative">
@@ -506,10 +503,10 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
                 </div>
               </div>
               <div>
-                <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase mb-1.5 ml-1">End Date</label>
+                <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase mb-1.5 ml-1">End Date (Optional)</label>
                 <div className="relative">
                   <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                  <input name="event_end_date" required type="date" value={formData.event_end_date} onChange={handleInputChange} className="w-full bg-gray-100 dark:bg-gray-800 text-sm pl-10 pr-3.5 py-3.5 rounded-lg steel-border input-inset font-mono outline-none" />
+                  <input name="event_end_date" type="date" value={formData.event_end_date} onChange={handleInputChange} className="w-full bg-gray-100 dark:bg-gray-800 text-sm pl-10 pr-3.5 py-3.5 rounded-lg steel-border input-inset font-mono outline-none" />
                 </div>
               </div>
             </div>

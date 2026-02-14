@@ -1,16 +1,20 @@
-
-
 import { createClient } from '@supabase/supabase-js';
 
 // Safe environment variable access for both Vite and Node-like environments
 const getEnv = (key: string, fallback: string): string => {
-  // Fix: Cast import.meta to any to resolve 'Property env does not exist on type ImportMeta' TypeScript error
-  if (typeof import.meta !== 'undefined' && (import.meta as any).env && (import.meta as any).env[`VITE_${key}`]) {
-    return (import.meta as any).env[`VITE_${key}`];
+  const metaEnv = (import.meta as any).env;
+  if (metaEnv && metaEnv[`VITE_${key}`]) {
+    return metaEnv[`VITE_${key}`];
   }
-  if (typeof process !== 'undefined' && process.env && process.env[key]) {
-    return process.env[key] as string;
+  
+  try {
+    if (typeof process !== 'undefined' && process.env && process.env[key]) {
+      return process.env[key] as string;
+    }
+  } catch (e) {
+    // process might not be defined in some browser contexts
   }
+
   return fallback;
 };
 

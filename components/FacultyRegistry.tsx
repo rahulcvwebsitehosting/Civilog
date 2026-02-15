@@ -43,21 +43,41 @@ const FacultyRegistry: React.FC = () => {
   }, []);
 
   const handleExport = () => {
-    const exportData = filteredRequests.map(r => ({
-      'Student Name': r.student_name,
-      'Roll No': r.roll_no,
-      'Register No': r.register_no,
-      'Year': r.year,
-      'Event Title': r.event_title,
-      'Organization': r.organization_name,
-      'Event Type': r.event_type,
-      'Event Date': r.event_date,
-      'Status': r.status,
-      'Achievement': r.achievement_details || 'N/A',
-      'Prize Details': (Array.isArray(r.prize_details) ? r.prize_details : []).map(p => `${p.type} (${p.event})`).join('; ') || 'N/A',
-    }));
+    // Manually construct the data with formula injections for hyperlinks
+    const data = filteredRequests.map(r => {
+      // Helper for hyperlink formulas
+      const createLink = (url: string | null, label: string) => 
+        url ? { t: 's', f: `=HYPERLINK("${url}", "${label}")`, v: label } : 'N/A';
 
-    const ws = XLSX.utils.json_to_sheet(exportData);
+      // Helper to aggregate arrays of links
+      const formatUrls = (urls: string[] | null) => {
+        if (!urls || !Array.isArray(urls) || urls.length === 0) return 'N/A';
+        // Excel doesn't easily support multiple hyperlinks in one cell via formula.
+        // We'll return the first one as a link, or just text if complex.
+        // For better UX, we'll link the first one.
+        return urls[0] ? { t: 's', f: `=HYPERLINK("${urls[0]}", "View Evidence (1/${urls.length})")`, v: `View Evidence (1/${urls.length})` } : 'N/A';
+      };
+
+      return {
+        'Student Name': r.student_name,
+        'Roll No': r.roll_no,
+        'Register No': r.register_no,
+        'Year': r.year,
+        'Event Title': r.event_title,
+        'Organization': r.organization_name,
+        'Event Type': r.event_type,
+        'Event Date': r.event_date,
+        'Status': r.status,
+        'Achievement': r.achievement_details || 'N/A',
+        'Prize Details': (Array.isArray(r.prize_details) ? r.prize_details : []).map(p => `${p.type} (${p.event})`).join('; ') || 'N/A',
+        'Event Poster': createLink(r.event_poster_url, "View Poster"),
+        'OD Letter': createLink(r.od_letter_url, "View OD Letter"),
+        'Geotagged Photos': formatUrls(r.geotag_photo_urls),
+        'Certificates': formatUrls(r.certificate_urls)
+      };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "OD_Registry");
     XLSX.writeFile(wb, `CivLog_Registry_${new Date().toISOString().split('T')[0]}.xlsx`);

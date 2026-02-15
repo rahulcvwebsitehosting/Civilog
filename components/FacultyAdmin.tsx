@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { ODRequest, Profile, ODStatus } from '../types';
-import { Loader2, RefreshCw, Search, BarChart3, Clock, CheckCircle2, LayoutList, BookOpen, AlertCircle, ChevronLeft, Terminal, FileText, Download, ExternalLink, Database } from 'lucide-react';
+import { Loader2, RefreshCw, Search, BarChart3, Clock, CheckCircle2, LayoutList, BookOpen, AlertCircle, ChevronLeft, Terminal, FileText, Download, ExternalLink, Database, Trash2, Archive, RefreshCcw, Lock, X } from 'lucide-react';
 import { generateODDocument } from '../services/pdfService';
 import { Link } from 'react-router-dom';
 import FeedCard from './FeedCard';
@@ -31,10 +31,16 @@ const FacultyAdmin: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [stats, setStats] = useState({ pending: 0, approved: 0, completed: 0 });
+  const [stats, setStats] = useState({ pending: 0, approved: 0, completed: 0, archived: 0 });
   const [activeStatus, setActiveStatus] = useState<ODStatus>('Pending');
   const [viewMode, setViewMode] = useState<'registry' | 'inspection'>('registry');
   const [facultyProfile, setFacultyProfile] = useState<Profile | null>(null);
+
+  // Auth for Delete
+  const [deleteCandidateId, setDeleteCandidateId] = useState<string | null>(null);
+  const [adminPasswordInput, setAdminPasswordInput] = useState('');
+  
+  const ADMIN_PASSWORD = 'Adminesec@123';
   
   const fetchRequests = async () => {
     setLoading(true);
@@ -61,12 +67,14 @@ const FacultyAdmin: React.FC = () => {
       const { count: pendingCount } = await supabase.from('od_requests').select('*', { count: 'exact', head: true }).eq('status', 'Pending');
       const { count: approvedCount } = await supabase.from('od_requests').select('*', { count: 'exact', head: true }).eq('status', 'Approved');
       const { count: completedCount } = await supabase.from('od_requests').select('*', { count: 'exact', head: true }).eq('status', 'Completed');
+      const { count: archivedCount } = await supabase.from('od_requests').select('*', { count: 'exact', head: true }).eq('status', 'Archived');
 
       if (listData) setRequests(listData as ODRequest[]);
       setStats({ 
         pending: pendingCount || 0, 
         approved: approvedCount || 0, 
-        completed: completedCount || 0 
+        completed: completedCount || 0,
+        archived: archivedCount || 0
       });
     } catch (err) {
       console.error("Fetch Error:", err);
@@ -122,6 +130,56 @@ const FacultyAdmin: React.FC = () => {
     }
   };
 
+  // Soft Delete - Move to Recycle Bin
+  const handleSoftDelete = async (id: string) => {
+    if (!window.confirm("Are you sure you want to move this post to the Recycle Bin?")) return;
+    
+    try {
+      const { error } = await supabase.from('od_requests').update({ status: 'Archived' }).eq('id', id);
+      if (error) throw error;
+      fetchRequests();
+    } catch (err: any) {
+      alert("Error archiving: " + err.message);
+    }
+  };
+
+  // Restore from Recycle Bin
+  const handleRestore = async (id: string) => {
+    try {
+      const { error } = await supabase.from('od_requests').update({ status: 'Pending' }).eq('id', id);
+      if (error) throw error;
+      fetchRequests();
+    } catch (err: any) {
+      alert("Error restoring: " + err.message);
+    }
+  };
+
+  // Initiate Hard Delete (Open Modal)
+  const initiateHardDelete = (id: string) => {
+    setDeleteCandidateId(id);
+    setAdminPasswordInput('');
+  };
+
+  // Execute Hard Delete
+  const handleHardDelete = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (adminPasswordInput !== ADMIN_PASSWORD) {
+      alert("Authentication Failed: Incorrect Admin Password.");
+      return;
+    }
+
+    if (!deleteCandidateId) return;
+
+    try {
+      const { error } = await supabase.from('od_requests').delete().eq('id', deleteCandidateId);
+      if (error) throw error;
+      setDeleteCandidateId(null);
+      fetchRequests();
+    } catch (err: any) {
+      alert("Deletion Error: " + err.message);
+    }
+  };
+
   const filteredRequests = requests.filter(r => 
     r.student_name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     r.register_no.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -130,6 +188,37 @@ const FacultyAdmin: React.FC = () => {
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-20 relative">
+      {/* Password Modal for Hard Delete */}
+      {deleteCandidateId && (
+        <div className="fixed inset-0 z-[150] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl border-2 border-red-100 animate-in zoom-in-95 duration-200">
+             <div className="flex justify-between items-start mb-6">
+                <div>
+                  <h3 className="text-xl font-black text-red-600 uppercase italic">Admin Override</h3>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Permanent Deletion Protocol</p>
+                </div>
+                <button onClick={() => setDeleteCandidateId(null)} className="text-slate-300 hover:text-slate-500"><X size={20}/></button>
+             </div>
+             <form onSubmit={handleHardDelete} className="space-y-4">
+               <div className="space-y-2">
+                 <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest flex items-center gap-2"><Lock size={12}/> Security Password</label>
+                 <input 
+                    type="password" 
+                    autoFocus
+                    value={adminPasswordInput}
+                    onChange={(e) => setAdminPasswordInput(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-red-400 focus:ring-4 focus:ring-red-50 transition-all"
+                    placeholder="Enter Admin Password"
+                 />
+               </div>
+               <button type="submit" className="w-full bg-red-600 text-white font-black uppercase text-xs py-4 rounded-xl shadow-lg shadow-red-200 hover:bg-red-700 transition-all flex items-center justify-center gap-2">
+                 <Trash2 size={16} /> Confirm Deletion
+               </button>
+             </form>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
         <div>
           <h2 className="text-3xl font-black text-slate-900 tracking-tight italic uppercase">ADMIN TERMINAL</h2>
@@ -164,29 +253,37 @@ const FacultyAdmin: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <button 
           onClick={() => setActiveStatus('Pending')}
-          className={`bg-white border p-6 rounded-[2rem] flex items-center gap-5 shadow-sm transition-all text-left ${activeStatus === 'Pending' ? 'border-amber-400 ring-2 ring-amber-400/20' : 'hover:border-slate-300'}`}
+          className={`bg-white border p-5 rounded-[1.5rem] flex items-center gap-4 shadow-sm transition-all text-left ${activeStatus === 'Pending' ? 'border-amber-400 ring-2 ring-amber-400/20' : 'hover:border-slate-300'}`}
         >
-          <div className={`p-4 rounded-2xl ${activeStatus === 'Pending' ? 'bg-amber-500 text-white' : 'bg-amber-100 text-amber-600'}`}><Clock size={28}/></div>
-          <div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pending Logs</p><p className="text-3xl font-black">{stats.pending}</p></div>
+          <div className={`p-3 rounded-xl ${activeStatus === 'Pending' ? 'bg-amber-500 text-white' : 'bg-amber-100 text-amber-600'}`}><Clock size={20}/></div>
+          <div><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Pending Logs</p><p className="text-2xl font-black">{stats.pending}</p></div>
         </button>
         
         <button 
           onClick={() => setActiveStatus('Approved')}
-          className={`bg-white border p-6 rounded-[2rem] flex items-center gap-5 shadow-sm transition-all text-left ${activeStatus === 'Approved' ? 'border-green-400 ring-2 ring-green-400/20' : 'hover:border-slate-300'}`}
+          className={`bg-white border p-5 rounded-[1.5rem] flex items-center gap-4 shadow-sm transition-all text-left ${activeStatus === 'Approved' ? 'border-green-400 ring-2 ring-green-400/20' : 'hover:border-slate-300'}`}
         >
-          <div className={`p-4 rounded-2xl ${activeStatus === 'Approved' ? 'bg-green-500 text-white' : 'bg-green-100 text-green-600'}`}><CheckCircle2 size={28}/></div>
-          <div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Authorized</p><p className="text-3xl font-black">{stats.approved}</p></div>
+          <div className={`p-3 rounded-xl ${activeStatus === 'Approved' ? 'bg-green-500 text-white' : 'bg-green-100 text-green-600'}`}><CheckCircle2 size={20}/></div>
+          <div><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Authorized</p><p className="text-2xl font-black">{stats.approved}</p></div>
         </button>
 
         <button 
           onClick={() => setActiveStatus('Completed')}
-          className={`bg-white border p-6 rounded-[2rem] flex items-center gap-5 shadow-sm transition-all text-left ${activeStatus === 'Completed' ? 'border-blue-400 ring-2 ring-blue-400/20' : 'hover:border-slate-300'}`}
+          className={`bg-white border p-5 rounded-[1.5rem] flex items-center gap-4 shadow-sm transition-all text-left ${activeStatus === 'Completed' ? 'border-blue-400 ring-2 ring-blue-400/20' : 'hover:border-slate-300'}`}
         >
-          <div className={`p-4 rounded-2xl ${activeStatus === 'Completed' ? 'bg-blueprint-blue text-white' : 'bg-blue-100 text-blueprint-blue'}`}><BarChart3 size={28}/></div>
-          <div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Cycle Closed</p><p className="text-3xl font-black">{stats.completed}</p></div>
+          <div className={`p-3 rounded-xl ${activeStatus === 'Completed' ? 'bg-blueprint-blue text-white' : 'bg-blue-100 text-blueprint-blue'}`}><BarChart3 size={20}/></div>
+          <div><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Cycle Closed</p><p className="text-2xl font-black">{stats.completed}</p></div>
+        </button>
+
+        <button 
+          onClick={() => setActiveStatus('Archived')}
+          className={`bg-white border p-5 rounded-[1.5rem] flex items-center gap-4 shadow-sm transition-all text-left ${activeStatus === 'Archived' ? 'border-red-400 ring-2 ring-red-400/20' : 'hover:border-slate-300'}`}
+        >
+          <div className={`p-3 rounded-xl ${activeStatus === 'Archived' ? 'bg-red-500 text-white' : 'bg-red-100 text-red-600'}`}><Archive size={20}/></div>
+          <div><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Recycle Bin</p><p className="text-2xl font-black">{stats.archived}</p></div>
         </button>
       </div>
 
@@ -259,6 +356,33 @@ const FacultyAdmin: React.FC = () => {
                           >
                             <BookOpen size={14} /> Inspect
                           </button>
+                          
+                          {activeStatus === 'Archived' ? (
+                            <>
+                              <button
+                                onClick={() => handleRestore(request.id)}
+                                className="px-3 py-2 bg-green-50 text-green-600 border border-green-200 rounded-xl hover:bg-green-100 transition-all"
+                                title="Restore to Pending"
+                              >
+                                <RefreshCcw size={16} />
+                              </button>
+                              <button
+                                onClick={() => initiateHardDelete(request.id)}
+                                className="px-3 py-2 bg-red-50 text-red-600 border border-red-200 rounded-xl hover:bg-red-100 transition-all"
+                                title="Delete Permanently"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => handleSoftDelete(request.id)}
+                              className="px-3 py-2 bg-slate-50 text-slate-400 border border-slate-200 rounded-xl hover:bg-red-50 hover:text-red-500 hover:border-red-200 transition-all"
+                              title="Move to Recycle Bin"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -283,14 +407,34 @@ const FacultyAdmin: React.FC = () => {
             </div>
           ) : (
             filteredRequests.map((request) => (
-              <FeedCard 
-                key={request.id} 
-                request={request}
-                isFaculty={true}
-                isProcessing={processingId === request.id}
-                onApprove={(req) => handleAction(req, true)}
-                onReject={(req) => handleAction(req, false)}
-              />
+              <div key={request.id} className="relative group">
+                <FeedCard 
+                  request={request}
+                  isFaculty={true}
+                  isProcessing={processingId === request.id}
+                  onApprove={(req) => handleAction(req, true)}
+                  onReject={(req) => handleAction(req, false)}
+                />
+                
+                {activeStatus === 'Archived' ? (
+                   <div className="absolute top-4 right-16 flex gap-2">
+                      <button onClick={() => handleRestore(request.id)} className="bg-white p-2 rounded-lg text-green-600 shadow-sm border border-slate-200 hover:bg-green-50 font-bold text-[10px] uppercase flex items-center gap-1">
+                        <RefreshCcw size={14} /> Restore
+                      </button>
+                      <button onClick={() => initiateHardDelete(request.id)} className="bg-white p-2 rounded-lg text-red-600 shadow-sm border border-slate-200 hover:bg-red-50 font-bold text-[10px] uppercase flex items-center gap-1">
+                        <Trash2 size={14} /> Delete Forever
+                      </button>
+                   </div>
+                ) : (
+                  <button 
+                    onClick={() => handleSoftDelete(request.id)}
+                    className="absolute top-4 right-16 bg-white p-2 rounded-lg text-slate-400 hover:text-red-500 shadow-sm border border-slate-200 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
+                    title="Remove to Recycle Bin"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                )}
+              </div>
             ))
           )}
         </div>

@@ -1,5 +1,5 @@
 
-export type ODStatus = 'Pending' | 'Approved' | 'Rejected' | 'Completed';
+export type ODStatus = 'Pending' | 'Approved' | 'Rejected' | 'Completed' | 'Archived';
 export type UserRole = 'student' | 'faculty';
 
 export interface Profile {

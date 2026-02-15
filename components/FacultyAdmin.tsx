@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { ODRequest, Profile, ODStatus } from '../types';
-import { Loader2, RefreshCw, Search, BarChart3, Clock, CheckCircle2, LayoutList, BookOpen, AlertCircle, ChevronLeft, Terminal, FileText, Download, ExternalLink } from 'lucide-react';
+import { Loader2, RefreshCw, Search, BarChart3, Clock, CheckCircle2, LayoutList, BookOpen, AlertCircle, ChevronLeft, Terminal, FileText, Download, ExternalLink, Database } from 'lucide-react';
 import { generateODDocument } from '../services/pdfService';
 import { Link } from 'react-router-dom';
 import FeedCard from './FeedCard';
@@ -135,11 +135,18 @@ const FacultyAdmin: React.FC = () => {
           <h2 className="text-3xl font-black text-slate-900 tracking-tight italic uppercase">ADMIN TERMINAL</h2>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative w-64 mr-2">
+          <Link 
+            to="/faculty/registry"
+            className="px-4 py-2 bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-slate-700 transition-all shadow-lg mr-2"
+          >
+            <Database size={14} /> Full Registry & Export
+          </Link>
+          
+          <div className="relative w-48 mr-2">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
             <input 
               type="text"
-              placeholder="Filter by name/ID/event..."
+              placeholder="Filter view..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 bg-white border rounded-xl text-xs outline-none focus:border-blueprint-blue"
@@ -147,10 +154,10 @@ const FacultyAdmin: React.FC = () => {
           </div>
           <div className="bg-white border p-1 rounded-xl flex items-center shadow-sm">
             <button onClick={() => setViewMode('registry')} className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all ${viewMode === 'registry' ? 'bg-blueprint-blue text-white shadow-lg shadow-blue-900/20' : 'text-slate-400 hover:text-slate-600'}`}>
-              <LayoutList size={14} /> Registry
+              <LayoutList size={14} /> List
             </button>
             <button onClick={() => setViewMode('inspection')} className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all ${viewMode === 'inspection' ? 'bg-blueprint-blue text-white shadow-lg shadow-blue-900/20' : 'text-slate-400 hover:text-slate-600'}`}>
-              <BookOpen size={14} /> Inspection
+              <BookOpen size={14} /> Detail
             </button>
           </div>
           <button onClick={fetchRequests} className="p-2.5 bg-white border rounded-xl hover:bg-slate-50 transition-colors shadow-sm"><RefreshCw size={20} className={loading ? 'animate-spin' : ''} /></button>

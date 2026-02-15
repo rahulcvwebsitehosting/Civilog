@@ -256,7 +256,7 @@ const FacultyAdmin: React.FC = () => {
                       </td>
                     </tr>
                   );
-                })}
+                })
               )}
             </tbody>
           </table>

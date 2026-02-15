@@ -58,6 +58,25 @@ const ImagePreviewModal: React.FC<{ url: string; onClose: () => void; label: str
   );
 };
 
+// Utility function to format date as "01st October, 2026"
+const formatFancyDate = (dateString: string | null): string => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  const day = date.getDate();
+  const month = date.toLocaleString('default', { month: 'long' });
+  const year = date.getFullYear();
+
+  let suffix = 'th';
+  if (day === 1 || day === 21 || day === 31) {
+    suffix = 'st';
+  } else if (day === 2 || day === 22) {
+    suffix = 'nd';
+  } else if (day === 3 || day === 23) {
+    suffix = 'rd';
+  }
+  return `${day}${suffix} ${month}, ${year}`;
+};
+
 const FeedCard: React.FC<FeedCardProps> = ({ 
   request, 
   onUploadEvidence, 
@@ -131,9 +150,12 @@ const FeedCard: React.FC<FeedCardProps> = ({
     }
   };
 
+  const formattedEventDate = formatFancyDate(request.event_date);
+  const formattedEventEndDate = formatFancyDate(request.event_end_date);
+
   const dateDisplay = (request.event_end_date && request.event_end_date !== request.event_date)
-    ? `${request.event_date} - ${request.event_end_date}`
-    : request.event_date;
+    ? `${formattedEventDate} - ${formattedEventEndDate}`
+    : formattedEventDate;
 
   const canDelete = !isFaculty && currentUserId === request.user_id && (request.status === 'Pending' || request.status === 'Rejected');
 

@@ -1,4 +1,3 @@
-
 export type ODStatus = 'Pending' | 'Approved' | 'Rejected' | 'Completed';
 export type UserRole = 'student' | 'faculty';
 
@@ -44,6 +43,7 @@ export interface ODRequest {
   payment_proof_url: string | null;
   event_poster_url: string | null;
   od_letter_url: string | null;
+  achievement_details: string | null;
   // Legacy single fields (kept for compatibility)
   geotag_photo_url: string | null;
   certificate_url: string | null;

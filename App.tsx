@@ -1,11 +1,11 @@
-
 import React, { useEffect, useState } from 'react';
 import { HashRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
-import { LogOut, Search as SearchIcon, LayoutDashboard, Settings, User, Home, Terminal } from 'lucide-react';
+import { LogOut, Search as SearchIcon, LayoutDashboard, Settings, User, Home, Terminal, Database } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import Auth from './components/Auth';
 import StudentDashboard from './components/StudentDashboard';
 import FacultyAdmin from './components/FacultyAdmin';
+import FacultyRegistry from './components/FacultyRegistry';
 import TrackingView from './components/TrackingView';
 import ProfileSetup from './components/ProfileSetup';
 import ProfilePage from './components/ProfilePage';
@@ -42,6 +42,12 @@ const MobileNav: React.FC<{ profile: Profile | null }> = ({ profile }) => {
         <Home size={22} className={isActive('/dashboard') || isActive('/faculty-admin') ? 'fill-blueprint-blue/10' : ''} />
         <span className="text-[8px] font-black uppercase tracking-tighter">Terminal</span>
       </Link>
+      {profile.role === 'faculty' && (
+        <Link to="/faculty/registry" className={`flex flex-col items-center gap-1 ${isActive('/faculty/registry') ? 'text-blueprint-blue' : 'text-slate-400'}`}>
+          <Database size={22} className={isActive('/faculty/registry') ? 'fill-blueprint-blue/10' : ''} />
+          <span className="text-[8px] font-black uppercase tracking-tighter">Registry</span>
+        </Link>
+      )}
       <Link to="/track" className={`flex flex-col items-center gap-1 ${isActive('/track') ? 'text-blueprint-blue' : 'text-slate-400'}`}>
         <SearchIcon size={22} className={isActive('/track') ? 'fill-blueprint-blue/10' : ''} />
         <span className="text-[8px] font-black uppercase tracking-tighter">Track</span>
@@ -77,7 +83,10 @@ const Header: React.FC<{ profile: Profile | null; onLogout: () => void }> = ({ p
               {profile.role === 'student' ? (
                 <NavLink to="/dashboard" icon={<LayoutDashboard size={18} />}>Feed</NavLink>
               ) : (
-                <NavLink to="/faculty-admin" icon={<Settings size={18} />}>Admin</NavLink>
+                <>
+                  <NavLink to="/faculty-admin" icon={<Settings size={18} />}>Admin</NavLink>
+                  <NavLink to="/faculty/registry" icon={<Database size={18} />}>Registry</NavLink>
+                </>
               )}
               <NavLink to="/profile" icon={<User size={18} />}>Profile</NavLink>
             </>
@@ -236,6 +245,14 @@ const App: React.FC = () => {
             <Route path="/faculty-admin" element={
               session && profile?.role === 'faculty' && profile?.is_profile_complete ? (
                 <FacultyAdmin />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            } />
+
+            <Route path="/faculty/registry" element={
+              session && profile?.role === 'faculty' && profile?.is_profile_complete ? (
+                <FacultyRegistry />
               ) : (
                 <Navigate to="/" replace />
               )

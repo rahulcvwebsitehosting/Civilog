@@ -64,12 +64,13 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
 
       setUploadState({ id: request.id, type, index });
       try {
-        if (type === 'photo') {
-          const metadata = await exifr.gps(file);
-          if (!metadata || !metadata.latitude || !metadata.longitude) {
-            throw new Error('No GPS data found. Use a geotagged photo from the event location.');
-          }
-        }
+        // Removed geotag detection logic
+        // if (type === 'photo') {
+        //   const metadata = await exifr.gps(file);
+        //   if (!metadata || !metadata.latitude || !metadata.longitude) {
+        //     throw new Error('No GPS data found. Use a geotagged photo from the event location.');
+        //   }
+        // }
 
         const fileName = `${Date.now()}_${type}_idx${index}_${profile.id}.${file.name.split('.').pop()}`;
         const { error: uploadError } = await supabase.storage

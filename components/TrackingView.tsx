@@ -41,12 +41,13 @@ const TrackingView: React.FC = () => {
   const handleEvidenceUpload = async (request: ODRequest, file: File, type: 'photo' | 'certificate') => {
     setUploading({ id: request.id, type });
     try {
-      if (type === 'photo') {
-        const metadata = await exifr.gps(file);
-        if (!metadata || !metadata.latitude || !metadata.longitude) {
-          throw new Error('Structural Validation Failed: Photo lacks GPS metadata. Ensure location services were active during field logging.');
-        }
-      }
+      // Removed geotag detection logic
+      // if (type === 'photo') {
+      //   const metadata = await exifr.gps(file);
+      //   if (!metadata || !metadata.latitude || !metadata.longitude) {
+      //     throw new Error('Structural Validation Failed: Photo lacks GPS metadata. Ensure location services were active during field logging.');
+      //   }
+      // }
 
       const fileName = `${Date.now()}_${type}_${request.register_no}.${file.name.split('.').pop()}`;
       const { error: uploadError } = await supabase.storage
@@ -188,7 +189,7 @@ const TrackingView: React.FC = () => {
                     
                     <div className="space-y-4">
                       <div className="flex flex-col gap-2">
-                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Geotagged Photo (EXIF Verified)</span>
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Geotagged Photo</span>
                         {request.geotag_photo_url ? (
                           <div className="flex items-center gap-2 text-green-600 text-[10px] font-black uppercase bg-green-50 px-3 py-3 rounded-xl border border-green-100">
                             <CheckCircle2 size={14} /> LOGGED SUCCESSFULLY

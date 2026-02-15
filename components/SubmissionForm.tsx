@@ -1,6 +1,7 @@
+
 import React, { useState, useMemo } from 'react';
 import { supabase } from '../supabaseClient';
-import { Loader2, UserPlus, Trash2, Phone, Tag, MapPin, AlertCircle, Upload, Info, CheckCircle2, Calendar } from 'lucide-react';
+import { Loader2, UserPlus, Trash2, Phone, Tag, MapPin, AlertCircle, Upload, Info, CheckCircle2, Calendar, Beaker, Image as ImageIcon, FileText } from 'lucide-react';
 import { SubmissionFormData, Profile, TeamMember, ODRequest } from '../types';
 import { generateODDocument } from '../services/pdfService';
 
@@ -14,7 +15,6 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
 
 const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, profile }) => {
-  // Fix: Added event_end_date to initial state to track the end of a multi-day event
   const [formData, setFormData] = useState<SubmissionFormData>({
     student_name: profile.full_name || '',
     register_no: profile.identification_no || '',
@@ -40,12 +40,8 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
     name: '',
     register_no: '',
     roll_no: '',
-    year: '2',
-    signature_url: null
+    year: '2'
   });
-
-  const [memberSigFile, setMemberSigFile] = useState<File | null>(null);
-  const [isAddingMember, setIsAddingMember] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,6 +66,26 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
     return totalPossible > 0 ? (filledCount / totalPossible) * 100 : 0;
   }, [formData, regFile, posterFile]);
 
+  const handleAutoFill = () => {
+    setFormData(prev => ({
+      ...prev,
+      phone_number: '9876543210',
+      event_title: 'Bridge Design & Structural Analysis Workshop',
+      organization_name: 'IIT Madras',
+      organization_location: 'Adyar, Chennai',
+      event_type: 'Workshop',
+      event_date: '2026-01-10',
+      event_end_date: '2026-01-12',
+    }));
+    
+    setTeamMemberInput({
+      name: 'Suresh Kumar',
+      register_no: '2203730045',
+      roll_no: '22CE45',
+      year: '3'
+    });
+  };
+
   const validateFile = (file: File) => {
     if (file.size > MAX_FILE_SIZE) {
       return `File "${file.name}" exceeds 5MB limit.`;
@@ -82,7 +98,13 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData(prev => {
+      const newData = { ...prev, [name]: value };
+      if (name === 'event_date' && !prev.event_end_date) {
+        newData.event_end_date = value;
+      }
+      return newData;
+    });
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, setter: (f: File | null) => void) => {
@@ -117,25 +139,15 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
     return publicUrl;
   };
 
-  const addTeamMember = async () => {
-    if (teamMemberInput.name && teamMemberInput.register_no && teamMemberInput.roll_no && memberSigFile) {
-      setIsAddingMember(true);
-      setError(null);
-      try {
-        const sigUrl = await uploadFile(memberSigFile, 'member_signatures');
-        setFormData(prev => ({ 
-          ...prev, 
-          team_members: [...prev.team_members, { ...teamMemberInput, signature_url: sigUrl }] 
-        }));
-        setTeamMemberInput({ name: '', register_no: '', roll_no: '', year: '2', signature_url: null });
-        setMemberSigFile(null);
-      } catch (err: any) {
-        setError("Member signature upload failed: " + err.message);
-      } finally {
-        setIsAddingMember(false);
-      }
+  const addTeamMember = () => {
+    if (teamMemberInput.name && teamMemberInput.register_no && teamMemberInput.roll_no) {
+      setFormData(prev => ({ 
+        ...prev, 
+        team_members: [...prev.team_members, { ...teamMemberInput }] 
+      }));
+      setTeamMemberInput({ name: '', register_no: '', roll_no: '', year: '2' });
     } else {
-      setError('Please fill all member fields and upload a signature with background removed.');
+      setError('Please fill all member fields.');
     }
   };
 
@@ -146,16 +158,8 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!profile.signature_url) {
-      setError('Your E-Signature is required to generate the requisition letter. Please register it in your profile first.');
-      return;
-    }
-    if (!regFile) {
-      setError('Registration proof is mandatory.');
-      return;
-    }
-    if (!posterFile) {
-      setError('Event poster is mandatory for preview.');
+    if (!regFile || !posterFile) {
+      setError('Poster and Registration proof are mandatory.');
       return;
     }
 
@@ -172,7 +176,6 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
 
       const finalEventType = formData.event_type === 'Other' ? customEventType : formData.event_type;
 
-      // Fix: Included event_end_date in requestData to ensure complete date ranges are stored
       const requestData = {
         user_id: profile.id,
         created_at: new Date().toISOString(),
@@ -189,14 +192,14 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
         event_date: formData.event_date,
         event_end_date: formData.event_end_date || formData.event_date,
         team_members: formData.team_members,
-        remarks: profile.signature_url, // LEAD SIGNATURE STORED HERE
         status: 'Pending' as const,
         registration_proof_url: regUrl,
         payment_proof_url: payUrl,
         event_poster_url: posterUrl,
         od_letter_url: null,
         geotag_photo_url: null,
-        certificate_url: null
+        certificate_url: null,
+        remarks: null
       };
 
       const letterBlob = await generateODDocument({ ...requestData, id: 'PENDING' } as ODRequest, profile);
@@ -231,371 +234,127 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
 
   return (
     <div className="relative w-full max-w-xl bg-[#F5F5F5] dark:bg-[#262626] rounded-xl shadow-2xl overflow-hidden border-4 border-gray-300 dark:border-gray-700 font-display transition-all">
-      <div className="absolute inset-0 pointer-events-none opacity-[0.03]" style={{ backgroundImage: 'linear-gradient(#000 1px, transparent 1px), linear-gradient(90deg, #000 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
-      
       <div className="relative w-full h-3 bg-gray-300 dark:bg-gray-800 border-b border-gray-400 dark:border-gray-600">
         <div 
           className="absolute top-0 left-0 h-full bg-primary bg-stripes shadow-[0_0_10px_rgba(255,87,34,0.6)] transition-all duration-700 ease-out"
           style={{ width: `${progress}%` }}
         ></div>
-        <div 
-          className="absolute top-[-4px] w-3 h-5 bg-white border-2 border-primary shadow-md transform -translate-x-1/2 rounded-sm z-10 transition-all duration-700 ease-out"
-          style={{ left: `${progress}%` }}
-        ></div>
       </div>
 
-      <div className="relative px-8 pt-10 pb-6 border-b-2 border-dashed border-gray-300 dark:border-gray-600">
-        <div className="absolute top-6 right-6">
-          <button onClick={onClose} className="text-gray-400 hover:text-primary transition-colors p-1" type="button">
-            <span className="material-symbols-outlined text-2xl">close</span>
+      <div className="relative px-8 pt-10 pb-6 border-b-2 border-dashed border-gray-300 dark:border-gray-600 flex justify-between items-start">
+        <div>
+          <h1 className="text-2xl font-black text-gray-800 dark:text-gray-100 uppercase tracking-tight italic">Structural OD Submittal</h1>
+          <button 
+            type="button"
+            onClick={handleAutoFill}
+            className="mt-2 flex items-center gap-2 px-3 py-1.5 bg-amber-500 text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-amber-600 shadow-md"
+          >
+            <Beaker size={14} /> DEBUG: AUTO-FILL
           </button>
         </div>
-        <div className="flex items-center gap-4 mb-2">
-          <div className="bg-primary p-2 rounded-lg text-white shadow-lg shadow-primary/20">
-            <span className="material-symbols-outlined text-3xl">engineering</span>
-          </div>
-          <h1 className="text-2xl font-black text-gray-800 dark:text-gray-100 uppercase tracking-tight italic">Structural OD Submittal</h1>
-        </div>
+        <button onClick={onClose} className="text-gray-400 hover:text-primary transition-colors p-1" type="button">
+          <span className="material-symbols-outlined text-2xl">close</span>
+        </button>
       </div>
 
       <form onSubmit={handleSubmit} className="p-8 space-y-8 max-h-[65vh] overflow-y-auto custom-scrollbar bg-topo">
-        {!profile.signature_url && (
-          <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex items-start gap-3 text-amber-700">
-            <AlertCircle className="shrink-0 mt-0.5" size={18} />
-            <div className="space-y-1">
-              <p className="text-xs font-black uppercase tracking-widest">Lead Signature Missing</p>
-              <p className="text-[10px] leading-tight font-bold">You must register your e-signature in your Profile section before you can generate requisition letters.</p>
-            </div>
-          </div>
-        )}
-
         <div className="space-y-4">
-          <div className="flex items-center gap-3">
-            <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] font-mono">01 LEAD IDENTIFICATION</h2>
-            <div className="h-px bg-gray-300 dark:bg-gray-600 flex-grow"></div>
-          </div>
-
+          <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] font-mono">01 LEAD IDENTIFICATION</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="relative group">
-              <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase mb-1.5 ml-1">Team Lead Name</label>
-              <input 
-                name="student_name"
-                required
-                value={formData.student_name}
-                onChange={handleInputChange}
-                className="w-full bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-100 text-sm p-3.5 rounded-lg steel-border input-inset focus:ring-2 focus:ring-primary font-mono outline-none" 
-                placeholder="Ex: Rahul S" 
-              />
-            </div>
-            <div className="relative group">
-              <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase mb-1.5 ml-1">Contact Phone Number</label>
-              <div className="relative">
-                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                <input 
-                  name="phone_number"
-                  required
-                  type="tel"
-                  value={formData.phone_number}
-                  onChange={handleInputChange}
-                  className="w-full bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-100 text-sm pl-10 pr-3.5 py-3.5 rounded-lg steel-border input-inset focus:ring-2 focus:ring-primary font-mono outline-none" 
-                  placeholder="Ex: +91 98765 43210" 
-                />
-              </div>
-            </div>
+            <input 
+              name="student_name"
+              required
+              value={formData.student_name}
+              onChange={handleInputChange}
+              className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg border-2 border-slate-200 outline-none" 
+              placeholder="Lead Student Name" 
+            />
+            <input 
+              name="phone_number"
+              required
+              type="tel"
+              value={formData.phone_number}
+              onChange={handleInputChange}
+              className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg border-2 border-slate-200 outline-none" 
+              placeholder="Phone Number" 
+            />
           </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="sm:col-span-1">
-               <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase mb-1.5 ml-1">Academic Year</label>
-               <select name="year" value={formData.year} onChange={handleInputChange} className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg steel-border input-inset font-mono outline-none">
-                 <option value="1">1st Year</option>
-                 <option value="2">2nd Year</option>
-                 <option value="3">3rd Year</option>
-                 <option value="4">4th Year</option>
-               </select>
-            </div>
-            <div>
-              <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase mb-1.5 ml-1">Registration No.</label>
-              <input 
-                name="register_no"
-                required
-                value={formData.register_no}
-                onChange={handleInputChange}
-                className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg steel-border input-inset focus:ring-2 focus:ring-primary font-mono outline-none" 
-                placeholder="Ex: 2403730..."
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase mb-1.5 ml-1">Roll Number</label>
-              <input 
-                name="roll_no"
-                required
-                value={formData.roll_no}
-                onChange={handleInputChange}
-                className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg steel-border input-inset focus:ring-2 focus:ring-primary font-mono outline-none" 
-                placeholder="Ex: 22CE01"
-              />
-            </div>
-          </div>
-
-          <div className="pt-4 space-y-4">
-            <div className="flex items-center gap-3">
-              <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] font-mono">01.1 ADDITIONAL TEAM</h2>
-              <div className="h-px bg-gray-300 dark:bg-gray-600 flex-grow"></div>
-            </div>
-            
-            <div className="bg-white dark:bg-slate-900/40 p-5 rounded-2xl border-2 border-slate-200 dark:border-slate-800 space-y-4 shadow-inner">
-              <div className="grid grid-cols-2 gap-3">
-                <input 
-                  value={teamMemberInput.name}
-                  onChange={(e) => setTeamMemberInput(prev => ({...prev, name: e.target.value}))}
-                  placeholder="Member Name"
-                  className="bg-slate-50 dark:bg-gray-800 text-sm p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-primary font-mono" 
-                />
-                <select 
-                  value={teamMemberInput.year}
-                  onChange={(e) => setTeamMemberInput(prev => ({...prev, year: e.target.value}))}
-                  className="bg-slate-50 dark:bg-gray-800 text-sm p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-primary font-mono"
-                >
-                  <option value="1">1st Year</option>
-                  <option value="2">2nd Year</option>
-                  <option value="3">3rd Year</option>
-                  <option value="4">4th Year</option>
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <input 
-                  value={teamMemberInput.register_no}
-                  onChange={(e) => setTeamMemberInput(prev => ({...prev, register_no: e.target.value}))}
-                  placeholder="Reg No"
-                  className="bg-slate-50 dark:bg-gray-800 text-sm p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-primary font-mono" 
-                />
-                <input 
-                  value={teamMemberInput.roll_no}
-                  onChange={(e) => setTeamMemberInput(prev => ({...prev, roll_no: e.target.value}))}
-                  placeholder="Roll No"
-                  className="bg-slate-50 dark:bg-gray-800 text-sm p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-primary font-mono" 
-                />
-              </div>
-
-              <div className="space-y-3">
-                <div className="bg-amber-50 border border-amber-100 p-3 rounded-xl flex items-start gap-2">
-                  <Info className="text-amber-600 shrink-0" size={14} />
-                  <p className="text-[9px] text-amber-700 leading-tight font-bold">
-                    MANDATORY: Upload signature in <b>Horizontal (Landscape)</b> with <b>Background Removed</b> for structural clarity in final document.
-                  </p>
-                </div>
-                
-                <label className={`w-full py-4 border-2 border-dashed rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer ${memberSigFile ? 'border-primary bg-primary/5' : 'border-slate-300 bg-slate-50 hover:border-primary'}`}>
-                  {memberSigFile ? (
-                    <div className="flex items-center gap-2 text-primary font-black uppercase text-[10px]">
-                      <CheckCircle2 size={16} /> Signature Staged
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2 text-slate-400 font-black uppercase text-[10px]">
-                      <Upload size={16} /> Upload Member Signature
-                    </div>
-                  )}
-                  <input 
-                    type="file" 
-                    className="sr-only" 
-                    accept="image/*" 
-                    onChange={(e) => handleFileChange(e, setMemberSigFile)} 
-                  />
-                </label>
-              </div>
-
-              <button 
-                type="button" 
-                onClick={addTeamMember}
-                disabled={isAddingMember}
-                className="w-full bg-blueprint-blue text-white py-3 rounded-xl hover:bg-blue-900 transition-all font-black uppercase text-[10px] flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                {isAddingMember ? <Loader2 className="animate-spin" size={14} /> : <><UserPlus size={14} /> Add Team Member</>}
-              </button>
-            </div>
-
-            <div className="space-y-2">
-              {formData.team_members.map((member, i) => (
-                <div key={i} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-lg shadow-sm">
-                  <div className="flex items-center gap-3 overflow-hidden">
-                    <div className="w-8 h-8 rounded-lg bg-blueprint-blue/10 flex items-center justify-center shrink-0">
-                      <span className="text-blueprint-blue text-[10px] font-black">{i + 1}</span>
-                    </div>
-                    <div className="overflow-hidden">
-                      <p className="text-[11px] font-black text-slate-800 truncate uppercase tracking-tighter">{member.name} ({member.year} Year)</p>
-                      <p className="text-[9px] text-slate-500 font-mono">Reg: {member.register_no} • Roll: {member.roll_no}</p>
-                    </div>
-                  </div>
-                  <button type="button" onClick={() => removeTeamMember(i)} className="text-red-400 hover:text-red-600 p-1">
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              ))}
-            </div>
+          <div className="grid grid-cols-3 gap-4">
+             <select name="year" value={formData.year} onChange={handleInputChange} className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg border-2 border-slate-200 outline-none">
+               <option value="1">1st Year</option>
+               <option value="2">2nd Year</option>
+               <option value="3">3rd Year</option>
+               <option value="4">4th Year</option>
+             </select>
+             <input name="register_no" required value={formData.register_no} onChange={handleInputChange} className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg border-2 border-slate-200 outline-none font-mono" placeholder="Reg No" />
+             <input name="roll_no" required value={formData.roll_no} onChange={handleInputChange} className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg border-2 border-slate-200 outline-none font-mono" placeholder="Roll No" />
           </div>
         </div>
 
         <div className="space-y-4 pt-2">
-          <div className="flex items-center gap-3">
-            <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] font-mono">02 SPECIFICATIONS</h2>
-            <div className="h-px bg-gray-300 dark:bg-gray-600 flex-grow"></div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="sm:col-span-2">
-              <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase mb-1.5 ml-1">Title</label>
-              <input 
-                name="event_title" 
-                required 
-                value={formData.event_title} 
-                onChange={handleInputChange} 
-                className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg steel-border input-inset font-mono outline-none" 
-                placeholder="Ex: Bridge Design Expo 2025"
-              />
+          <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] font-mono">01.1 ADDITIONAL TEAM</h2>
+          <div className="bg-white p-5 rounded-2xl border-2 border-slate-200 space-y-4 shadow-inner">
+            <div className="grid grid-cols-2 gap-3">
+              <input value={teamMemberInput.name} onChange={(e) => setTeamMemberInput(prev => ({...prev, name: e.target.value}))} placeholder="Name" className="bg-slate-50 text-sm p-3 rounded-lg border border-slate-200 outline-none" />
+              <input value={teamMemberInput.register_no} onChange={(e) => setTeamMemberInput(prev => ({...prev, register_no: e.target.value}))} placeholder="Reg No" className="bg-slate-50 text-sm p-3 rounded-lg border border-slate-200 outline-none font-mono" />
             </div>
-            
-            <div className="sm:col-span-1">
-              <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase mb-1.5 ml-1">Event Type</label>
-              <select 
-                name="event_type" 
-                value={formData.event_type} 
-                onChange={handleInputChange} 
-                className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg steel-border input-inset font-mono outline-none"
-              >
-                <option value="Symposium">Symposium</option>
-                <option value="Workshop">Workshop</option>
-                <option value="Paper Presentation">Paper Presentation</option>
-                <option value="Technical Quiz">Technical Quiz</option>
-                <option value="Model Making">Model Making</option>
-                <option value="Surveying Camp">Surveying Camp</option>
-                <option value="Industrial Visit">Industrial Visit</option>
-                <option value="Internship">Internship</option>
-                <option value="Culturals">Culturals</option>
-                <option value="Sports">Sports</option>
-                <option value="Other">Other (Custom Entry)</option>
+            <div className="grid grid-cols-2 gap-3">
+              <input value={teamMemberInput.roll_no} onChange={(e) => setTeamMemberInput(prev => ({...prev, roll_no: e.target.value}))} placeholder="Roll No" className="bg-slate-50 text-sm p-3 rounded-lg border border-slate-200 outline-none font-mono" />
+              <select value={teamMemberInput.year} onChange={(e) => setTeamMemberInput(prev => ({...prev, year: e.target.value}))} className="bg-slate-50 text-sm p-3 rounded-lg border border-slate-200 outline-none">
+                <option value="1">1st Year</option>
+                <option value="2">2nd Year</option>
+                <option value="3">3rd Year</option>
+                <option value="4">4th Year</option>
               </select>
             </div>
-
-            {formData.event_type === 'Other' && (
-              <div className="sm:col-span-1">
-                <label className="block text-[10px] font-black text-primary uppercase mb-1.5 ml-1">Manual Type Entry</label>
-                <div className="relative">
-                  <Tag className="absolute left-3 top-1/2 -translate-y-1/2 text-primary/40" size={14} />
-                  <input 
-                    required 
-                    value={customEventType} 
-                    onChange={(e) => setCustomEventType(e.target.value)} 
-                    className="w-full bg-primary/5 border-primary/20 dark:bg-gray-800 text-sm pl-9 pr-3.5 py-3.5 rounded-lg focus:ring-2 focus:ring-primary font-mono outline-none" 
-                    placeholder="Ex: Guest Lecture"
-                  />
-                </div>
+            <button type="button" onClick={addTeamMember} className="w-full bg-blueprint-blue text-white py-3 rounded-xl hover:bg-blue-900 transition-all font-black uppercase text-[10px] flex items-center justify-center gap-2">
+              <UserPlus size={14} /> Add Member
+            </button>
+          </div>
+          <div className="space-y-2">
+            {formData.team_members.map((member, i) => (
+              <div key={i} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-lg shadow-sm">
+                <div className="text-[10px]"><p className="font-black text-slate-800 uppercase">{member.name} ({member.year}Y)</p><p className="text-slate-500 font-mono">ID: {member.register_no}</p></div>
+                <button type="button" onClick={() => removeTeamMember(i)} className="text-red-400 p-1"><Trash2 size={16} /></button>
               </div>
-            )}
-
-            {/* Fix: Added End Date input field to support date ranges for technical events */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:col-span-2">
-              <div>
-                <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase mb-1.5 ml-1">Start Date</label>
-                <div className="relative">
-                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                  <input name="event_date" required type="date" value={formData.event_date} onChange={handleInputChange} className="w-full bg-gray-100 dark:bg-gray-800 text-sm pl-10 pr-3.5 py-3.5 rounded-lg steel-border input-inset font-mono outline-none" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase mb-1.5 ml-1">End Date (Optional)</label>
-                <div className="relative">
-                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                  <input name="event_end_date" type="date" value={formData.event_end_date} onChange={handleInputChange} className="w-full bg-gray-100 dark:bg-gray-800 text-sm pl-10 pr-3.5 py-3.5 rounded-lg steel-border input-inset font-mono outline-none" />
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase mb-1.5 ml-1">College / Organization Name</label>
-              <input 
-                name="organization_name" 
-                required 
-                value={formData.organization_name} 
-                onChange={handleInputChange} 
-                className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg steel-border input-inset font-mono outline-none" 
-                placeholder="Ex: Anna University"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase mb-1.5 ml-1">College / Organization Location</label>
-              <div className="relative">
-                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                <input 
-                  name="organization_location" 
-                  required 
-                  value={formData.organization_location} 
-                  onChange={handleInputChange} 
-                  className="w-full bg-gray-100 dark:bg-gray-800 text-sm pl-10 pr-3.5 py-3.5 rounded-lg steel-border input-inset font-mono outline-none" 
-                  placeholder="Ex: Guindy, Chennai"
-                />
-              </div>
-            </div>
+            ))}
           </div>
         </div>
 
         <div className="space-y-4 pt-2">
-          <div className="flex items-center gap-3">
-            <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] font-mono">03 DOCUMENTATION</h2>
-            <div className="h-px bg-gray-300 dark:bg-gray-600 flex-grow"></div>
+          <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] font-mono">02 SPECIFICATIONS</h2>
+          <input name="event_title" required value={formData.event_title} onChange={handleInputChange} className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg border-2 border-slate-200 outline-none font-mono" placeholder="Event Title" />
+          <div className="grid grid-cols-2 gap-4">
+            <select name="event_type" value={formData.event_type} onChange={handleInputChange} className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg border-2 border-slate-200 outline-none">
+              <option value="Symposium">Symposium</option>
+              <option value="Workshop">Workshop</option>
+              <option value="Paper Presentation">Paper Presentation</option>
+              <option value="Other">Other</option>
+            </select>
+            <input name="organization_name" required value={formData.organization_name} onChange={handleInputChange} className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg border-2 border-slate-200 outline-none" placeholder="Organization" />
           </div>
+        </div>
 
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <label className="block text-[10px] font-black text-gray-500 uppercase ml-1">Event Poster (Mandatory for Preview)</label>
-              <label className={`relative w-full h-24 rounded-lg border-2 border-dashed flex flex-col items-center justify-center transition-all cursor-pointer ${posterFile ? 'border-primary bg-primary/5' : 'border-gray-400 bg-gray-200/50 hover:border-primary'}`}>
-                <span className={`material-symbols-outlined text-3xl mb-1 ${posterFile ? 'text-primary' : 'text-gray-400'}`}>
-                  {posterFile ? 'image' : 'add_photo_alternate'}
-                </span>
-                <span className="text-[10px] font-bold uppercase truncate px-4">{posterFile ? posterFile.name : 'Upload Event Poster (JPG/PNG)'}</span>
+        <div className="space-y-4 pt-2 pb-8">
+           <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] font-mono">03 DOCUMENTATION</h2>
+           <div className="grid grid-cols-2 gap-4">
+             <label className={`h-24 border-2 border-dashed rounded-xl flex flex-col items-center justify-center cursor-pointer transition-all ${posterFile ? 'border-primary bg-primary/5' : 'border-gray-400 bg-white'}`}>
+                <ImageIcon size={20} className={posterFile ? 'text-primary' : 'text-gray-400'} />
+                <span className="text-[8px] font-bold uppercase mt-1 px-2 truncate w-full text-center">{posterFile ? posterFile.name : 'Event Poster'}</span>
                 <input type="file" className="sr-only" accept="image/*" onChange={(e) => handleFileChange(e, setPosterFile)} />
-              </label>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="block text-[10px] font-black text-gray-500 uppercase ml-1">Registration Proof *</label>
-                <label className={`relative w-full h-24 rounded-lg border-2 border-dashed flex flex-col items-center justify-center transition-all cursor-pointer ${regFile ? 'border-primary bg-primary/5' : 'border-gray-400 bg-gray-200/50 hover:border-primary'}`}>
-                  <span className={`material-symbols-outlined text-2xl ${regFile ? 'text-primary' : 'text-gray-400'}`}>description</span>
-                  <span className="text-[10px] font-bold uppercase truncate px-2">{regFile ? regFile.name : 'Upload PDF/Image'}</span>
-                  <input type="file" className="sr-only" accept=".pdf,image/*" onChange={(e) => handleFileChange(e, setRegFile)} />
-                </label>
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-[10px] font-black text-gray-400 uppercase ml-1">Payment Receipt (Optional)</label>
-                <label className={`relative w-full h-24 rounded-lg border-2 border-dashed flex flex-col items-center justify-center transition-all cursor-pointer ${payFile ? 'border-primary bg-primary/5' : 'border-gray-400 bg-gray-200/50 hover:border-primary'}`}>
-                  <span className={`material-symbols-outlined text-2xl ${payFile ? 'text-primary' : 'text-gray-400'}`}>payments</span>
-                  <span className="text-[10px] font-bold uppercase truncate px-2">{payFile ? payFile.name : 'Upload Receipt'}</span>
-                  <input type="file" className="sr-only" accept=".pdf,image/*" onChange={(e) => handleFileChange(e, setPayFile)} />
-                </label>
-              </div>
-            </div>
-          </div>
+             </label>
+             <label className={`h-24 border-2 border-dashed rounded-xl flex flex-col items-center justify-center cursor-pointer transition-all ${regFile ? 'border-primary bg-primary/5' : 'border-gray-400 bg-white'}`}>
+                <FileText size={20} className={regFile ? 'text-primary' : 'text-gray-400'} />
+                <span className="text-[8px] font-bold uppercase mt-1 px-2 truncate w-full text-center">{regFile ? regFile.name : 'Reg Proof'}</span>
+                <input type="file" className="sr-only" accept=".pdf,image/*" onChange={(e) => handleFileChange(e, setRegFile)} />
+             </label>
+           </div>
         </div>
 
-        <div className="pt-6 pb-2">
-          {error && (
-            <div className="mb-4 bg-red-50 text-red-600 p-4 rounded-lg border border-red-200 text-xs font-mono">
-              <p className="font-bold uppercase tracking-widest">Error</p>
-              <p>{error}</p>
-            </div>
-          )}
-          
-          <button 
-            type="submit"
-            disabled={loading || !profile.signature_url}
-            className="w-full bg-primary hover:bg-primary-dark text-white font-black py-5 px-8 rounded-xl shadow-xl transform active:scale-[0.97] transition-all disabled:opacity-50"
-          >
-            {loading ? <Loader2 className="animate-spin mx-auto" /> : <span className="tracking-widest uppercase">Transmit OD Request</span>}
-          </button>
-        </div>
+        {error && <div className="bg-red-50 text-red-600 p-4 rounded-lg border border-red-200 text-xs font-mono">{error}</div>}
+        <button type="submit" disabled={loading} className="w-full bg-blueprint-blue hover:bg-blue-900 text-white font-black py-5 px-8 rounded-xl shadow-xl transition-all disabled:opacity-50 uppercase tracking-widest text-xs">
+          {loading ? <Loader2 className="animate-spin mx-auto" /> : 'Transmit OD Request'}
+        </button>
       </form>
     </div>
   );

@@ -1,3 +1,4 @@
+
 export type ODStatus = 'Pending' | 'Approved' | 'Rejected' | 'Completed';
 export type UserRole = 'student' | 'faculty';
 
@@ -20,7 +21,6 @@ export interface TeamMember {
   register_no: string;
   roll_no: string;
   year: string;
-  signature_url?: string | null;
 }
 
 export interface ODRequest {
@@ -38,15 +38,19 @@ export interface ODRequest {
   organization_location: string;
   event_type: string;
   event_date: string;
-  // Fix: Added missing event_end_date property to match usage in pdfService and other components
   event_end_date: string | null;
   status: ODStatus;
   registration_proof_url: string | null;
   payment_proof_url: string | null;
   event_poster_url: string | null;
   od_letter_url: string | null;
+  // Legacy single fields (kept for compatibility)
   geotag_photo_url: string | null;
   certificate_url: string | null;
+  // New plural fields for multiple evidence
+  geotag_photo_urls: string[] | null;
+  certificate_urls: string[] | null;
+  prize_certificate_urls: string[] | null;
   remarks: string | null;
   team_members: TeamMember[] | null;
 }
@@ -63,7 +67,6 @@ export interface SubmissionFormData {
   organization_location: string;
   event_type: string;
   event_date: string;
-  // Fix: Added missing event_end_date property to support multi-day events in the submission form
   event_end_date: string;
   team_members: TeamMember[];
 }

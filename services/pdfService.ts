@@ -1,4 +1,3 @@
-
 import { jsPDF } from 'jspdf';
 import { ODRequest, Profile, TeamMember } from '../types';
 
@@ -27,163 +26,173 @@ const formatFullDate = (dateStr: string) => {
 };
 
 const getOrdinalYear = (year: string) => {
-  switch (year) {
+  const y = String(year);
+  switch (y) {
     case '1': return '1st Year';
     case '2': return '2nd Year';
     case '3': return '3rd Year';
     case '4': return '4th Year';
-    default: return `${year} Year`;
+    default: return `${y} Year`;
   }
 };
 
 /**
- * Generates the professional OD letter.
- * Handles signatures for Lead and all Team Members.
+ * Generates the professional OD letter with robust multi-student participant logic.
+ * Constraints: Lead student and additional team members are aggregated and used for grammar logic.
+ * Enforced: Strictly single-page output.
  */
 export const generateODDocument = async (request: ODRequest, studentProfile: Profile, facultyProfile?: Profile): Promise<Blob> => {
-  const doc = new jsPDF();
-  doc.setFont('times', 'normal');
+  const PAGE_WIDTH = 210;
+  const MARGIN = 20;
+  const CONTENT_WIDTH = PAGE_WIDTH - (MARGIN * 2);
   
-  // Header
-  doc.setFontSize(14);
-  doc.setFont(undefined, 'bold');
-  doc.text('ERODE SENGUNTHAR ENGINEERING COLLEGE', 105, 15, { align: 'center' });
-  doc.setFontSize(10);
-  doc.text('ERODE - 638057', 105, 20, { align: 'center' });
-  doc.line(20, 23, 190, 23);
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4'
+  });
+  
+  let currentY = MARGIN;
 
-  let y = 35;
-  const leftMargin = 20;
-
-  // Parse team members (defensive against string/object differences in some DB versions)
+  // --- 1. Participant List Aggregation ---
   const teamMembersRaw = request.team_members;
   const teamMembers: TeamMember[] = Array.isArray(teamMembersRaw) 
     ? teamMembersRaw 
     : (typeof teamMembersRaw === 'string' ? JSON.parse(teamMembersRaw) : []);
 
-  // From Section
-  doc.setFontSize(12);
-  doc.setFont(undefined, 'normal');
-  doc.text('From:', leftMargin, y); y += 7;
+  const allParticipants = [
+    { name: request.student_name, year: request.year },
+    ...teamMembers.map(m => ({ name: m.name, year: m.year }))
+  ];
+
+  doc.setFont('times', 'normal');
   
-  // Lead Student
-  doc.text(`${request.student_name} (${getOrdinalYear(request.year)})`, leftMargin, y); y += 7;
-  
-  // List other members in header
-  if (teamMembers.length > 0) {
-    teamMembers.forEach(member => {
-       doc.text(`${member.name} (${getOrdinalYear(member.year)})`, leftMargin, y); y += 7;
-    });
-  }
+  // --- Page Border ---
+  doc.setDrawColor(80, 80, 80);
+  doc.setLineWidth(0.3);
+  doc.rect(10, 10, 190, 277);
 
-  doc.text('Civil Engineering Department,', leftMargin, y); y += 7;
-  doc.text('Erode Sengunthar Engineering College,', leftMargin, y); y += 7;
-  doc.text('Erode, 638057.', leftMargin, y); y += 15;
-
-  // To Section
-  doc.text('To:', leftMargin, y); y += 7;
-  doc.text('The Advisor,', leftMargin, y); y += 7;
-  doc.text('Civil Engineering Department,', leftMargin, y); y += 7;
-  doc.text('Erode Sengunthar Engineering College.', leftMargin, y); y += 15;
-
-  // Subject
+  // --- Header Section ---
+  doc.setFontSize(14);
   doc.setFont(undefined, 'bold');
-  const subjectText = `Subject: Request for on-duty for ${request.event_type} - ${request.event_title} in ${request.organization_name}`;
-  const splitSubject = doc.splitTextToSize(subjectText, 170);
-  doc.text(splitSubject, leftMargin, y); 
-  y += (splitSubject.length * 7) + 10;
+  doc.text('ERODE SENGUNTHAR ENGINEERING COLLEGE', 105, currentY + 5, { align: 'center' });
+  currentY += 10;
+  
+  doc.setFontSize(10);
   doc.setFont(undefined, 'normal');
-
-  // Salutation
-  doc.text('Respected Sir/Mam,', leftMargin, y); y += 12;
-
-  // Body
-  const teamLeadStr = `${request.student_name} (${getOrdinalYear(request.year)})`;
-  const othersStr = teamMembers.length > 0 
-    ? " and " + teamMembers.map(m => `${m.name} (${getOrdinalYear(m.year)})`).join(', ') 
-    : "";
+  doc.text('(An Autonomous Institution)', 105, currentY, { align: 'center' });
+  currentY += 5;
+  doc.text('ERODE - 638057', 105, currentY, { align: 'center' });
+  currentY += 5;
   
-  const startDateStr = formatFullDate(request.event_date);
-  const endDateStr = request.event_end_date ? formatFullDate(request.event_end_date) : startDateStr;
+  doc.setLineWidth(0.5);
+  doc.line(MARGIN, currentY, PAGE_WIDTH - MARGIN, currentY);
+  currentY += 15;
+
+  // --- 2. 'From' Section Logic ---
+  doc.setFontSize(12);
+  doc.setFont(undefined, 'bold');
+  doc.text('From:', MARGIN, currentY); 
+  currentY += 7;
+  doc.setFont(undefined, 'normal');
   
-  let dateRangeText = "";
-  if (startDateStr === endDateStr) {
-    dateRangeText = `on ${startDateStr}`;
-  } else {
-    dateRangeText = `from ${startDateStr} to ${endDateStr}`;
-  }
+  const namesByYear: { [key: string]: string[] } = {};
+  allParticipants.forEach(p => {
+    const yr = getOrdinalYear(p.year);
+    if (!namesByYear[yr]) namesByYear[yr] = [];
+    namesByYear[yr].push(p.name);
+  });
+
+  Object.entries(namesByYear).forEach(([year, names]) => {
+    const line = `${names.join(', ')} (${year})`;
+    const splitLine = doc.splitTextToSize(line, CONTENT_WIDTH);
+    doc.text(splitLine, MARGIN, currentY);
+    currentY += (splitLine.length * 6);
+  });
+
+  doc.text('Civil Engineering Department,', MARGIN, currentY); currentY += 6;
+  doc.text('Erode Sengunthar Engineering College,', MARGIN, currentY); currentY += 6;
+  doc.text('Erode, 638057.', MARGIN, currentY); currentY += 15;
+
+  // --- To Section ---
+  doc.setFont(undefined, 'bold');
+  doc.text('To:', MARGIN, currentY); currentY += 7;
+  doc.setFont(undefined, 'normal');
+  doc.text('The Advisor,', MARGIN, currentY); currentY += 6;
+  doc.text('Civil Engineering Department,', MARGIN, currentY); currentY += 6;
+  doc.text('Erode Sengunthar Engineering College.', MARGIN, currentY); currentY += 15;
+
+  // --- Subject Section ---
+  doc.setFont(undefined, 'bold');
+  const subjectLine = `Subject: Request for on-duty for ${request.event_type} - ${request.event_title} at ${request.organization_name}`;
+  const splitSubject = doc.splitTextToSize(subjectLine, CONTENT_WIDTH);
+  doc.text(splitSubject, MARGIN, currentY); 
+  currentY += (splitSubject.length * 6) + 12;
+
+  // --- Salutation ---
+  doc.setFont(undefined, 'normal');
+  doc.text('Respected Sir/Mam,', MARGIN, currentY); currentY += 10;
+
+  // --- 3. Grammatical Switching & Body Construction ---
+  const participantNames = allParticipants.map(p => p.name);
+  const formattedNames = participantNames.length > 1 
+    ? participantNames.slice(0, -1).join(', ') + ' and ' + participantNames.slice(-1)
+    : participantNames[0];
+
+  const pronoun = allParticipants.length > 1 ? "We" : "I";
+  const identityPhrase = allParticipants.length > 1 ? "are students" : "am a student";
+  const requestPhrase = allParticipants.length > 1 ? "request you to allow us" : "request you to allow me";
   
-  const bodyText = `I/We, ${teamLeadStr}${othersStr}, are students of the Civil Engineering department. We wish to participate in the ${request.event_type} titled "${request.event_title}" organized by ${request.organization_name} ${dateRangeText}. Hence, we kindly request you to grant us On-Duty (OD) permission to attend this technical event.`;
+  const eventDateFormatted = formatFullDate(request.event_date);
+  const eventEndDateFormatted = request.event_end_date ? formatFullDate(request.event_end_date) : '';
+  const dateRangeStr = (request.event_end_date && request.event_end_date !== request.event_date)
+    ? `from ${eventDateFormatted} to ${eventEndDateFormatted}`
+    : `on ${eventDateFormatted}`;
   
-  const splitBody = doc.splitTextToSize(bodyText, 170);
-  doc.text(splitBody, leftMargin, y);
-  y += (splitBody.length * 7) + 15;
+  const bodyText = `${pronoun}, ${formattedNames}, ${identityPhrase} of the Civil Engineering department. ${pronoun} wish to participate in the ${request.event_type} titled "${request.event_title}" organized by ${request.organization_name} ${dateRangeStr}. Hence, ${pronoun.toLowerCase()} kindly ${requestPhrase} to attend this technical event and grant On-Duty (OD) permission for the same.`;
+  
+  const splitBody = doc.splitTextToSize(bodyText, CONTENT_WIDTH);
+  doc.text(splitBody, MARGIN, currentY);
+  currentY += (splitBody.length * 7) + 15;
 
-  doc.text('Thanking You,', leftMargin, y); y += 10;
-  doc.text('Yours faithfully,', leftMargin, y); y += 10;
+  doc.text('Thanking You,', MARGIN, currentY); currentY += 10;
+  doc.text('Yours faithfully,', MARGIN, currentY); currentY += 20;
 
-  // Lead Student Signature
-  const startSigY = y;
-  let currentSigY = startSigY;
+  // --- Footer Signature Section (Strictly single-page) ---
+  const signatureX = PAGE_WIDTH - MARGIN - 60;
 
-  // Check studentProfile.signature_url OR request.remarks (where lead signature is stored)
-  const leadSigUrl = studentProfile.signature_url || request.remarks;
-  if (leadSigUrl) {
-    const sigImg = await loadImage(leadSigUrl);
-    if (sigImg) {
-      doc.addImage(sigImg, 'PNG', leftMargin, currentSigY, 40, 15, undefined, 'FAST');
-    }
-  }
-  doc.text('__________________________', leftMargin, currentSigY + 20);
-  doc.text(`${request.student_name} (Lead)`, leftMargin, currentSigY + 25);
-  currentSigY += 35;
-
-  // Additional Member Signatures
-  if (teamMembers.length > 0) {
-    for (const member of teamMembers) {
-      if (currentSigY > 260) {
-        doc.addPage();
-        currentSigY = 20;
-      }
-      
-      if (member.signature_url) {
-        const mSigImg = await loadImage(member.signature_url);
-        if (mSigImg) {
-          doc.addImage(mSigImg, 'PNG', leftMargin, currentSigY, 40, 15, undefined, 'FAST');
-        }
-      }
-      doc.text('__________________________', leftMargin, currentSigY + 20);
-      doc.text(`${member.name} (Member)`, leftMargin, currentSigY + 25);
-      currentSigY += 35;
-    }
-  }
-
-  // Faculty Signature (If Approved)
   if (facultyProfile && facultyProfile.signature_url) {
-    const facX = 130;
-    // Align with the bottom of the signature list, or if only lead, align with lead.
-    // However, faculty usually sign at a fixed spot or after the last student.
-    // Let's place it to the right of the Lead signature start for standard format.
-    const facY = startSigY; 
-    
     const facSigImg = await loadImage(facultyProfile.signature_url);
     if (facSigImg) {
-      doc.addImage(facSigImg, 'PNG', facX, facY, 40, 15, undefined, 'FAST');
+      doc.addImage(facSigImg, 'PNG', signatureX, currentY, 40, 15, undefined, 'FAST');
     }
-    doc.text('__________________________', facX, facY + 20);
-    doc.text('(Faculty Advisor Signature)', facX, facY + 25);
-    
-    // Add "Approved" Stamp
+    currentY += 20;
     doc.setFont(undefined, 'bold');
-    doc.setTextColor(0, 100, 0); 
-    doc.text('APPROVED', 105, facY + 40, { align: 'center' });
+    doc.text(`${facultyProfile.full_name}`, signatureX, currentY);
+    currentY += 5;
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
+    // REMOVED / HOD as requested
+    doc.text('Faculty Advisor', signatureX, currentY);
+
+    // Approval Stamp
+    doc.setFontSize(24);
+    doc.setTextColor(34, 197, 94); // Green-500
+    doc.setFont(undefined, 'bold');
+    doc.text('APPROVED', 150, currentY - 5, { angle: 15 });
     doc.setTextColor(0, 0, 0);
+  } else {
+    // Placeholder for Requisition phase
+    doc.setFontSize(10);
+    doc.text('__________________________', signatureX, currentY + 20);
+    doc.text('Faculty Advisor', signatureX, currentY + 25);
   }
 
-  // Footer
+  // --- Footer Metadata ---
+  doc.setFont('times', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(150, 150, 150);
-  doc.text('This is an electronically signed document generated by CivLog OD-Track System.', 105, 285, { align: 'center' });
+  doc.text('Digitally generated by CivLog OS Terminal. Faculty authorization required for final validity.', 105, 282, { align: 'center' });
 
   return doc.output('blob');
 };

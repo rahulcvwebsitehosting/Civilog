@@ -12,9 +12,10 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
   const [requests, setRequests] = useState<ODRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [uploadState, setUploadState] = useState<{ id: string | null; type: 'photo' | 'certificate' | null }>({
+  const [uploadState, setUploadState] = useState<{ id: string | null; type: string | null; index: number | null }>({
     id: null,
-    type: null
+    type: null,
+    index: null
   });
 
   const fetchRequests = async () => {
@@ -33,22 +34,26 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
     fetchRequests();
   }, [profile.id]);
 
-  const handleDelete = async (id: string) => {
-    // Explicitly add user_id check to ensure RLS compliance
+  const handleDelete = async (request: ODRequest) => {
+    if (request.status === 'Approved' || request.status === 'Completed') {
+      alert("Structural Violation: Authorized logs cannot be deleted from the central registry.");
+      return;
+    }
+
     const { error } = await supabase
       .from('od_requests')
       .delete()
-      .eq('id', id)
+      .eq('id', request.id)
       .eq('user_id', profile.id);
 
     if (error) {
       alert('Structural failure during deletion: ' + error.message);
     } else {
-      setRequests(prev => prev.filter(r => r.id !== id));
+      setRequests(prev => prev.filter(r => r.id !== request.id));
     }
   };
 
-  const handleEvidenceUpload = async (request: ODRequest, type: 'photo' | 'certificate') => {
+  const handleEvidenceUpload = async (request: ODRequest, type: 'photo' | 'certificate' | 'prize', index: number = 0) => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = type === 'photo' ? 'image/*' : '*/*';
@@ -57,7 +62,7 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
       const file = e.target.files[0];
       if (!file) return;
 
-      setUploadState({ id: request.id, type });
+      setUploadState({ id: request.id, type, index });
       try {
         if (type === 'photo') {
           const metadata = await exifr.gps(file);
@@ -66,7 +71,7 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
           }
         }
 
-        const fileName = `${Date.now()}_${type}_${profile.id}.${file.name.split('.').pop()}`;
+        const fileName = `${Date.now()}_${type}_idx${index}_${profile.id}.${file.name.split('.').pop()}`;
         const { error: uploadError } = await supabase.storage
           .from('od-files')
           .upload(`evidence/${fileName}`, file);
@@ -78,11 +83,35 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
           .getPublicUrl(`evidence/${fileName}`);
 
         const updates: any = {};
-        if (type === 'photo') updates.geotag_photo_url = publicUrl;
-        else updates.certificate_url = publicUrl;
+        
+        if (type === 'photo') {
+          const current = request.geotag_photo_urls || [];
+          const next = [...current];
+          next[index] = publicUrl;
+          updates.geotag_photo_urls = next;
+          // Sync legacy field for compatibility if first slot
+          if (index === 0) updates.geotag_photo_url = publicUrl;
+        } else if (type === 'certificate') {
+          const current = request.certificate_urls || [];
+          const next = [...current];
+          next[index] = publicUrl;
+          updates.certificate_urls = next;
+          // Sync legacy field if first slot
+          if (index === 0) updates.certificate_url = publicUrl;
+        } else if (type === 'prize') {
+          const current = request.prize_certificate_urls || [];
+          const next = [...current];
+          next[index] = publicUrl;
+          updates.prize_certificate_urls = next;
+        }
 
-        const isBothNow = (type === 'photo' && request.certificate_url) || (type === 'certificate' && request.geotag_photo_url);
-        if (isBothNow) updates.status = 'Completed';
+        // Auto-complete logic: at least one photo and one certificate required
+        const hasPhoto = (type === 'photo') || (request.geotag_photo_urls && request.geotag_photo_urls.length > 0);
+        const hasCert = (type === 'certificate') || (request.certificate_urls && request.certificate_urls.length > 0);
+        
+        if (hasPhoto && hasCert) {
+          updates.status = 'Completed';
+        }
 
         const { error: dbError } = await supabase
           .from('od_requests')
@@ -95,7 +124,7 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
       } catch (err: any) {
         alert(err.message || 'Error uploading evidence');
       } finally {
-        setUploadState({ id: null, type: null });
+        setUploadState({ id: null, type: null, index: null });
       }
     };
     
@@ -155,10 +184,11 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
             <FeedCard 
               key={request.id} 
               request={request}
-              onUploadEvidence={(type) => handleEvidenceUpload(request, type)}
-              onDelete={handleDelete}
+              onUploadEvidence={(type, idx) => handleEvidenceUpload(request, type, idx)}
+              onDelete={() => handleDelete(request)}
               isUploading={uploadState.id === request.id}
               uploadType={uploadState.type || undefined}
+              uploadIndex={uploadState.index || undefined}
               currentUserId={profile.id}
             />
           ))}

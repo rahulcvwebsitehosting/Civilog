@@ -1,16 +1,17 @@
 
 import React, { useState } from 'react';
 import { ODRequest, ODStatus } from '../types';
-import { Trash2, Users, FileText, MapPin, Image as ImageIcon, ExternalLink, Phone, CreditCard, X, Download, CheckCircle, XCircle, Loader2, Calendar } from 'lucide-react';
+import { Trash2, Users, FileText, MapPin, Image as ImageIcon, ExternalLink, Phone, CreditCard, X, Download, CheckCircle, XCircle, Loader2, Calendar, Award, Trophy, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface FeedCardProps {
   request: ODRequest;
-  onUploadEvidence?: (type: 'photo' | 'certificate') => void;
+  onUploadEvidence?: (type: 'photo' | 'certificate' | 'prize', index: number) => void;
   onDelete?: (id: string) => void;
   onApprove?: (req: ODRequest) => void;
   onReject?: (req: ODRequest) => void;
   isUploading?: boolean;
-  uploadType?: 'photo' | 'certificate';
+  uploadType?: string;
+  uploadIndex?: number;
   currentUserId?: string;
   isFaculty?: boolean;
   isProcessing?: boolean;
@@ -65,11 +66,13 @@ const FeedCard: React.FC<FeedCardProps> = ({
   onReject,
   isUploading, 
   uploadType, 
+  uploadIndex,
   currentUserId,
   isFaculty,
   isProcessing
 }) => {
   const [previewImage, setPreviewImage] = useState<{ url: string, label: string } | null>(null);
+  const [showEvidenceSlots, setShowEvidenceSlots] = useState(false);
 
   const getStatusColor = (status: ODStatus) => {
     switch (status) {
@@ -102,12 +105,24 @@ const FeedCard: React.FC<FeedCardProps> = ({
 
   const firstLetter = request.student_name?.charAt(0).toUpperCase() || '?';
 
-  const previews = [
-    { url: request.event_poster_url, label: 'Poster', icon: <ImageIcon size={14} /> },
-    { url: request.geotag_photo_url, label: 'Field', icon: <MapPin size={14} /> },
-    { url: request.registration_proof_url, label: 'Reg', icon: <FileText size={14} /> },
-    { url: request.payment_proof_url, label: 'Receipt', icon: <CreditCard size={14} /> }
-  ].filter(p => p.url !== null);
+  // Aggregate all previews from arrays
+  const previews: {url: string, label: string, icon: any}[] = [];
+  if (request.event_poster_url) previews.push({ url: request.event_poster_url, label: 'Poster', icon: <ImageIcon size={14} /> });
+  
+  (request.geotag_photo_urls || []).forEach((url, i) => {
+    if (url) previews.push({ url, label: `Field ${i+1}`, icon: <MapPin size={14} /> });
+  });
+  
+  (request.certificate_urls || []).forEach((url, i) => {
+    if (url) previews.push({ url, label: `Cert ${i+1}`, icon: <Award size={14} /> });
+  });
+  
+  (request.prize_certificate_urls || []).forEach((url, i) => {
+    if (url) previews.push({ url, label: `Prize ${i+1}`, icon: <Trophy size={14} /> });
+  });
+
+  if (request.registration_proof_url) previews.push({ url: request.registration_proof_url, label: 'Reg', icon: <FileText size={14} /> });
+  if (request.payment_proof_url) previews.push({ url: request.payment_proof_url, label: 'Receipt', icon: <CreditCard size={14} /> });
 
   const handlePreviewClick = (url: string, label: string) => {
     if (isPdf(url)) {
@@ -116,6 +131,12 @@ const FeedCard: React.FC<FeedCardProps> = ({
       setPreviewImage({ url, label });
     }
   };
+
+  const dateDisplay = (request.event_end_date && request.event_end_date !== request.event_date)
+    ? `${request.event_date} - ${request.event_end_date}`
+    : request.event_date;
+
+  const canDelete = !isFaculty && currentUserId === request.user_id && (request.status === 'Pending' || request.status === 'Rejected');
 
   return (
     <>
@@ -150,7 +171,7 @@ const FeedCard: React.FC<FeedCardProps> = ({
             </div>
             <div className="flex items-center gap-3">
               <span className="text-[10px] text-gray-400 font-technical uppercase shrink-0 font-bold">{timeAgo(request.created_at)}</span>
-              {!isFaculty && currentUserId === request.user_id && onDelete && (
+              {canDelete && onDelete && (
                 <button 
                   onClick={(e) => {
                     e.stopPropagation();
@@ -179,12 +200,7 @@ const FeedCard: React.FC<FeedCardProps> = ({
               )}
               <div className="text-[11px] font-bold text-slate-600 mt-1 uppercase flex items-center gap-1.5">
                 <Calendar size={12} className="text-blueprint-blue" />
-                Schedule: <span className="font-technical text-[12px] font-black">
-                  {request.event_date === request.event_end_date || !request.event_end_date 
-                    ? request.event_date 
-                    : `${request.event_date} to ${request.event_end_date}`
-                  }
-                </span>
+                Scheduled: <span className="font-technical text-[12px] font-black">{dateDisplay}</span>
               </div>
             </div>
             
@@ -209,30 +225,26 @@ const FeedCard: React.FC<FeedCardProps> = ({
           </div>
         </div>
 
-        <div className={`relative w-full bg-slate-100 border-y border-slate-100 aspect-[16/10] overflow-hidden flex gap-0.5 p-0.5 ${previews.length === 0 ? 'items-center justify-center' : ''}`}>
+        {/* Assets Grid */}
+        <div className={`relative w-full bg-slate-100 border-y border-slate-100 aspect-[16/10] overflow-hidden grid grid-cols-2 sm:grid-cols-3 gap-0.5 p-0.5 ${previews.length === 0 ? 'items-center justify-center flex' : ''}`}>
           {previews.length === 0 ? (
-            <div className="flex flex-col items-center justify-center text-slate-300 w-full">
+            <div className="flex flex-col items-center justify-center text-slate-300 w-full col-span-full">
                <span className="material-symbols-outlined text-5xl mb-1">image_not_supported</span>
                <span className="text-[10px] font-technical uppercase font-bold">Waiting for field assets</span>
             </div>
           ) : (
             previews.map((item, idx) => {
               const isDoc = isPdf(item.url);
-              let itemWidth = 'w-full';
-              if (previews.length === 2) itemWidth = 'w-1/2';
-              else if (previews.length === 3) itemWidth = 'w-1/3';
-              else if (previews.length >= 4) itemWidth = 'w-1/4';
-
               return (
                 <div 
                   key={idx} 
-                  className={`relative overflow-hidden group cursor-pointer h-full transition-all duration-500 ease-in-out hover:z-10 ${itemWidth}`}
+                  className={`relative overflow-hidden group cursor-pointer h-full transition-all duration-500 ease-in-out hover:z-10`}
                   onClick={() => handlePreviewClick(item.url!, item.label)}
                 >
                   {isDoc ? (
                     <div className="w-full h-full bg-slate-200 flex flex-col items-center justify-center text-slate-400 group-hover:bg-slate-300 transition-colors">
                       <span className="material-symbols-outlined text-4xl mb-2">picture_as_pdf</span>
-                      <span className="text-[9px] font-black uppercase tracking-widest">View PDF Document</span>
+                      <span className="text-[9px] font-black uppercase tracking-widest">{item.label}</span>
                     </div>
                   ) : (
                     <img 
@@ -261,6 +273,103 @@ const FeedCard: React.FC<FeedCardProps> = ({
           )}
         </div>
 
+        {/* Evidence Upload Section for Students */}
+        {!isFaculty && (request.status === 'Approved' || request.status === 'Completed') && onUploadEvidence && (
+          <div className="border-t border-slate-100 bg-slate-50/50">
+            <button 
+              onClick={() => setShowEvidenceSlots(!showEvidenceSlots)}
+              className="w-full px-5 py-3 flex items-center justify-between text-[10px] font-black uppercase tracking-[0.2em] text-blueprint-blue hover:bg-slate-100 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <FileText size={14} /> Field Evidence & Verification Logs
+              </div>
+              {showEvidenceSlots ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </button>
+            
+            {showEvidenceSlots && (
+              <div className="p-5 pt-0 space-y-6 animate-in slide-in-from-top-2 duration-300">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* GeoTags Slots */}
+                  <div className="space-y-3">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Geotagged Photos (3 slots)</p>
+                    <div className="flex gap-2">
+                      {[0, 1, 2].map(idx => (
+                        <button
+                          key={idx}
+                          onClick={() => onUploadEvidence('photo', idx)}
+                          disabled={isUploading}
+                          className={`flex-1 h-12 rounded-xl border-2 border-dashed flex items-center justify-center transition-all ${
+                            request.geotag_photo_urls?.[idx] 
+                              ? 'border-green-200 bg-green-50 text-green-600' 
+                              : 'border-slate-200 bg-white text-slate-300 hover:border-blueprint-blue hover:text-blueprint-blue'
+                          }`}
+                        >
+                          {isUploading && uploadType === 'photo' && uploadIndex === idx ? (
+                            <Loader2 size={16} className="animate-spin" />
+                          ) : request.geotag_photo_urls?.[idx] ? (
+                            <CheckCircle size={16} />
+                          ) : (
+                            <MapPin size={16} />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Certificates Slots */}
+                  <div className="space-y-3">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Participation Certs (3 slots)</p>
+                    <div className="flex gap-2">
+                      {[0, 1, 2].map(idx => (
+                        <button
+                          key={idx}
+                          onClick={() => onUploadEvidence('certificate', idx)}
+                          disabled={isUploading}
+                          className={`flex-1 h-12 rounded-xl border-2 border-dashed flex items-center justify-center transition-all ${
+                            request.certificate_urls?.[idx] 
+                              ? 'border-blue-200 bg-blue-50 text-blue-600' 
+                              : 'border-slate-200 bg-white text-slate-300 hover:border-blueprint-blue hover:text-blueprint-blue'
+                          }`}
+                        >
+                          {isUploading && uploadType === 'certificate' && uploadIndex === idx ? (
+                            <Loader2 size={16} className="animate-spin" />
+                          ) : request.certificate_urls?.[idx] ? (
+                            <CheckCircle size={16} />
+                          ) : (
+                            <Award size={16} />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Prize Slot */}
+                  <div className="space-y-3">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Prize Certificate (Optional)</p>
+                    <button
+                      onClick={() => onUploadEvidence('prize', 0)}
+                      disabled={isUploading}
+                      className={`w-full h-12 rounded-xl border-2 border-dashed flex items-center justify-center transition-all ${
+                        request.prize_certificate_urls?.[0] 
+                          ? 'border-amber-200 bg-amber-50 text-amber-600' 
+                          : 'border-slate-200 bg-white text-slate-300 hover:border-primary hover:text-primary'
+                      }`}
+                    >
+                      {isUploading && uploadType === 'prize' ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : request.prize_certificate_urls?.[0] ? (
+                        <div className="flex items-center gap-2 text-[10px] font-black uppercase"><Trophy size={16} /> Prize Won!</div>
+                      ) : (
+                        <div className="flex items-center gap-2 text-[10px] font-black uppercase"><Trophy size={16} /> Merit/Prize</div>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="px-5 py-4 flex flex-col sm:flex-row items-center justify-between border-t border-slate-50 bg-slate-50/50 gap-4">
           <div className="flex flex-wrap gap-x-6 gap-y-3 w-full sm:w-auto">
             {request.od_letter_url && (
@@ -273,18 +382,8 @@ const FeedCard: React.FC<FeedCardProps> = ({
                 <span className="material-symbols-outlined text-[18px]">attachment</span> Reg
               </button>
             )}
-            {request.payment_proof_url && (
-              <button onClick={() => handlePreviewClick(request.payment_proof_url!, 'Receipt')} className="flex items-center gap-1.5 text-indigo-500 hover:text-blueprint-blue font-black uppercase text-[10px] tracking-widest transition-colors">
-                <span className="material-symbols-outlined text-[18px]">payments</span> Receipt
-              </button>
-            )}
-            {!isFaculty && request.status === 'Approved' && onUploadEvidence && (
-              <button onClick={() => onUploadEvidence('photo')} className="flex items-center gap-1.5 text-primary font-black uppercase text-[10px] tracking-widest hover:scale-105 transition-transform">
-                <span className="material-symbols-outlined text-[18px]">location_on</span>
-                {isUploading && uploadType === 'photo' ? 'Syncing...' : 'Field Evidence'}
-              </button>
-            )}
-            {!isFaculty && request.status === 'Completed' && (
+            
+            {request.status === 'Completed' && (
               <div className="flex items-center gap-1.5 text-green-600 font-black uppercase text-[10px] tracking-widest">
                 <span className="material-symbols-outlined text-[18px]">verified_user</span> Authenticated
               </div>

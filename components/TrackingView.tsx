@@ -2,7 +2,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { ODRequest, ODStatus } from '../types';
-// Fixed: Aliased Search to SearchIcon to resolve errors on lines 103 and 110 where SearchIcon was referenced but not defined
 import { Search as SearchIcon, Loader2, Download, Image as ImageIcon, Award, FileCheck, Info, MapPin, CheckCircle2, Calendar } from 'lucide-react';
 import exifr from 'exifr';
 
@@ -137,8 +136,11 @@ const TrackingView: React.FC = () => {
         )}
 
         {results.map((request) => {
-          const isEventPassed = new Date(request.event_date) < new Date();
-          
+          const isEventPassed = new Date(request.event_end_date || request.event_date) < new Date();
+          const dateRange = (request.event_end_date && request.event_end_date !== request.event_date)
+            ? `${request.event_date} - ${request.event_end_date}`
+            : request.event_date;
+
           return (
             <div key={request.id} className="bg-white rounded-3xl shadow-xl shadow-slate-200/40 border border-slate-200 overflow-hidden relative group">
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blueprint-blue/10 to-transparent"></div>
@@ -157,10 +159,7 @@ const TrackingView: React.FC = () => {
                     <div className="flex items-center gap-1.5 mt-2">
                       <Calendar size={12} className="text-blueprint-blue" />
                       <p className="text-[10px] text-blue-600 font-black uppercase">
-                        TECHNICAL PERIOD: {request.event_date === request.event_end_date || !request.event_end_date 
-                          ? request.event_date 
-                          : `${request.event_date} to ${request.event_end_date}`
-                        }
+                        TECHNICAL DATE: {dateRange}
                       </p>
                     </div>
                   </div>

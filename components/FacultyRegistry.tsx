@@ -1,7 +1,8 @@
+
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { ODRequest } from '../types';
-import { Loader2, Download, Search, RefreshCw, Award, Edit3, Save, X } from 'lucide-react';
+import { Loader2, Download, Search, RefreshCw, Award, Edit3, Save, X, ExternalLink, Trophy, Image as ImageIcon } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 const FacultyRegistry: React.FC = () => {
@@ -52,7 +53,8 @@ const FacultyRegistry: React.FC = () => {
       'Event Type': r.event_type,
       'Event Date': r.event_date,
       'Status': r.status,
-      'Achievement': r.achievement_details || 'N/A'
+      'Achievement': r.achievement_details || 'N/A',
+      'Prize Details': (Array.isArray(r.prize_details) ? r.prize_details : []).map(p => `${p.type} (${p.event})`).join('; ') || 'N/A',
     }));
 
     const ws = XLSX.utils.json_to_sheet(exportData);
@@ -124,7 +126,7 @@ const FacultyRegistry: React.FC = () => {
                 <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">IDENTIFICATION</th>
                 <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">FIELD ACTIVITY</th>
                 <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">TIMELINE</th>
-                <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">ACHIEVEMENT DETAIL</th>
+                <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">ACHIEVEMENT / PRIZE DETAILS</th>
                 <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] text-right">STATUS</th>
               </tr>
             </thead>
@@ -168,35 +170,61 @@ const FacultyRegistry: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-8 py-6 min-w-[200px]">
-                      {editingId === request.id ? (
-                        <div className="flex items-center gap-2 bg-slate-100 p-2 rounded-lg border border-slate-200 shadow-inner">
-                          <input 
-                            value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
-                            placeholder="Enter achievement details..."
-                            className="bg-transparent text-[10px] font-bold uppercase w-full outline-none"
-                            autoFocus
-                          />
-                          <button onClick={() => handleUpdateAchievement(request.id)} className="text-green-600 p-1 hover:bg-green-100 rounded transition-colors"><Save size={14}/></button>
-                          <button onClick={() => setEditingId(null)} className="text-slate-400 p-1 hover:bg-slate-200 rounded transition-colors"><X size={14}/></button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-3">
-                          <p className={`text-[10px] font-bold uppercase ${request.achievement_details ? 'text-slate-700' : 'text-slate-300 italic'}`}>
-                            {request.achievement_details || 'No Achievement Recorded'}
-                          </p>
-                          <button 
-                            onClick={() => {
-                              setEditingId(request.id);
-                              setEditValue(request.achievement_details || '');
-                            }}
-                            className="opacity-0 group-hover:opacity-100 p-1.5 bg-slate-100 text-slate-500 rounded-lg hover:text-blueprint-blue transition-all"
-                            title="Edit Achievement"
-                          >
-                            <Edit3 size={12} />
-                          </button>
-                        </div>
-                      )}
+                      <div className="space-y-3">
+                        {editingId === request.id ? (
+                          <div className="flex items-center gap-2 bg-slate-100 p-2 rounded-lg border border-slate-200 shadow-inner">
+                            <input 
+                              value={editValue}
+                              onChange={(e) => setEditValue(e.target.value)}
+                              placeholder="Enter general achievement notes..."
+                              className="bg-transparent text-[10px] font-bold uppercase w-full outline-none"
+                              autoFocus
+                            />
+                            <button onClick={() => handleUpdateAchievement(request.id)} className="text-green-600 p-1 hover:bg-green-100 rounded transition-colors"><Save size={14}/></button>
+                            <button onClick={() => setEditingId(null)} className="text-slate-400 p-1 hover:bg-slate-200 rounded transition-colors"><X size={14}/></button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-3">
+                            <p className={`text-[10px] font-bold uppercase ${request.achievement_details ? 'text-slate-700' : 'text-slate-300 italic'}`}>
+                              {request.achievement_details || 'No general achievement notes.'}
+                            </p>
+                            <button 
+                              onClick={() => {
+                                setEditingId(request.id);
+                                setEditValue(request.achievement_details || '');
+                              }}
+                              className="opacity-0 group-hover:opacity-100 p-1.5 bg-slate-100 text-slate-500 rounded-lg hover:text-blueprint-blue transition-all"
+                              title="Edit Achievement Notes"
+                            >
+                              <Edit3 size={12} />
+                            </button>
+                          </div>
+                        )}
+                        {(Array.isArray(request.prize_details) && request.prize_details.length > 0) && (
+                          <div className="space-y-1.5">
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-2 flex items-center gap-1.5">
+                              <Trophy size={10} className="text-primary" /> Prize Logs:
+                            </p>
+                            {request.prize_details.map((prize, idx) => (
+                              <div key={idx} className="flex items-center gap-2">
+                                {prize.url ? (
+                                  <a 
+                                    href={prize.url} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer" 
+                                    className="flex items-center gap-1.5 px-2 py-0.5 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded transition-all text-[10px] font-black uppercase tracking-tight italic border border-primary/20"
+                                  >
+                                    {prize.type} <ImageIcon size={10} />
+                                  </a>
+                                ) : (
+                                  <span className="text-[10px] font-bold text-primary uppercase tracking-tight italic">{prize.type}</span>
+                                )}
+                                <span className="text-[9px] text-slate-500 normal-case">in {prize.event}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td className="px-8 py-6 text-right">
                       <div className="flex flex-col items-end gap-1">
@@ -207,9 +235,14 @@ const FacultyRegistry: React.FC = () => {
                         }`}>
                           {request.status}
                         </span>
-                        {request.certificate_urls && request.certificate_urls.length > 0 && (
+                        {Array.isArray(request.certificate_urls) && request.certificate_urls.filter(Boolean).length > 0 && (
                           <div className="flex items-center gap-1 text-[8px] font-black text-green-600 uppercase">
                             <Award size={10} /> Certified
+                          </div>
+                        )}
+                        {Array.isArray(request.prize_details) && request.prize_details.filter(Boolean).length > 0 && (
+                          <div className="flex items-center gap-1 text-[8px] font-black text-primary uppercase">
+                            <Trophy size={10} /> PRIZE LOGGED
                           </div>
                         )}
                       </div>

@@ -117,7 +117,6 @@ const FeedCard: React.FC<FeedCardProps> = ({
     if (interval > 1) return Math.floor(interval) + "d";
     interval = seconds / 3600;
     if (interval > 1) return Math.floor(interval) + "h";
-    interval = seconds / 60;
     if (interval > 1) return Math.floor(interval) + "m";
     return Math.floor(seconds) + "s";
   };
@@ -130,16 +129,22 @@ const FeedCard: React.FC<FeedCardProps> = ({
   if (request.registration_proof_url) previews.push({ url: request.registration_proof_url, label: 'Reg', icon: <FileText size={14} /> });
   if (request.payment_proof_url) previews.push({ url: request.payment_proof_url, label: 'Receipt', icon: <CreditCard size={14} /> });
 
-  (request.geotag_photo_urls || []).forEach((url, i) => {
+  // Pluralized fields with defensive array checks
+  const geotagPhotos = Array.isArray(request.geotag_photo_urls) ? request.geotag_photo_urls : [];
+  geotagPhotos.forEach((url, i) => {
     if (url) previews.push({ url, label: `Field ${i+1}`, icon: <MapPin size={14} /> });
   });
   
-  (request.certificate_urls || []).forEach((url, i) => {
+  const certificates = Array.isArray(request.certificate_urls) ? request.certificate_urls : [];
+  certificates.forEach((url, i) => {
     if (url) previews.push({ url, label: `Cert ${i+1}`, icon: <Award size={14} /> });
   });
   
-  (request.prize_certificate_urls || []).forEach((url, i) => {
-    if (url) previews.push({ url, label: `Prize ${i+1}`, icon: <Trophy size={14} /> });
+  const prizes = Array.isArray(request.prize_details) ? request.prize_details : [];
+  prizes.forEach((prize, i) => {
+    if (prize && typeof prize.url === 'string' && prize.url.trim() !== '') {
+      previews.push({ url: prize.url, label: `${prize.type} (${prize.event})`, icon: <Trophy size={14} /> });
+    }
   });
 
   const handlePreviewClick = (url: string, label: string) => {
@@ -229,6 +234,29 @@ const FeedCard: React.FC<FeedCardProps> = ({
                 Scheduled: <span className="font-technical text-[12px] font-black">{dateDisplay}</span>
               </div>
             </div>
+
+            {/* Achievement / Prize Summary Section */}
+            {prizes.length > 0 && (
+              <div className="mt-3 p-3 bg-primary/5 border border-primary/10 rounded-xl space-y-1">
+                <p className="text-[9px] font-black text-primary uppercase tracking-widest flex items-center gap-1.5 mb-1">
+                  <Trophy size={12} /> Merit Awards Detected
+                </p>
+                {prizes.map((p, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="text-[11px] font-black text-primary italic uppercase">{p.type}</span>
+                    <span className="text-[10px] text-slate-500 font-bold">in {p.event}</span>
+                    {p.url && (
+                      <button 
+                        onClick={() => handlePreviewClick(p.url, `${p.type} Certificate`)}
+                        className="p-1 text-primary/60 hover:text-primary transition-colors"
+                      >
+                        <ImageIcon size={12} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
             
             {request.team_members && request.team_members.length > 0 && (
               <div className="mt-3 space-y-1.5">
@@ -371,15 +399,19 @@ const FeedCard: React.FC<FeedCardProps> = ({
                       onClick={() => onUploadEvidence('prize', 0)}
                       disabled={isUploading}
                       className={`w-full h-12 rounded-xl border-2 border-dashed flex items-center justify-center transition-all ${
-                        request.prize_certificate_urls?.[0] 
+                        Array.isArray(request.prize_details) && request.prize_details[0] 
                           ? 'border-amber-200 bg-amber-50 text-amber-600' 
                           : 'border-slate-200 bg-white text-slate-300 hover:border-primary hover:text-primary'
                       }`}
                     >
                       {isUploading && uploadType === 'prize' ? (
                         <Loader2 size={16} className="animate-spin" />
-                      ) : request.prize_certificate_urls?.[0] ? (
-                        <div className="flex items-center gap-2 text-[10px] font-black uppercase"><Trophy size={16} /> Prize Won!</div>
+                      ) : Array.isArray(request.prize_details) && request.prize_details[0] ? (
+                        <div className="flex flex-col items-center text-[10px] font-black uppercase leading-tight">
+                          <Trophy size={16} />
+                          <span>{request.prize_details[0].type}</span>
+                          <span className="text-[8px] font-medium normal-case text-slate-500">{request.prize_details[0].event}</span>
+                        </div>
                       ) : (
                         <div className="flex items-center gap-2 text-[10px] font-black uppercase"><Trophy size={16} /> Merit/Prize</div>
                       )}

@@ -197,9 +197,13 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
         payment_proof_url: payUrl,
         event_poster_url: posterUrl,
         od_letter_url: null,
+        geotag_photo_urls: [], // Initialize as empty array
+        certificate_urls: [], // Initialize as empty array
+        prize_details: [], // Initialize as empty array
+        remarks: null,
+        // Legacy single fields - for backward compatibility, keep them null or empty
         geotag_photo_url: null,
         certificate_url: null,
-        remarks: null
       };
 
       const letterBlob = await generateODDocument({ ...requestData, id: 'PENDING' } as ODRequest, profile);
@@ -233,10 +237,10 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
   };
 
   return (
-    <div className="relative w-full max-w-xl bg-[#F5F5F5] dark:bg-[#262626] rounded-xl shadow-2xl overflow-hidden border-4 border-gray-300 dark:border-gray-700 font-display transition-all">
+    <div className="relative w-full max-w-xl bg-[#F5F5F5] dark:bg-[#262626] rounded-xl shadow-2xl overflow-hidden border-4 border-gray-300 dark:border-gray-700 font-display">
       <div className="relative w-full h-3 bg-gray-300 dark:bg-gray-800 border-b border-gray-400 dark:border-gray-600">
         <div 
-          className="absolute top-0 left-0 h-full bg-primary bg-stripes shadow-[0_0_10px_rgba(255,87,34,0.6)] transition-all duration-700 ease-out"
+          className="absolute top-0 left-0 h-full bg-primary bg-stripes shadow-[0_0_10px_rgba(255,87,34,0.6)] transition-[width] duration-700 ease-out"
           style={{ width: `${progress}%` }}
         ></div>
       </div>
@@ -338,20 +342,20 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
         <div className="space-y-4 pt-2 pb-8">
            <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] font-mono">03 DOCUMENTATION</h2>
            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-             <label className={`h-24 border-2 border-dashed rounded-xl flex flex-col items-center justify-center cursor-pointer transition-all ${posterFile ? 'border-primary bg-primary/5' : 'border-gray-400 bg-white'}`}>
+             <label className={`h-24 border-2 border-dashed rounded-xl flex flex-col items-center justify-center cursor-pointer transition-colors duration-200 ${posterFile ? 'border-primary bg-primary/5' : 'border-gray-400 bg-white hover:border-gray-500 hover:bg-gray-50'}`}>
                 <ImageIcon size={20} className={posterFile ? 'text-primary' : 'text-gray-400'} />
                 <span className="text-[8px] font-bold uppercase mt-1 px-2 truncate w-full text-center">{posterFile ? posterFile.name : 'Event Poster'}</span>
-                <input type="file" className="sr-only" accept="image/*" onChange={(e) => handleFileChange(e, setPosterFile)} />
+                <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileChange(e, setPosterFile)} />
              </label>
-             <label className={`h-24 border-2 border-dashed rounded-xl flex flex-col items-center justify-center cursor-pointer transition-all ${regFile ? 'border-primary bg-primary/5' : 'border-gray-400 bg-white'}`}>
+             <label className={`h-24 border-2 border-dashed rounded-xl flex flex-col items-center justify-center cursor-pointer transition-colors duration-200 ${regFile ? 'border-primary bg-primary/5' : 'border-gray-400 bg-white hover:border-gray-500 hover:bg-gray-50'}`}>
                 <FileText size={20} className={regFile ? 'text-primary' : 'text-gray-400'} />
                 <span className="text-[8px] font-bold uppercase mt-1 px-2 truncate w-full text-center">{regFile ? regFile.name : 'Reg Proof'}</span>
-                <input type="file" className="sr-only" accept=".pdf,image/*" onChange={(e) => handleFileChange(e, setRegFile)} />
+                <input type="file" className="hidden" accept=".pdf,image/*" onChange={(e) => handleFileChange(e, setRegFile)} />
              </label>
-             <label className={`h-24 border-2 border-dashed rounded-xl flex flex-col items-center justify-center cursor-pointer transition-all ${payFile ? 'border-amber-500 bg-amber-50' : 'border-gray-300 bg-white'}`}>
+             <label className={`h-24 border-2 border-dashed rounded-xl flex flex-col items-center justify-center cursor-pointer transition-colors duration-200 ${payFile ? 'border-amber-500 bg-amber-50' : 'border-gray-300 bg-white hover:border-gray-400 hover:bg-gray-50'}`}>
                 <CreditCard size={20} className={payFile ? 'text-amber-500' : 'text-gray-400'} />
                 <span className="text-[8px] font-bold uppercase mt-1 px-2 truncate w-full text-center">{payFile ? payFile.name : 'Receipt (Opt)'}</span>
-                <input type="file" className="sr-only" accept=".pdf,image/*" onChange={(e) => handleFileChange(e, setPayFile)} />
+                <input type="file" className="hidden" accept=".pdf,image/*" onChange={(e) => handleFileChange(e, setPayFile)} />
              </label>
            </div>
         </div>

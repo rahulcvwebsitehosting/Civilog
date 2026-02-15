@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { ODRequest, ODStatus } from '../types';
 import { Search as SearchIcon, Loader2, Download, Image as ImageIcon, Award, FileCheck, Info, MapPin, CheckCircle2, Calendar } from 'lucide-react';
-import exifr from 'exifr';
+
 
 const TrackingView: React.FC = () => {
   const [registerNo, setRegisterNo] = useState('');
@@ -41,14 +41,6 @@ const TrackingView: React.FC = () => {
   const handleEvidenceUpload = async (request: ODRequest, file: File, type: 'photo' | 'certificate') => {
     setUploading({ id: request.id, type });
     try {
-      // Removed geotag detection logic
-      // if (type === 'photo') {
-      //   const metadata = await exifr.gps(file);
-      //   if (!metadata || !metadata.latitude || !metadata.longitude) {
-      //     throw new Error('Structural Validation Failed: Photo lacks GPS metadata. Ensure location services were active during field logging.');
-      //   }
-      // }
-
       const fileName = `${Date.now()}_${type}_${request.register_no}.${file.name.split('.').pop()}`;
       const { error: uploadError } = await supabase.storage
         .from('od-files')
@@ -61,11 +53,28 @@ const TrackingView: React.FC = () => {
         .getPublicUrl(`evidence/${fileName}`);
 
       const updates: any = {};
-      if (type === 'photo') updates.geotag_photo_url = publicUrl;
-      else updates.certificate_url = publicUrl;
+      let currentPhotos = request.geotag_photo_urls || [];
+      let currentCerts = request.certificate_urls || [];
 
-      const isBothNow = (type === 'photo' && request.certificate_url) || (type === 'certificate' && request.geotag_photo_url);
-      if (isBothNow) updates.status = 'Completed';
+      if (type === 'photo') {
+        const nextPhotos = [...currentPhotos];
+        // For simplicity in TrackingView, we'll assume it replaces the first slot if it's not a multi-slot UI here.
+        // If a multi-slot UI is added to TrackingView, this index logic would need to be passed.
+        nextPhotos[0] = publicUrl; 
+        updates.geotag_photo_urls = nextPhotos;
+      } else if (type === 'certificate') {
+        const nextCerts = [...currentCerts];
+        nextCerts[0] = publicUrl;
+        updates.certificate_urls = nextCerts;
+      }
+
+      // Determine if status should be 'Completed'
+      const hasPhoto = (type === 'photo' && (updates.geotag_photo_urls?.[0] || currentPhotos.filter(Boolean).length > 0)) || (request.geotag_photo_urls && request.geotag_photo_urls.filter(Boolean).length > 0);
+      const hasCert = (type === 'certificate' && (updates.certificate_urls?.[0] || currentCerts.filter(Boolean).length > 0)) || (request.certificate_urls && request.certificate_urls.filter(Boolean).length > 0);
+      
+      if (hasPhoto && hasCert) {
+        updates.status = 'Completed';
+      }
 
       const { error: dbError } = await supabase
         .from('od_requests')
@@ -142,6 +151,9 @@ const TrackingView: React.FC = () => {
             ? `${request.event_date} - ${request.event_end_date}`
             : request.event_date;
 
+          const hasGeotagPhotos = request.geotag_photo_urls && request.geotag_photo_urls.filter(Boolean).length > 0;
+          const hasCertificates = request.certificate_urls && request.certificate_urls.filter(Boolean).length > 0;
+
           return (
             <div key={request.id} className="bg-white rounded-3xl shadow-xl shadow-slate-200/40 border border-slate-200 overflow-hidden relative group">
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blueprint-blue/10 to-transparent"></div>
@@ -190,7 +202,7 @@ const TrackingView: React.FC = () => {
                     <div className="space-y-4">
                       <div className="flex flex-col gap-2">
                         <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Geotagged Photo</span>
-                        {request.geotag_photo_url ? (
+                        {hasGeotagPhotos ? (
                           <div className="flex items-center gap-2 text-green-600 text-[10px] font-black uppercase bg-green-50 px-3 py-3 rounded-xl border border-green-100">
                             <CheckCircle2 size={14} /> LOGGED SUCCESSFULLY
                           </div>
@@ -206,7 +218,7 @@ const TrackingView: React.FC = () => {
 
                       <div className="flex flex-col gap-2">
                         <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Participation Certificate</span>
-                        {request.certificate_url ? (
+                        {hasCertificates ? (
                           <div className="flex items-center gap-2 text-green-600 text-[10px] font-black uppercase bg-green-50 px-3 py-3 rounded-xl border border-green-100">
                             <CheckCircle2 size={14} /> ARCHIVED
                           </div>

@@ -2,11 +2,83 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { ODRequest, ODStatus, Profile } from '../types';
-import { Plus, XCircle, Loader2, HardHat, Terminal } from 'lucide-react';
+import { Plus, XCircle, Loader2, HardHat, Terminal, Trophy } from 'lucide-react';
 import SubmissionForm from './SubmissionForm';
 import FeedCard from './FeedCard';
-import exifr from 'exifr';
 import { Link } from 'react-router-dom';
+
+interface PrizeDetailsPromptModalProps {
+  onClose: () => void;
+  onConfirm: (prizeType: string, prizeEvent: string) => void;
+  isLoading: boolean;
+}
+
+const PrizeDetailsPromptModal: React.FC<PrizeDetailsPromptModalProps> = ({ onClose, onConfirm, isLoading }) => {
+  const [prizeType, setPrizeType] = useState('');
+  const [prizeEvent, setPrizeEvent] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if (!prizeType.trim() || !prizeEvent.trim()) {
+      setError('Both prize type and associated event are required.');
+      return;
+    }
+    onConfirm(prizeType, prizeEvent);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[110] bg-slate-900/70 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+      <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full relative border border-slate-200 animate-in zoom-in-95 duration-300">
+        <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-red-500 transition-colors p-1">
+          <XCircle size={24} />
+        </button>
+        <div className="text-center mb-6">
+          <Trophy size={48} className="text-primary mx-auto mb-3" />
+          <h3 className="text-2xl font-black text-blueprint-blue uppercase italic tracking-tighter">Prize Achievement</h3>
+          <p className="text-[10px] text-pencil-gray font-technical uppercase tracking-widest mt-1">Details for Verification</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="prizeType" className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Prize Type</label>
+            <input
+              id="prizeType"
+              type="text"
+              value={prizeType}
+              onChange={(e) => setPrizeType(e.target.value)}
+              placeholder="e.g., 1st Place, Best Innovation, Runner Up"
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blueprint-blue outline-none text-sm"
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor="prizeEvent" className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Associated Event</label>
+            <input
+              id="prizeEvent"
+              type="text"
+              value={prizeEvent}
+              onChange={(e) => setPrizeEvent(e.target.value)}
+              placeholder="e.g., Inter-College Robotics Competition"
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blueprint-blue outline-none text-sm"
+              required
+            />
+          </div>
+          {error && <p className="text-red-600 text-xs text-center">{error}</p>}
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="w-full bg-blueprint-blue text-white py-3 rounded-xl font-black flex items-center justify-center gap-2 hover:bg-blue-900 transition-all shadow-lg shadow-blue-900/10 uppercase tracking-widest text-xs"
+          >
+            {isLoading ? <Loader2 className="animate-spin" size={18} /> : 'Save Prize Details'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 
 const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
   const [requests, setRequests] = useState<ODRequest[]>([]);
@@ -17,6 +89,12 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
     type: null,
     index: null
   });
+  const [showPrizePrompt, setShowPrizePrompt] = useState(false);
+  const [currentPrizeRequest, setCurrentPrizeRequest] = useState<ODRequest | null>(null);
+  const [currentPrizeIndex, setCurrentPrizeIndex] = useState<number | null>(null);
+  const [isPrizeDetailsSubmitting, setIsPrizeDetailsSubmitting] = useState(false); // For loading state of modal button
+  const [tempPrizeUploadUrl, setTempPrizeUploadUrl] = useState<string | null>(null);
+
 
   const fetchRequests = async () => {
     setLoading(true);
@@ -53,7 +131,104 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
     }
   };
 
+  // This function now only initiates the file upload for prizes
+  const initiatePrizeFileUpload = (request: ODRequest, index: number) => {
+    setCurrentPrizeRequest(request);
+    setCurrentPrizeIndex(index);
+
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '*/*'; // Certificates can be PDF or images
+    
+    input.onchange = async (e: any) => {
+      const file = e.target.files[0];
+      if (!file) {
+        // User cancelled file selection
+        setUploadState({ id: null, type: null, index: null });
+        return;
+      }
+
+      setUploadState({ id: request.id, type: 'prize', index }); // Indicate file upload is in progress
+      try {
+        const fileName = `${Date.now()}_prize_idx${index}_${profile.id}.${file.name.split('.').pop()}`;
+        const { error: uploadError } = await supabase.storage
+          .from('od-files')
+          .upload(`evidence/${fileName}`, file);
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('od-files')
+          .getPublicUrl(`evidence/${fileName}`);
+
+        if (!publicUrl) {
+          throw new Error('Failed to get public URL for prize certificate.');
+        }
+
+        setTempPrizeUploadUrl(publicUrl); // Store the URL temporarily
+        setShowPrizePrompt(true);        // Show the modal to collect details
+      } catch (err: any) {
+        alert(err.message || 'Error uploading prize certificate.');
+        setUploadState({ id: null, type: null, index: null }); // Clear upload state on error
+      }
+    };
+    
+    input.click();
+  };
+
+  // This function handles the modal confirmation, using the already uploaded URL
+  const handlePrizeDetailsConfirmed = async (prizeType: string, prizeEvent: string) => {
+    if (!currentPrizeRequest || currentPrizeIndex === null || !tempPrizeUploadUrl) {
+      alert('Missing prize upload context. Please try again.');
+      return;
+    }
+
+    setIsPrizeDetailsSubmitting(true); // Start loading for the modal button
+    try {
+      const updates: any = {};
+      const currentPhotos = Array.isArray(currentPrizeRequest.geotag_photo_urls) ? currentPrizeRequest.geotag_photo_urls : [];
+      const currentCerts = Array.isArray(currentPrizeRequest.certificate_urls) ? currentPrizeRequest.certificate_urls : [];
+      const currentPrizeDetails = Array.isArray(currentPrizeRequest.prize_details) ? currentPrizeRequest.prize_details : [];
+
+      const nextPrizeDetails = [...currentPrizeDetails];
+      nextPrizeDetails[currentPrizeIndex] = { type: prizeType, event: prizeEvent, url: tempPrizeUploadUrl };
+      updates.prize_details = nextPrizeDetails;
+      
+      // Auto-complete logic: at least one photo and one certificate required
+      const hasPhoto = currentPhotos.filter(Boolean).length > 0;
+      const hasAnyCert = (currentCerts.filter(Boolean).length > 0) || (nextPrizeDetails.filter(p => p.url && p.url.trim() !== '').length > 0);
+      
+      if (hasPhoto && hasAnyCert) {
+        updates.status = 'Completed';
+      }
+
+      const { error: dbError } = await supabase
+        .from('od_requests')
+        .update(updates)
+        .eq('id', currentPrizeRequest.id)
+        .eq('user_id', profile.id);
+
+      if (dbError) throw dbError;
+      await fetchRequests(); // Re-fetch to update local state and re-render FeedCard with new data
+    } catch (err: any) {
+      alert(err.message || 'Error saving prize details.');
+    } finally {
+      setUploadState({ id: null, type: null, index: null }); // Clear general upload state
+      setShowPrizePrompt(false);
+      setCurrentPrizeRequest(null);
+      setCurrentPrizeIndex(null);
+      setTempPrizeUploadUrl(null); // Clear temporary URL
+      setIsPrizeDetailsSubmitting(false); // Clear modal submission state
+    }
+  };
+
+  // General evidence upload (photos, non-prize certificates)
   const handleEvidenceUpload = async (request: ODRequest, type: 'photo' | 'certificate' | 'prize', index: number = 0) => {
+    if (type === 'prize') {
+      initiatePrizeFileUpload(request, index); // Call the specific prize file upload handler
+      return;
+    }
+
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = type === 'photo' ? 'image/*' : '*/*';
@@ -64,14 +239,6 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
 
       setUploadState({ id: request.id, type, index });
       try {
-        // Removed geotag detection logic
-        // if (type === 'photo') {
-        //   const metadata = await exifr.gps(file);
-        //   if (!metadata || !metadata.latitude || !metadata.longitude) {
-        //     throw new Error('No GPS data found. Use a geotagged photo from the event location.');
-        //   }
-        // }
-
         const fileName = `${Date.now()}_${type}_idx${index}_${profile.id}.${file.name.split('.').pop()}`;
         const { error: uploadError } = await supabase.storage
           .from('od-files')
@@ -84,31 +251,23 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
           .getPublicUrl(`evidence/${fileName}`);
 
         const updates: any = {};
-        
-        if (type === 'photo') {
-          const current = request.geotag_photo_urls || [];
-          const next = [...current];
-          next[index] = publicUrl;
-          updates.geotag_photo_urls = next;
-          // Sync legacy field for compatibility if first slot
-          if (index === 0) updates.geotag_photo_url = publicUrl;
-        } else if (type === 'certificate') {
-          const current = request.certificate_urls || [];
-          const next = [...current];
-          next[index] = publicUrl;
-          updates.certificate_urls = next;
-          // Sync legacy field if first slot
-          if (index === 0) updates.certificate_url = publicUrl;
-        } else if (type === 'prize') {
-          const current = request.prize_certificate_urls || [];
-          const next = [...current];
-          next[index] = publicUrl;
-          updates.prize_certificate_urls = next;
-        }
+        const currentPhotos = Array.isArray(request.geotag_photo_urls) ? request.geotag_photo_urls : [];
+        const currentCerts = Array.isArray(request.certificate_urls) ? request.certificate_urls : [];
+        const currentPrizeDetails = Array.isArray(request.prize_details) ? request.prize_details : [];
 
+        if (type === 'photo') {
+          const nextPhotos = [...currentPhotos];
+          nextPhotos[index] = publicUrl;
+          updates.geotag_photo_urls = nextPhotos;
+        } else if (type === 'certificate') {
+          const nextCerts = [...currentCerts];
+          nextCerts[index] = publicUrl;
+          updates.certificate_urls = nextCerts;
+        } 
+        
         // Auto-complete logic: at least one photo and one certificate required
-        const hasPhoto = (type === 'photo') || (request.geotag_photo_urls && request.geotag_photo_urls.length > 0);
-        const hasCert = (type === 'certificate') || (request.certificate_urls && request.certificate_urls.length > 0);
+        const hasPhoto = (type === 'photo' && updates.geotag_photo_urls?.[index]) || (currentPhotos.filter(Boolean).length > 0);
+        const hasCert = (type === 'certificate' && updates.certificate_urls?.[index]) || (currentCerts.filter(Boolean).length > 0) || (currentPrizeDetails.filter(p => p.url && p.url.trim() !== '').length > 0);
         
         if (hasPhoto && hasCert) {
           updates.status = 'Completed';
@@ -121,7 +280,7 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
           .eq('user_id', profile.id);
 
         if (dbError) throw dbError;
-        fetchRequests();
+        await fetchRequests(); // Use await here to ensure state is updated before re-render
       } catch (err: any) {
         alert(err.message || 'Error uploading evidence');
       } finally {
@@ -148,13 +307,28 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
       </div>
 
       {showForm && (
-        <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
           <SubmissionForm 
             onSuccess={() => { setShowForm(false); fetchRequests(); }} 
             onClose={() => setShowForm(false)}
             profile={profile} 
           />
         </div>
+      )}
+
+      {showPrizePrompt && (
+        <PrizeDetailsPromptModal
+          onClose={() => {
+            setShowPrizePrompt(false);
+            setCurrentPrizeRequest(null);
+            setCurrentPrizeIndex(null);
+            setTempPrizeUploadUrl(null); // Clear temp URL if modal is closed
+            setIsPrizeDetailsSubmitting(false); // Clear modal submission state
+            setUploadState({ id: null, type: null, index: null }); // Also clear any lingering upload state
+          }}
+          onConfirm={handlePrizeDetailsConfirmed}
+          isLoading={isPrizeDetailsSubmitting}
+        />
       )}
 
       {loading ? (
@@ -187,7 +361,7 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
               request={request}
               onUploadEvidence={(type, idx) => handleEvidenceUpload(request, type, idx)}
               onDelete={() => handleDelete(request)}
-              isUploading={uploadState.id === request.id}
+              isUploading={uploadState.id === request.id} // Only use uploadState for FeedCard's isUploading
               uploadType={uploadState.type || undefined}
               uploadIndex={uploadState.index || undefined}
               currentUserId={profile.id}

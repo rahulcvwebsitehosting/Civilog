@@ -1,3 +1,4 @@
+
 export type ODStatus = 'Pending' | 'Approved' | 'Rejected' | 'Completed';
 export type UserRole = 'student' | 'faculty';
 
@@ -50,7 +51,9 @@ export interface ODRequest {
   // New plural fields for multiple evidence
   geotag_photo_urls: string[] | null;
   certificate_urls: string[] | null;
-  prize_certificate_urls: string[] | null;
+  // Removed: prize_certificate_urls: string[] | null;
+  // New structured prize details
+  prize_details: { type: string; event: string; url: string; }[] | null;
   remarks: string | null;
   team_members: TeamMember[] | null;
 }

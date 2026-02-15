@@ -2,7 +2,6 @@
   "name": "CivLog - Civil Engineering OD-Track System",
   "description": "A comprehensive system for Civil Engineering students to submit, track, and manage On-Duty (OD) requests with automated PDF generation and faculty approval workflows.",
   "requestFramePermissions": [
-    "camera",
-    "geolocation"
+    "camera"
   ]
 }

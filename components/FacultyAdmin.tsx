@@ -7,6 +7,25 @@ import { generateODDocument } from '../services/pdfService';
 import { Link } from 'react-router-dom';
 import FeedCard from './FeedCard';
 
+// Utility function to format date as "01st October, 2026"
+const formatFancyDate = (dateString: string | null): string => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  const day = date.getDate();
+  const month = date.toLocaleString('default', { month: 'long' });
+  const year = date.getFullYear();
+
+  let suffix = 'th';
+  if (day === 1 || day === 21 || day === 31) {
+    suffix = 'st';
+  } else if (day === 2 || day === 22) {
+    suffix = 'nd';
+  } else if (day === 3 || day === 23) {
+    suffix = 'rd';
+  }
+  return `${day}${suffix} ${month}, ${year}`;
+};
+
 const FacultyAdmin: React.FC = () => {
   const [requests, setRequests] = useState<ODRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -186,50 +205,58 @@ const FacultyAdmin: React.FC = () => {
                   <td colSpan={4} className="px-8 py-12 text-center text-slate-400 uppercase text-[10px] font-black tracking-widest italic">No matching logs found in this sector</td>
                 </tr>
               ) : (
-                filteredRequests.map((request) => (
-                  <tr key={request.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-8 py-6">
-                      <p className="font-black text-slate-900 uppercase text-xs">{request.student_name}</p>
-                      <p className="text-[9px] text-slate-500 font-mono">ID: {request.register_no}</p>
-                    </td>
-                    <td className="px-8 py-6">
-                      <p className="font-black text-blueprint-blue uppercase text-sm tracking-tighter italic">{request.event_title}</p>
-                      <p className="text-[10px] text-slate-500 font-bold uppercase">{request.organization_name}</p>
-                    </td>
-                    <td className="px-8 py-6">
-                      <div className="flex items-center gap-3">
-                        {request.od_letter_url ? (
-                          <a 
-                            href={request.od_letter_url} 
-                            target="_blank" 
-                            rel="noreferrer" 
-                            className="p-2 bg-blue-50 text-blueprint-blue rounded-lg hover:bg-blue-100 transition-colors"
-                            title="View Authorized Letter"
+                filteredRequests.map((request) => {
+                  const formattedEventDate = formatFancyDate(request.event_date);
+                  const formattedEventEndDate = formatFancyDate(request.event_end_date);
+                  const dateDisplay = (request.event_end_date && request.event_end_date !== request.event_date)
+                    ? `${formattedEventDate} - ${formattedEventEndDate}`
+                    : formattedEventDate;
+                  return (
+                    <tr key={request.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-8 py-6">
+                        <p className="font-black text-slate-900 uppercase text-xs">{request.student_name}</p>
+                        <p className="text-[9px] text-slate-500 font-mono">ID: {request.register_no}</p>
+                      </td>
+                      <td className="px-8 py-6">
+                        <p className="font-black text-blueprint-blue uppercase text-sm tracking-tighter italic">{request.event_title}</p>
+                        <p className="text-[10px] text-slate-500 font-bold uppercase">{request.organization_name}</p>
+                        <p className="text-[9px] text-slate-500 font-technical mt-1">{dateDisplay}</p>
+                      </td>
+                      <td className="px-8 py-6">
+                        <div className="flex items-center gap-3">
+                          {request.od_letter_url ? (
+                            <a 
+                              href={request.od_letter_url} 
+                              target="_blank" 
+                              rel="noreferrer" 
+                              className="p-2 bg-blue-50 text-blueprint-blue rounded-lg hover:bg-blue-100 transition-colors"
+                              title="View Authorized Letter"
+                            >
+                              <FileText size={18} />
+                            </a>
+                          ) : (
+                            <span className="text-[8px] font-black text-slate-300 uppercase italic">Awaiting Sync</span>
+                          )}
+                          {(Array.isArray(request.geotag_photo_urls) && request.geotag_photo_urls.filter(Boolean).length > 0) && (
+                            <div className="p-2 bg-slate-50 text-slate-400 rounded-lg" title="Field Assets Cached">
+                              <ExternalLink size={18} />
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-8 py-6 text-right">
+                        <div className="flex justify-end gap-2">
+                           <button 
+                            onClick={() => setViewMode('inspection')} 
+                            className="px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl font-black uppercase text-[9px] tracking-widest hover:bg-slate-50 transition-all flex items-center gap-2"
                           >
-                            <FileText size={18} />
-                          </a>
-                        ) : (
-                          <span className="text-[8px] font-black text-slate-300 uppercase italic">Awaiting Sync</span>
-                        )}
-                        {request.geotag_photo_url && (
-                          <div className="p-2 bg-slate-50 text-slate-400 rounded-lg" title="Field Assets Cached">
-                            <ExternalLink size={18} />
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-8 py-6 text-right">
-                      <div className="flex justify-end gap-2">
-                         <button 
-                          onClick={() => setViewMode('inspection')} 
-                          className="px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl font-black uppercase text-[9px] tracking-widest hover:bg-slate-50 transition-all flex items-center gap-2"
-                        >
-                          <BookOpen size={14} /> Inspect
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                            <BookOpen size={14} /> Inspect
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               )}
             </tbody>
           </table>

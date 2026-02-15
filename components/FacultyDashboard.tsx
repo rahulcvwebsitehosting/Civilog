@@ -5,6 +5,25 @@ import { ODRequest, Profile } from '../types';
 import { CheckCircle, XCircle, ExternalLink, Loader2, RefreshCw, Paperclip, CreditCard } from 'lucide-react';
 import { generateODLetter } from '../services/pdfService';
 
+// Utility function to format date as "01st October, 2026"
+const formatFancyDate = (dateString: string | null): string => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  const day = date.getDate();
+  const month = date.toLocaleString('default', { month: 'long' });
+  const year = date.getFullYear();
+
+  let suffix = 'th';
+  if (day === 1 || day === 21 || day === 31) {
+    suffix = 'st';
+  } else if (day === 2 || day === 22) {
+    suffix = 'nd';
+  } else if (day === 3 || day === 23) {
+    suffix = 'rd';
+  }
+  return `${day}${suffix} ${month}, ${year}`;
+};
+
 const FacultyDashboard: React.FC = () => {
   const [requests, setRequests] = useState<ODRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -135,69 +154,76 @@ const FacultyDashboard: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {requests.map((request) => (
-                  <tr key={request.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="font-bold text-slate-900">{request.student_name}</div>
-                      <div className="text-sm text-slate-500 font-mono">{request.register_no}</div>
-                      <div className="text-xs text-blue-600 font-medium">{request.year} Yr / {request.roll_no}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="font-semibold text-slate-900">{request.event_title}</div>
-                      <div className="text-sm text-slate-500">{request.organization_name}</div>
-                      <div className="text-xs mt-1 inline-block px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full font-bold">{request.event_date}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col gap-1.5">
-                        {request.registration_proof_url && (
-                          <a 
-                            href={request.registration_proof_url} 
-                            target="_blank" 
-                            rel="noreferrer"
-                            className="flex items-center gap-1.5 text-blue-600 hover:text-blue-800 text-[11px] font-bold uppercase"
-                          >
-                            <Paperclip size={12} /> Reg Proof
-                          </a>
-                        )}
-                        {request.payment_proof_url && (
-                          <a 
-                            href={request.payment_proof_url} 
-                            target="_blank" 
-                            rel="noreferrer"
-                            className="flex items-center gap-1.5 text-indigo-600 hover:text-indigo-800 text-[11px] font-bold uppercase"
-                          >
-                            <CreditCard size={12} /> Pay Proof
-                          </a>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      {processingId === request.id ? (
-                        <div className="flex justify-end items-center gap-2 text-blue-600 font-bold">
-                          <Loader2 className="animate-spin" size={18} />
-                          Processing...
+                {requests.map((request) => {
+                  const formattedEventDate = formatFancyDate(request.event_date);
+                  const formattedEventEndDate = formatFancyDate(request.event_end_date);
+                  const dateDisplay = (request.event_end_date && request.event_end_date !== request.event_date)
+                    ? `${formattedEventDate} - ${formattedEventEndDate}`
+                    : formattedEventDate;
+                  return (
+                    <tr key={request.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="font-bold text-slate-900">{request.student_name}</div>
+                        <div className="text-sm text-slate-500 font-mono">{request.register_no}</div>
+                        <div className="text-xs text-blue-600 font-medium">{request.year} Yr / {request.roll_no}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="font-semibold text-slate-900">{request.event_title}</div>
+                        <div className="text-sm text-slate-500">{request.organization_name}</div>
+                        <div className="text-xs mt-1 inline-block px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full font-bold">{dateDisplay}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col gap-1.5">
+                          {request.registration_proof_url && (
+                            <a 
+                              href={request.registration_proof_url} 
+                              target="_blank" 
+                              rel="noreferrer"
+                              className="flex items-center gap-1.5 text-blue-600 hover:text-blue-800 text-[11px] font-bold uppercase"
+                            >
+                              <Paperclip size={12} /> Reg Proof
+                            </a>
+                          )}
+                          {request.payment_proof_url && (
+                            <a 
+                              href={request.payment_proof_url} 
+                              target="_blank" 
+                              rel="noreferrer"
+                              className="flex items-center gap-1.5 text-indigo-600 hover:text-indigo-800 text-[11px] font-bold uppercase"
+                            >
+                              <CreditCard size={12} /> Pay Proof
+                            </a>
+                          )}
                         </div>
-                      ) : (
-                        <div className="flex justify-end gap-3">
-                          <button
-                            onClick={() => handleApproval(request, false)}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                            title="Reject"
-                          >
-                            <XCircle size={24} />
-                          </button>
-                          <button
-                            onClick={() => handleApproval(request, true)}
-                            className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-all"
-                            title="Approve & Generate Letter"
-                          >
-                            <CheckCircle size={24} />
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        {processingId === request.id ? (
+                          <div className="flex justify-end items-center gap-2 text-blue-600 font-bold">
+                            <Loader2 className="animate-spin" size={18} />
+                            Processing...
+                          </div>
+                        ) : (
+                          <div className="flex justify-end gap-3">
+                            <button
+                              onClick={() => handleApproval(request, false)}
+                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                              title="Reject"
+                            >
+                              <XCircle size={24} />
+                            </button>
+                            <button
+                              onClick={() => handleApproval(request, true)}
+                              className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-all"
+                              title="Approve & Generate Letter"
+                            >
+                              <CheckCircle size={24} />
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

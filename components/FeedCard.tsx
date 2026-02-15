@@ -105,10 +105,12 @@ const FeedCard: React.FC<FeedCardProps> = ({
 
   const firstLetter = request.student_name?.charAt(0).toUpperCase() || '?';
 
-  // Aggregate all previews from arrays
+  // Aggregate all previews from arrays and individual fields
   const previews: {url: string, label: string, icon: any}[] = [];
   if (request.event_poster_url) previews.push({ url: request.event_poster_url, label: 'Poster', icon: <ImageIcon size={14} /> });
-  
+  if (request.registration_proof_url) previews.push({ url: request.registration_proof_url, label: 'Reg', icon: <FileText size={14} /> });
+  if (request.payment_proof_url) previews.push({ url: request.payment_proof_url, label: 'Receipt', icon: <CreditCard size={14} /> });
+
   (request.geotag_photo_urls || []).forEach((url, i) => {
     if (url) previews.push({ url, label: `Field ${i+1}`, icon: <MapPin size={14} /> });
   });
@@ -120,9 +122,6 @@ const FeedCard: React.FC<FeedCardProps> = ({
   (request.prize_certificate_urls || []).forEach((url, i) => {
     if (url) previews.push({ url, label: `Prize ${i+1}`, icon: <Trophy size={14} /> });
   });
-
-  if (request.registration_proof_url) previews.push({ url: request.registration_proof_url, label: 'Reg', icon: <FileText size={14} /> });
-  if (request.payment_proof_url) previews.push({ url: request.payment_proof_url, label: 'Receipt', icon: <CreditCard size={14} /> });
 
   const handlePreviewClick = (url: string, label: string) => {
     if (isPdf(url)) {
@@ -137,6 +136,11 @@ const FeedCard: React.FC<FeedCardProps> = ({
     : request.event_date;
 
   const canDelete = !isFaculty && currentUserId === request.user_id && (request.status === 'Pending' || request.status === 'Rejected');
+
+  // Dynamic grid configuration to avoid blank sections
+  const gridColsClass = previews.length === 1 ? 'grid-cols-1' : 
+                        previews.length === 2 ? 'grid-cols-2' : 
+                        'grid-cols-2 sm:grid-cols-3';
 
   return (
     <>
@@ -225,15 +229,10 @@ const FeedCard: React.FC<FeedCardProps> = ({
           </div>
         </div>
 
-        {/* Assets Grid */}
-        <div className={`relative w-full bg-slate-100 border-y border-slate-100 aspect-[16/10] overflow-hidden grid grid-cols-2 sm:grid-cols-3 gap-0.5 p-0.5 ${previews.length === 0 ? 'items-center justify-center flex' : ''}`}>
-          {previews.length === 0 ? (
-            <div className="flex flex-col items-center justify-center text-slate-300 w-full col-span-full">
-               <span className="material-symbols-outlined text-5xl mb-1">image_not_supported</span>
-               <span className="text-[10px] font-technical uppercase font-bold">Waiting for field assets</span>
-            </div>
-          ) : (
-            previews.map((item, idx) => {
+        {/* Assets Grid - Only visible if items exist, columns adjust dynamically */}
+        {previews.length > 0 && (
+          <div className={`relative w-full bg-slate-100 border-y border-slate-100 overflow-hidden grid ${gridColsClass} gap-0.5 p-0.5 ${previews.length === 1 ? 'aspect-video' : 'aspect-[16/10]'}`}>
+            {previews.map((item, idx) => {
               const isDoc = isPdf(item.url);
               return (
                 <div 
@@ -259,19 +258,19 @@ const FeedCard: React.FC<FeedCardProps> = ({
                   </div>
                 </div>
               );
-            })
-          )}
-          
-          {request.status === 'Completed' && (
-            <div className="absolute top-4 right-4 bg-white/95 backdrop-blur-md text-blueprint-blue px-4 py-2 rounded-xl shadow-2xl border border-blueprint-blue/10 flex items-center gap-2 z-20">
-              <span className="material-symbols-outlined text-yellow-600 animate-bounce">emoji_events</span>
-              <div className="flex flex-col leading-none">
-                <span className="text-[8px] uppercase font-black text-gray-500 tracking-widest">Verified Log</span>
-                <span className="text-xs font-black uppercase italic tracking-tighter">Cycle Closed</span>
+            })}
+            
+            {request.status === 'Completed' && (
+              <div className="absolute top-4 right-4 bg-white/95 backdrop-blur-md text-blueprint-blue px-4 py-2 rounded-xl shadow-2xl border border-blueprint-blue/10 flex items-center gap-2 z-20">
+                <span className="material-symbols-outlined text-yellow-600 animate-bounce">emoji_events</span>
+                <div className="flex flex-col leading-none">
+                  <span className="text-[8px] uppercase font-black text-gray-500 tracking-widest">Verified Log</span>
+                  <span className="text-xs font-black uppercase italic tracking-tighter">Cycle Closed</span>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
         {/* Evidence Upload Section for Students */}
         {!isFaculty && (request.status === 'Approved' || request.status === 'Completed') && onUploadEvidence && (
@@ -380,6 +379,11 @@ const FeedCard: React.FC<FeedCardProps> = ({
             {request.registration_proof_url && (
               <button onClick={() => handlePreviewClick(request.registration_proof_url!, 'Registration')} className="flex items-center gap-1.5 text-slate-500 hover:text-blueprint-blue font-black uppercase text-[10px] tracking-widest transition-colors">
                 <span className="material-symbols-outlined text-[18px]">attachment</span> Reg
+              </button>
+            )}
+            {request.payment_proof_url && (
+              <button onClick={() => handlePreviewClick(request.payment_proof_url!, 'Receipt')} className="flex items-center gap-1.5 text-amber-600 hover:text-amber-700 font-black uppercase text-[10px] tracking-widest transition-colors">
+                <CreditCard size={16} /> Receipt
               </button>
             )}
             

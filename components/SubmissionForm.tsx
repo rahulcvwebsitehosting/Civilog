@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { supabase } from '../supabaseClient';
-import { Loader2, UserPlus, Trash2, Phone, Tag, MapPin, AlertCircle, Upload, Info, CheckCircle2, Calendar, Beaker, Image as ImageIcon, FileText } from 'lucide-react';
+import { Loader2, UserPlus, Trash2, Phone, Tag, MapPin, AlertCircle, Upload, Info, CheckCircle2, Calendar, Beaker, Image as ImageIcon, FileText, CreditCard } from 'lucide-react';
 import { SubmissionFormData, Profile, TeamMember, ODRequest } from '../types';
 import { generateODDocument } from '../services/pdfService';
 
@@ -337,7 +337,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
 
         <div className="space-y-4 pt-2 pb-8">
            <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] font-mono">03 DOCUMENTATION</h2>
-           <div className="grid grid-cols-2 gap-4">
+           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
              <label className={`h-24 border-2 border-dashed rounded-xl flex flex-col items-center justify-center cursor-pointer transition-all ${posterFile ? 'border-primary bg-primary/5' : 'border-gray-400 bg-white'}`}>
                 <ImageIcon size={20} className={posterFile ? 'text-primary' : 'text-gray-400'} />
                 <span className="text-[8px] font-bold uppercase mt-1 px-2 truncate w-full text-center">{posterFile ? posterFile.name : 'Event Poster'}</span>
@@ -347,6 +347,11 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
                 <FileText size={20} className={regFile ? 'text-primary' : 'text-gray-400'} />
                 <span className="text-[8px] font-bold uppercase mt-1 px-2 truncate w-full text-center">{regFile ? regFile.name : 'Reg Proof'}</span>
                 <input type="file" className="sr-only" accept=".pdf,image/*" onChange={(e) => handleFileChange(e, setRegFile)} />
+             </label>
+             <label className={`h-24 border-2 border-dashed rounded-xl flex flex-col items-center justify-center cursor-pointer transition-all ${payFile ? 'border-amber-500 bg-amber-50' : 'border-gray-300 bg-white'}`}>
+                <CreditCard size={20} className={payFile ? 'text-amber-500' : 'text-gray-400'} />
+                <span className="text-[8px] font-bold uppercase mt-1 px-2 truncate w-full text-center">{payFile ? payFile.name : 'Receipt (Opt)'}</span>
+                <input type="file" className="sr-only" accept=".pdf,image/*" onChange={(e) => handleFileChange(e, setPayFile)} />
              </label>
            </div>
         </div>

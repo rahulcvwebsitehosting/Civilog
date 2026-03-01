@@ -14,11 +14,19 @@ const FacultyRegistry: React.FC = () => {
 
   const fetchRegistry = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    let query = supabase
       .from('od_requests')
       .select('*')
-      .in('status', ['Approved', 'Completed'])
+      .in('status', ['Approved', 'Completed', 'Pending Advisor', 'Pending HOD'])
       .order('created_at', { ascending: false });
+
+    if (user?.user_metadata?.department) {
+      query = query.eq('department', user.user_metadata.department);
+    }
+
+    const { data, error } = await query;
 
     if (!error && data) {
       setRequests(data as ODRequest[]);
@@ -63,6 +71,7 @@ const FacultyRegistry: React.FC = () => {
         'Roll No': r.roll_no,
         'Register No': r.register_no,
         'Year': r.year,
+        'Department': r.department || 'ESEC',
         'Event Title': r.event_title,
         'Organization': r.organization_name,
         'Event Type': r.event_type,
@@ -80,7 +89,7 @@ const FacultyRegistry: React.FC = () => {
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "OD_Registry");
-    XLSX.writeFile(wb, `CivLog_Registry_${new Date().toISOString().split('T')[0]}.xlsx`);
+    XLSX.writeFile(wb, `ESEC_OD_Registry_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   const handleUpdateAchievement = async (id: string) => {
@@ -131,7 +140,7 @@ const FacultyRegistry: React.FC = () => {
           </button>
           <button 
             onClick={handleExport}
-            className="px-6 py-2.5 bg-blueprint-blue text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-blue-900/20 flex items-center gap-2 hover:bg-blue-900 transition-all"
+            className="px-6 py-2.5 bg-blueprint-blue text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-amber-500/20 flex items-center gap-2 hover:bg-goldenrod transition-all"
           >
             <Download size={16} /> Export spreadsheet
           </button>
@@ -250,18 +259,18 @@ const FacultyRegistry: React.FC = () => {
                       <div className="flex flex-col items-end gap-1">
                         <span className={`px-2 py-1 rounded-md text-[8px] font-black tracking-widest uppercase border ${
                           request.status === 'Completed' 
-                            ? 'bg-blue-50 text-blueprint-blue border-blue-100' 
-                            : 'bg-green-50 text-green-600 border-green-100'
+                            ? 'bg-amber-50 text-amber-700 border-amber-200' 
+                            : 'bg-amber-100 text-amber-800 border-amber-300'
                         }`}>
                           {request.status}
                         </span>
                         {Array.isArray(request.certificate_urls) && request.certificate_urls.filter(Boolean).length > 0 && (
-                          <div className="flex items-center gap-1 text-[8px] font-black text-green-600 uppercase">
+                          <div className="flex items-center gap-1 text-[8px] font-black text-amber-600 uppercase">
                             <Award size={10} /> Certified
                           </div>
                         )}
                         {Array.isArray(request.prize_details) && request.prize_details.filter(Boolean).length > 0 && (
-                          <div className="flex items-center gap-1 text-[8px] font-black text-primary uppercase">
+                          <div className="flex items-center gap-1 text-[8px] font-black text-blueprint-blue uppercase">
                             <Trophy size={10} /> PRIZE LOGGED
                           </div>
                         )}
@@ -279,7 +288,7 @@ const FacultyRegistry: React.FC = () => {
           </p>
           <div className="flex items-center gap-2 opacity-30 grayscale">
             <span className="material-symbols-outlined text-xs">database</span>
-            <span className="text-[8px] font-technical font-bold uppercase tracking-widest">CIVLOG_REGISTRY_v2.5</span>
+            <span className="text-[8px] font-technical font-bold uppercase tracking-widest">ESEC_REGISTRY_v2.5</span>
           </div>
         </div>
       </div>

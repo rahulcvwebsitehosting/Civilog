@@ -6,6 +6,7 @@ import { Loader2, RefreshCw, Search, BarChart3, Clock, CheckCircle2, LayoutList,
 import { generateODDocument } from '../services/pdfService';
 import { Link } from 'react-router-dom';
 import FeedCard from './FeedCard';
+import NotificationCenter from './NotificationCenter';
 
 // Utility function to format date as "01st October, 2026"
 const formatFancyDate = (dateString: string | null): string => {
@@ -31,8 +32,8 @@ const FacultyAdmin: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [stats, setStats] = useState({ pending: 0, approved: 0, completed: 0, archived: 0 });
-  const [activeStatus, setActiveStatus] = useState<ODStatus>('Pending');
+  const [stats, setStats] = useState({ pendingAdvisor: 0, pendingHOD: 0, approved: 0, completed: 0, archived: 0 });
+  const [activeStatus, setActiveStatus] = useState<ODStatus>('Pending Advisor');
   const [viewMode, setViewMode] = useState<'registry' | 'inspection'>('registry');
   const [facultyProfile, setFacultyProfile] = useState<Profile | null>(null);
 
@@ -47,31 +48,61 @@ const FacultyAdmin: React.FC = () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        setFacultyProfile({
+        const profile: Profile = {
           id: user.id,
           email: user.email || '',
           role: user.user_metadata?.role || 'faculty',
           full_name: user.user_metadata?.full_name || '',
           signature_url: user.user_metadata?.signature_url || null,
-        });
+          department: user.user_metadata?.department || null,
+          is_hod: user.user_metadata?.is_hod || false,
+        };
+        setFacultyProfile(profile);
+
+        // Auto-set active status based on role if it's the first load
+        if (loading) {
+          setActiveStatus(profile.is_hod ? 'Pending HOD' : 'Pending Advisor');
+        }
       }
 
       // Fetch list based on active status
-      const { data: listData } = await supabase
+      let query = supabase
         .from('od_requests')
         .select('*')
         .eq('status', activeStatus)
         .order('created_at', { ascending: false });
 
+      if (user?.user_metadata?.department) {
+        query = query.eq('department', user.user_metadata.department);
+      }
+
+      const { data: listData } = await query;
+
       // Fetch all counts for stats
-      const { count: pendingCount } = await supabase.from('od_requests').select('*', { count: 'exact', head: true }).eq('status', 'Pending');
-      const { count: approvedCount } = await supabase.from('od_requests').select('*', { count: 'exact', head: true }).eq('status', 'Approved');
-      const { count: completedCount } = await supabase.from('od_requests').select('*', { count: 'exact', head: true }).eq('status', 'Completed');
-      const { count: archivedCount } = await supabase.from('od_requests').select('*', { count: 'exact', head: true }).eq('status', 'Archived');
+      let pendingAdvisorQuery = supabase.from('od_requests').select('*', { count: 'exact', head: true }).eq('status', 'Pending Advisor');
+      let pendingHODQuery = supabase.from('od_requests').select('*', { count: 'exact', head: true }).eq('status', 'Pending HOD');
+      let approvedQuery = supabase.from('od_requests').select('*', { count: 'exact', head: true }).eq('status', 'Approved');
+      let completedQuery = supabase.from('od_requests').select('*', { count: 'exact', head: true }).eq('status', 'Completed');
+      let archivedQuery = supabase.from('od_requests').select('*', { count: 'exact', head: true }).eq('status', 'Archived');
+
+      if (user?.user_metadata?.department) {
+        pendingAdvisorQuery = pendingAdvisorQuery.eq('department', user.user_metadata.department);
+        pendingHODQuery = pendingHODQuery.eq('department', user.user_metadata.department);
+        approvedQuery = approvedQuery.eq('department', user.user_metadata.department);
+        completedQuery = completedQuery.eq('department', user.user_metadata.department);
+        archivedQuery = archivedQuery.eq('department', user.user_metadata.department);
+      }
+
+      const { count: pendingAdvisorCount } = await pendingAdvisorQuery;
+      const { count: pendingHODCount } = await pendingHODQuery;
+      const { count: approvedCount } = await approvedQuery;
+      const { count: completedCount } = await completedQuery;
+      const { count: archivedCount } = await archivedQuery;
 
       if (listData) setRequests(listData as ODRequest[]);
       setStats({ 
-        pending: pendingCount || 0, 
+        pendingAdvisor: pendingAdvisorCount || 0,
+        pendingHOD: pendingHODCount || 0,
         approved: approvedCount || 0, 
         completed: completedCount || 0,
         archived: archivedCount || 0
@@ -96,29 +127,77 @@ const FacultyAdmin: React.FC = () => {
     setProcessingId(request.id);
     try {
       if (approve && facultyProfile) {
-        const studentProfile: Profile = {
-          id: request.user_id,
-          email: '',
-          role: 'student',
-          full_name: request.student_name,
-          year: request.year
-        };
+        if (facultyProfile.is_hod) {
+          // HOD Approval Logic
+          const studentProfile: Profile = {
+            id: request.user_id,
+            email: '',
+            role: 'student',
+            full_name: request.student_name,
+            year: request.year
+          };
 
-        const pdfBlob = await generateODDocument(request, studentProfile, facultyProfile);
-        const fileName = `Approved_OD_${request.register_no}_${Date.now()}.pdf`;
-        const filePath = `od_letters/${fileName}`;
-        
-        const { error: uploadError } = await supabase.storage.from('od-files').upload(filePath, pdfBlob);
-        if (uploadError) throw uploadError;
+          const pdfBlob = await generateODDocument(request, studentProfile, facultyProfile);
+          const fileName = `Approved_OD_${request.register_no}_${Date.now()}.pdf`;
+          const filePath = `od_letters/${fileName}`;
+          
+          const { error: uploadError } = await supabase.storage.from('od-files').upload(filePath, pdfBlob);
+          if (uploadError) throw uploadError;
 
-        const { data: { publicUrl } } = supabase.storage.from('od-files').getPublicUrl(filePath);
+          const { data: { publicUrl } } = supabase.storage.from('od-files').getPublicUrl(filePath);
 
-        const { error: dbError } = await supabase.from('od_requests').update({ 
-          status: 'Approved', 
-          od_letter_url: publicUrl 
-        }).eq('id', request.id);
+          const { error: dbError } = await supabase.from('od_requests').update({ 
+            status: 'Approved', 
+            od_letter_url: publicUrl,
+            hod_id: facultyProfile.id
+          }).eq('id', request.id);
 
-        if (dbError) throw dbError;
+          if (dbError) throw dbError;
+
+          // Trigger Email & In-App Notification
+          try {
+            const { data: studentProfile } = await supabase
+              .from('profiles')
+              .select('email')
+              .eq('id', request.user_id)
+              .single();
+
+            const notificationMessage = `Dear ${request.student_name}, your OD for ${request.event_title} has been sanctioned. All the best for your presentation! - ESEC OD Portal.`;
+
+            // 1. Try Email (Currently on hold as per user request)
+            /*
+            if (studentProfile?.email) {
+              await fetch('/api/send-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  to: studentProfile.email,
+                  subject: 'OD Sanctioned - ESEC OD Portal',
+                  message: notificationMessage
+                })
+              });
+            }
+            */
+
+            // 2. Try In-App Notification (Assuming notifications table exists)
+            await supabase.from('notifications').insert({
+              user_id: request.user_id,
+              message: notificationMessage,
+              type: 'success',
+              read: false
+            });
+          } catch (notificationErr) {
+            console.error("Failed to send notification:", notificationErr);
+          }
+        } else {
+          // Advisor Approval Logic
+          const { error: dbError } = await supabase.from('od_requests').update({ 
+            status: 'Pending HOD',
+            advisor_id: facultyProfile.id
+          }).eq('id', request.id);
+
+          if (dbError) throw dbError;
+        }
       } else {
         await supabase.from('od_requests').update({ status: 'Rejected' }).eq('id', request.id);
       }
@@ -146,7 +225,7 @@ const FacultyAdmin: React.FC = () => {
   // Restore from Recycle Bin
   const handleRestore = async (id: string) => {
     try {
-      const { error } = await supabase.from('od_requests').update({ status: 'Pending' }).eq('id', id);
+      const { error } = await supabase.from('od_requests').update({ status: 'Pending Advisor' }).eq('id', id);
       if (error) throw error;
       fetchRequests();
     } catch (err: any) {
@@ -242,47 +321,56 @@ const FacultyAdmin: React.FC = () => {
             />
           </div>
           <div className="bg-white border p-1 rounded-xl flex items-center shadow-sm">
-            <button onClick={() => setViewMode('registry')} className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all ${viewMode === 'registry' ? 'bg-blueprint-blue text-white shadow-lg shadow-blue-900/20' : 'text-slate-400 hover:text-slate-600'}`}>
+            <button onClick={() => setViewMode('registry')} className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all ${viewMode === 'registry' ? 'bg-blueprint-blue text-white shadow-lg shadow-amber-500/20' : 'text-slate-400 hover:text-slate-600'}`}>
               <LayoutList size={14} /> List
             </button>
-            <button onClick={() => setViewMode('inspection')} className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all ${viewMode === 'inspection' ? 'bg-blueprint-blue text-white shadow-lg shadow-blue-900/20' : 'text-slate-400 hover:text-slate-600'}`}>
+            <button onClick={() => setViewMode('inspection')} className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all ${viewMode === 'inspection' ? 'bg-blueprint-blue text-white shadow-lg shadow-amber-500/20' : 'text-slate-400 hover:text-slate-600'}`}>
               <BookOpen size={14} /> Detail
             </button>
           </div>
+          {facultyProfile && <NotificationCenter userId={facultyProfile.id} />}
           <button onClick={fetchRequests} className="p-2.5 bg-white border rounded-xl hover:bg-slate-50 transition-colors shadow-sm"><RefreshCw size={20} className={loading ? 'animate-spin' : ''} /></button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <button 
-          onClick={() => setActiveStatus('Pending')}
-          className={`bg-white border p-5 rounded-[1.5rem] flex items-center gap-4 shadow-sm transition-all text-left ${activeStatus === 'Pending' ? 'border-amber-400 ring-2 ring-amber-400/20' : 'hover:border-slate-300'}`}
+          onClick={() => setActiveStatus('Pending Advisor')}
+          className={`bg-white border p-5 rounded-[1.5rem] flex items-center gap-4 shadow-sm transition-all text-left ${activeStatus === 'Pending Advisor' ? 'border-amber-400 ring-2 ring-amber-400/20' : 'hover:border-slate-300'}`}
         >
-          <div className={`p-3 rounded-xl ${activeStatus === 'Pending' ? 'bg-amber-500 text-white' : 'bg-amber-100 text-amber-600'}`}><Clock size={20}/></div>
-          <div><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Pending Logs</p><p className="text-2xl font-black">{stats.pending}</p></div>
+          <div className={`p-3 rounded-xl ${activeStatus === 'Pending Advisor' ? 'bg-amber-500 text-white' : 'bg-amber-100 text-amber-600'}`}><Clock size={20}/></div>
+          <div><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Advisor Pending</p><p className="text-2xl font-black">{stats.pendingAdvisor}</p></div>
+        </button>
+
+        <button 
+          onClick={() => setActiveStatus('Pending HOD')}
+          className={`bg-white border p-5 rounded-[1.5rem] flex items-center gap-4 shadow-sm transition-all text-left ${activeStatus === 'Pending HOD' ? 'border-amber-500 ring-2 ring-amber-500/20' : 'hover:border-slate-300'}`}
+        >
+          <div className={`p-3 rounded-xl ${activeStatus === 'Pending HOD' ? 'bg-amber-500 text-white' : 'bg-amber-100 text-amber-600'}`}><Clock size={20}/></div>
+          <div><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">HOD Pending</p><p className="text-2xl font-black">{stats.pendingHOD}</p></div>
         </button>
         
         <button 
           onClick={() => setActiveStatus('Approved')}
-          className={`bg-white border p-5 rounded-[1.5rem] flex items-center gap-4 shadow-sm transition-all text-left ${activeStatus === 'Approved' ? 'border-green-400 ring-2 ring-green-400/20' : 'hover:border-slate-300'}`}
+          className={`bg-white border p-5 rounded-[1.5rem] flex items-center gap-4 shadow-sm transition-all text-left ${activeStatus === 'Approved' ? 'border-amber-500 ring-2 ring-amber-500/20' : 'hover:border-slate-300'}`}
         >
-          <div className={`p-3 rounded-xl ${activeStatus === 'Approved' ? 'bg-green-500 text-white' : 'bg-green-100 text-green-600'}`}><CheckCircle2 size={20}/></div>
+          <div className={`p-3 rounded-xl ${activeStatus === 'Approved' ? 'bg-amber-500 text-white' : 'bg-amber-100 text-amber-600'}`}><CheckCircle2 size={20}/></div>
           <div><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Authorized</p><p className="text-2xl font-black">{stats.approved}</p></div>
         </button>
 
         <button 
           onClick={() => setActiveStatus('Completed')}
-          className={`bg-white border p-5 rounded-[1.5rem] flex items-center gap-4 shadow-sm transition-all text-left ${activeStatus === 'Completed' ? 'border-blue-400 ring-2 ring-blue-400/20' : 'hover:border-slate-300'}`}
+          className={`bg-white border p-5 rounded-[1.5rem] flex items-center gap-4 shadow-sm transition-all text-left ${activeStatus === 'Completed' ? 'border-goldenrod ring-2 ring-goldenrod/20' : 'hover:border-slate-300'}`}
         >
-          <div className={`p-3 rounded-xl ${activeStatus === 'Completed' ? 'bg-blueprint-blue text-white' : 'bg-blue-100 text-blueprint-blue'}`}><BarChart3 size={20}/></div>
+          <div className={`p-3 rounded-xl ${activeStatus === 'Completed' ? 'bg-goldenrod text-white' : 'bg-amber-50 text-goldenrod'}`}><BarChart3 size={20}/></div>
           <div><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Cycle Closed</p><p className="text-2xl font-black">{stats.completed}</p></div>
         </button>
 
         <button 
           onClick={() => setActiveStatus('Archived')}
-          className={`bg-white border p-5 rounded-[1.5rem] flex items-center gap-4 shadow-sm transition-all text-left ${activeStatus === 'Archived' ? 'border-red-400 ring-2 ring-red-400/20' : 'hover:border-slate-300'}`}
+          className={`bg-white border p-5 rounded-[1.5rem] flex items-center gap-4 shadow-sm transition-all text-left ${activeStatus === 'Archived' ? 'border-amber-700 ring-2 ring-amber-700/20' : 'hover:border-slate-300'}`}
         >
-          <div className={`p-3 rounded-xl ${activeStatus === 'Archived' ? 'bg-red-500 text-white' : 'bg-red-100 text-red-600'}`}><Archive size={20}/></div>
+          <div className={`p-3 rounded-xl ${activeStatus === 'Archived' ? 'bg-amber-700 text-white' : 'bg-amber-50 text-amber-700'}`}><Archive size={20}/></div>
           <div><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Recycle Bin</p><p className="text-2xl font-black">{stats.archived}</p></div>
         </button>
       </div>
@@ -333,7 +421,7 @@ const FacultyAdmin: React.FC = () => {
                               href={request.od_letter_url} 
                               target="_blank" 
                               rel="noreferrer" 
-                              className="p-2 bg-blue-50 text-blueprint-blue rounded-lg hover:bg-blue-100 transition-colors"
+                              className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 transition-colors"
                               title="View Authorized Letter"
                             >
                               <FileText size={18} />
@@ -361,14 +449,14 @@ const FacultyAdmin: React.FC = () => {
                             <>
                               <button
                                 onClick={() => handleRestore(request.id)}
-                                className="px-3 py-2 bg-green-50 text-green-600 border border-green-200 rounded-xl hover:bg-green-100 transition-all"
+                                className="px-3 py-2 bg-amber-50 text-amber-600 border border-amber-200 rounded-xl hover:bg-amber-100 transition-all"
                                 title="Restore to Pending"
                               >
                                 <RefreshCcw size={16} />
                               </button>
                               <button
                                 onClick={() => initiateHardDelete(request.id)}
-                                className="px-3 py-2 bg-red-50 text-red-600 border border-red-200 rounded-xl hover:bg-red-100 transition-all"
+                                className="px-3 py-2 bg-amber-50 text-amber-700 border border-amber-300 rounded-xl hover:bg-amber-100 transition-all"
                                 title="Delete Permanently"
                               >
                                 <Trash2 size={16} />

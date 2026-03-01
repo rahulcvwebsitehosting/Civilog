@@ -1,6 +1,15 @@
 
-export type ODStatus = 'Pending' | 'Approved' | 'Rejected' | 'Completed' | 'Archived';
+export type ODStatus = 'Pending Advisor' | 'Pending HOD' | 'Approved' | 'Rejected' | 'Completed' | 'Archived' | 'Pending';
 export type UserRole = 'student' | 'faculty';
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  created_at: string;
+  message: string;
+  read: boolean;
+  type: 'info' | 'success' | 'warning';
+}
 
 export interface Profile {
   id: string;
@@ -12,6 +21,7 @@ export interface Profile {
   year?: string;
   department?: string;
   designation?: string;
+  is_hod?: boolean;
   signature_url?: string | null;
   is_profile_complete?: boolean;
 }
@@ -32,6 +42,7 @@ export interface ODRequest {
   roll_no: string;
   phone_number: string;
   year: string;
+  department?: string;
   semester: string;
   event_title: string;
   organization_name: string;
@@ -45,6 +56,8 @@ export interface ODRequest {
   event_poster_url: string | null;
   od_letter_url: string | null;
   achievement_details: string | null;
+  advisor_id: string | null;
+  hod_id: string | null;
   // Legacy single fields (kept for compatibility)
   geotag_photo_url: string | null;
   certificate_url: string | null;
@@ -64,6 +77,7 @@ export interface SubmissionFormData {
   roll_no: string;
   phone_number: string;
   year: string;
+  department: string;
   semester: string;
   event_title: string;
   organization_name: string;

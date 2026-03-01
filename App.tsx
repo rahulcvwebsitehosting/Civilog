@@ -20,8 +20,8 @@ const NavLink: React.FC<{ to: string; children: React.ReactNode; icon: React.Rea
       to={to}
       className={`flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all duration-300 ${
         isActive 
-          ? 'bg-blueprint-blue text-white shadow-lg shadow-blue-900/20 scale-105' 
-          : 'text-pencil-gray hover:bg-blueprint-blue/5 hover:text-blueprint-blue'
+          ? 'bg-blueprint-blue text-white shadow-lg shadow-amber-500/20 scale-105' 
+          : 'text-pencil-gray hover:bg-amber-50 hover:text-blueprint-blue'
       }`}
     >
       {icon}
@@ -65,12 +65,12 @@ const Header: React.FC<{ profile: Profile | null; onLogout: () => void }> = ({ p
     <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
       <div className="flex items-center gap-4">
         <Link to="/" className="flex items-center gap-4 group">
-          <div className="bg-blueprint-blue p-2.5 rounded-2xl text-white shadow-xl shadow-blue-900/20 group-hover:rotate-12 transition-transform">
-            <span className="material-symbols-outlined text-2xl">construction</span>
+          <div className="bg-blueprint-blue p-2.5 rounded-2xl text-white shadow-xl shadow-amber-500/20 group-hover:rotate-12 transition-transform">
+            <span className="material-symbols-outlined text-2xl">school</span>
           </div>
           <div>
-            <h1 className="text-2xl font-black tracking-tighter text-blueprint-blue italic leading-none">CIVLOG</h1>
-            <p className="text-[9px] uppercase tracking-[0.3em] text-pencil-gray font-technical font-bold mt-1">Structural OD-Track System</p>
+            <h1 className="text-2xl font-black tracking-tighter text-blueprint-blue italic leading-none">ESEC OD</h1>
+            <p className="text-[9px] uppercase tracking-[0.3em] text-pencil-gray font-technical font-bold mt-1">College OD Management System</p>
           </div>
         </Link>
       </div>
@@ -100,7 +100,7 @@ const Header: React.FC<{ profile: Profile | null; onLogout: () => void }> = ({ p
                 <p className="text-[10px] font-technical font-bold text-blueprint-blue uppercase">{profile.full_name || profile.email.split('@')[0]}</p>
                 <p className="text-[9px] uppercase text-pencil-gray font-black tracking-widest opacity-60">{profile.role}</p>
               </div>
-              <div className="w-9 h-9 rounded-xl bg-blueprint-blue text-white flex items-center justify-center text-sm font-black shadow-lg shadow-blue-900/10 border-2 border-white">
+              <div className="w-9 h-9 rounded-xl bg-blueprint-blue text-white flex items-center justify-center text-sm font-black shadow-lg shadow-amber-500/10 border-2 border-white">
                 {profile.full_name?.charAt(0) || profile.email.charAt(0).toUpperCase()}
               </div>
             </Link>
@@ -177,9 +177,9 @@ const App: React.FC = () => {
       <div className="min-h-screen flex flex-col items-center justify-center bg-drafting-paper grid-bg">
         <div className="relative">
           <div className="w-16 h-16 border-4 border-blueprint-blue/10 border-t-blueprint-blue rounded-full animate-spin"></div>
-          <span className="material-symbols-outlined absolute inset-0 flex items-center justify-center text-blueprint-blue">architecture</span>
+          <span className="material-symbols-outlined absolute inset-0 flex items-center justify-center text-blueprint-blue">school</span>
         </div>
-        <p className="mt-6 text-[10px] font-technical font-bold text-blueprint-blue uppercase tracking-[0.4em] animate-pulse">Synchronizing Terminal Session...</p>
+        <p className="mt-6 text-[10px] font-technical font-bold text-blueprint-blue uppercase tracking-[0.4em] animate-pulse">Synchronizing ESEC OD Portal...</p>
       </div>
     );
   }
@@ -266,11 +266,11 @@ const App: React.FC = () => {
         <footer className="hidden lg:block bg-white/50 backdrop-blur-sm border-t border-blueprint-blue/10 py-8">
           <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="flex items-center gap-2 opacity-40 grayscale">
-              <span className="material-symbols-outlined">engineering</span>
-              <p className="text-[10px] font-technical font-bold uppercase tracking-widest">Structural Engineering Dept • System v2.5.1</p>
+              <span className="material-symbols-outlined">domain</span>
+              <p className="text-[10px] font-technical font-bold uppercase tracking-widest">ESEC Departments • System v2.5.1</p>
             </div>
             <p className="text-[10px] font-technical font-bold text-pencil-gray uppercase tracking-widest opacity-40">
-              © {new Date().getFullYear()} CIVLOG OS
+              © {new Date().getFullYear()} ESEC OD PORTAL
             </p>
           </div>
         </footer>

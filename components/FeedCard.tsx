@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { ODRequest, ODStatus } from '../types';
-import { Trash2, Users, FileText, MapPin, Image as ImageIcon, ExternalLink, Phone, CreditCard, X, Download, CheckCircle, XCircle, Loader2, Calendar, Award, Trophy, ChevronDown, ChevronUp } from 'lucide-react';
+import { Trash2, Users, FileText, MapPin, Image as ImageIcon, ExternalLink, Phone, CreditCard, X, Download, CheckCircle, XCircle, Loader2, Calendar, Award, Trophy, ChevronDown, ChevronUp, Bell, Upload } from 'lucide-react';
 
 interface FeedCardProps {
   request: ODRequest;
@@ -95,11 +95,13 @@ const FeedCard: React.FC<FeedCardProps> = ({
 
   const getStatusColor = (status: ODStatus) => {
     switch (status) {
-      case 'Approved': return 'text-green-600 bg-green-500';
-      case 'Pending': return 'text-amber-600 bg-amber-500';
-      case 'Rejected': return 'text-red-600 bg-red-500';
-      case 'Completed': return 'text-blueprint-blue bg-blueprint-blue';
-      default: return 'text-slate-400 bg-slate-400';
+      case 'Approved': return 'text-amber-700 bg-amber-400';
+      case 'Pending Advisor': return 'text-amber-600 bg-amber-100 border border-amber-200';
+      case 'Pending HOD': return 'text-amber-700 bg-amber-200 border border-amber-300';
+      case 'Pending': return 'text-amber-600 bg-amber-200';
+      case 'Rejected': return 'text-slate-900 bg-amber-100 border border-amber-200';
+      case 'Completed': return 'text-white bg-goldenrod shadow-lg shadow-amber-200/50';
+      default: return 'text-slate-400 bg-slate-100';
     }
   };
 
@@ -162,7 +164,7 @@ const FeedCard: React.FC<FeedCardProps> = ({
     ? `${formattedEventDate} - ${formattedEventEndDate}`
     : formattedEventDate;
 
-  const canDelete = !isFaculty && currentUserId === request.user_id && (request.status === 'Pending' || request.status === 'Rejected');
+  const canDelete = !isFaculty && currentUserId === request.user_id && (request.status === 'Pending Advisor' || request.status === 'Rejected');
 
   // Dynamic grid configuration to avoid blank sections
   const gridColsClass = previews.length === 1 ? 'grid-cols-1' : 
@@ -258,6 +260,28 @@ const FeedCard: React.FC<FeedCardProps> = ({
               </div>
             )}
             
+            {request.status === 'Approved' && !isFaculty && (
+              <div className="mt-4 p-4 bg-amber-50 border-2 border-amber-200 rounded-2xl animate-pulse">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-amber-100 text-amber-600 rounded-xl">
+                      <Award size={20} />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-amber-800 uppercase tracking-widest">Action Required</p>
+                      <p className="text-xs font-bold text-amber-700">Upload your event certificate to complete the OD cycle.</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => onUploadEvidence?.('certificate', 0)}
+                    className="px-4 py-2 bg-amber-500 text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition-all flex items-center gap-2 whitespace-nowrap"
+                  >
+                    <Upload size={14} /> Upload Now
+                  </button>
+                </div>
+              </div>
+            )}
+            
             {request.team_members && request.team_members.length > 0 && (
               <div className="mt-3 space-y-1.5">
                 <div className="flex items-center gap-2 text-blueprint-blue font-black uppercase text-[9px] tracking-[0.1em]">
@@ -349,7 +373,7 @@ const FeedCard: React.FC<FeedCardProps> = ({
                           disabled={isUploading}
                           className={`flex-1 h-12 rounded-xl border-2 border-dashed flex items-center justify-center transition-all ${
                             request.geotag_photo_urls?.[idx] 
-                              ? 'border-green-200 bg-green-50 text-green-600' 
+                              ? 'border-amber-400 bg-amber-50 text-amber-600' 
                               : 'border-slate-200 bg-white text-slate-300 hover:border-blueprint-blue hover:text-blueprint-blue'
                           }`}
                         >
@@ -376,7 +400,7 @@ const FeedCard: React.FC<FeedCardProps> = ({
                           disabled={isUploading}
                           className={`flex-1 h-12 rounded-xl border-2 border-dashed flex items-center justify-center transition-all ${
                             request.certificate_urls?.[idx] 
-                              ? 'border-blue-200 bg-blue-50 text-blue-600' 
+                              ? 'border-amber-300 bg-amber-50 text-amber-600' 
                               : 'border-slate-200 bg-white text-slate-300 hover:border-blueprint-blue hover:text-blueprint-blue'
                           }`}
                         >
@@ -426,7 +450,7 @@ const FeedCard: React.FC<FeedCardProps> = ({
         <div className="px-5 py-4 flex flex-col sm:flex-row items-center justify-between border-t border-slate-50 bg-slate-50/50 gap-4">
           <div className="flex flex-wrap gap-x-6 gap-y-3 w-full sm:w-auto">
             {request.od_letter_url && (
-              <button onClick={() => window.open(request.od_letter_url!, '_blank')} className="flex items-center gap-1.5 text-blueprint-blue font-black uppercase text-[10px] tracking-widest hover:scale-105 transition-transform">
+              <button onClick={() => window.open(request.od_letter_url!, '_blank')} className="flex items-center gap-1.5 text-blueprint-blue font-black uppercase text-[10px] tracking-widest hover:scale-105 transition-transform border-b-2 border-transparent hover:border-blueprint-blue">
                 <span className="material-symbols-outlined text-[18px]">description</span> Letter
               </button>
             )}
@@ -442,14 +466,14 @@ const FeedCard: React.FC<FeedCardProps> = ({
             )}
             
             {request.status === 'Completed' && (
-              <div className="flex items-center gap-1.5 text-green-600 font-black uppercase text-[10px] tracking-widest">
+              <div className="flex items-center gap-1.5 text-amber-600 font-black uppercase text-[10px] tracking-widest">
                 <span className="material-symbols-outlined text-[18px]">verified_user</span> Authenticated
               </div>
             )}
           </div>
 
           <div className="flex items-center gap-4 shrink-0 w-full sm:w-auto justify-between sm:justify-end">
-            {isFaculty && request.status === 'Pending' && onApprove && onReject ? (
+            {isFaculty && (request.status === 'Pending Advisor' || request.status === 'Pending HOD') && onApprove && onReject ? (
               <div className="flex items-center gap-2">
                 {isProcessing ? (
                   <div className="flex items-center gap-2 text-blueprint-blue text-[10px] font-black uppercase tracking-widest">
@@ -459,13 +483,13 @@ const FeedCard: React.FC<FeedCardProps> = ({
                   <>
                     <button 
                       onClick={() => onReject(request)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-red-600 hover:bg-red-50 border border-red-100 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all"
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-slate-600 hover:bg-amber-50 border border-slate-200 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all"
                     >
                       <XCircle size={14} /> Deny
                     </button>
                     <button 
                       onClick={() => onApprove(request)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-blueprint-blue text-white rounded-lg text-[9px] font-black uppercase tracking-widest shadow-lg shadow-blue-900/10 hover:bg-blue-900 transition-all"
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-blueprint-blue text-white rounded-lg text-[9px] font-black uppercase tracking-widest shadow-lg shadow-amber-200/50 hover:bg-goldenrod transition-all"
                     >
                       <CheckCircle size={14} /> Authorize
                     </button>

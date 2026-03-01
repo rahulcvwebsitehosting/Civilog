@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
-import { Loader2, Mail, Lock, UserPlus, LogIn, HardHat, AlertCircle, CheckCircle2, Search } from 'lucide-react';
+import { Loader2, Mail, Lock, UserPlus, LogIn, GraduationCap, AlertCircle, CheckCircle2, Search } from 'lucide-react';
 
 const Auth: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -69,14 +69,14 @@ const Auth: React.FC = () => {
         <div className="absolute top-0 left-0 w-full h-1.5 bg-blueprint-blue opacity-10"></div>
         
         <div className="text-center mb-8">
-          <div className="bg-blueprint-blue w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 text-white shadow-lg shadow-blue-900/20">
-            <HardHat size={32} />
+          <div className="bg-blueprint-blue w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 text-white shadow-lg shadow-amber-500/20">
+            <LogIn size={32} />
           </div>
           <h2 className="text-2xl font-black text-blueprint-blue uppercase tracking-tight italic">
-            {isSignUp ? 'Initialize CivLog' : 'System Access'}
+            {isSignUp ? 'Initialize ESEC OD' : 'ESEC Login'}
           </h2>
           <p className="text-pencil-gray text-[10px] font-technical font-bold uppercase tracking-widest mt-1">
-            {isSignUp ? 'New Structural Account' : 'Credentials Required'}
+            {isSignUp ? 'New Student Account' : 'Enter Credentials'}
           </p>
         </div>
 
@@ -113,14 +113,14 @@ const Auth: React.FC = () => {
             </div>
 
             {error && (
-              <div className="bg-red-50 text-red-600 p-3 rounded-xl border border-red-100 flex items-start gap-2 text-[11px] font-medium leading-tight">
+              <div className="bg-amber-50 text-amber-700 p-3 rounded-xl border border-amber-200 flex items-start gap-2 text-[11px] font-medium leading-tight">
                 <AlertCircle size={14} className="shrink-0 mt-0.5" />
                 <span className="flex-1">{error}</span>
               </div>
             )}
 
             {message && (
-              <div className="bg-green-50 text-green-600 p-3 rounded-xl border border-green-100 flex items-start gap-2 text-[11px] font-medium leading-tight">
+              <div className="bg-amber-50 text-amber-600 p-3 rounded-xl border border-amber-200 flex items-start gap-2 text-[11px] font-medium leading-tight">
                 <CheckCircle2 size={14} className="shrink-0 mt-0.5" />
                 <span className="flex-1">{message}</span>
               </div>
@@ -129,7 +129,7 @@ const Auth: React.FC = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-blueprint-blue text-white py-3.5 rounded-xl font-black flex items-center justify-center gap-2 hover:bg-blue-900 transition-all shadow-lg shadow-blue-900/10 disabled:opacity-50 uppercase tracking-widest text-xs"
+              className="w-full bg-blueprint-blue text-white py-3.5 rounded-xl font-black flex items-center justify-center gap-2 hover:bg-goldenrod transition-all shadow-lg shadow-amber-500/10 disabled:opacity-50 uppercase tracking-widest text-xs"
             >
               {loading ? <Loader2 className="animate-spin" size={18} /> : (isSignUp ? 'Request Access' : 'Authenticate')}
             </button>
@@ -159,7 +159,7 @@ const Auth: React.FC = () => {
             onClick={() => { setIsSignUp(!isSignUp); setError(null); setMessage(null); }}
             className="text-blueprint-blue font-black text-[10px] uppercase tracking-widest hover:underline"
           >
-            {isSignUp ? 'Back to Terminal Sign In' : "No Account? Register Submittal"}
+            {isSignUp ? 'Back to Login' : "No Account? Register"}
           </button>
         </div>
       </div>

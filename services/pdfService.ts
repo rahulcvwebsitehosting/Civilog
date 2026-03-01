@@ -74,14 +74,12 @@ export const generateODDocument = async (request: ODRequest, studentProfile: Pro
 
   // --- Header Section ---
   doc.setFontSize(14);
-  doc.setFont(undefined, 'bold');
-  doc.text('ERODE SENGUNTHAR ENGINEERING COLLEGE', 105, currentY + 5, { align: 'center' });
+  doc.setFont('times', 'bold');
+  doc.text('ERODE SENGUNTHAR ENGINEERING COLLEGE (AUTONOMOUS)', 105, currentY + 5, { align: 'center' });
   currentY += 10;
   
   doc.setFontSize(10);
-  doc.setFont(undefined, 'normal');
-  doc.text('(An Autonomous Institution)', 105, currentY, { align: 'center' });
-  currentY += 5;
+  doc.setFont('times', 'normal');
   doc.text('ERODE - 638057', 105, currentY, { align: 'center' });
   currentY += 5;
   
@@ -91,10 +89,10 @@ export const generateODDocument = async (request: ODRequest, studentProfile: Pro
 
   // --- 2. 'From' Section Logic ---
   doc.setFontSize(12);
-  doc.setFont(undefined, 'bold');
+  doc.setFont('times', 'bold');
   doc.text('From:', MARGIN, currentY); 
   currentY += 7;
-  doc.setFont(undefined, 'normal');
+  doc.setFont('times', 'normal');
   
   const namesByYear: { [key: string]: string[] } = {};
   allParticipants.forEach(p => {
@@ -103,34 +101,45 @@ export const generateODDocument = async (request: ODRequest, studentProfile: Pro
     namesByYear[yr].push(p.name);
   });
 
+  const departmentName = request.department ? `${request.department} Department` : 'ESEC Department';
+
   Object.entries(namesByYear).forEach(([year, names]) => {
-    const line = `${names.join(', ')} (${year})`;
+    const line = `${names.join(', ')}`;
+    const subLine = `${year} - ${request.department || 'ESEC'} Department`;
+    
     const splitLine = doc.splitTextToSize(line, CONTENT_WIDTH);
     doc.text(splitLine, MARGIN, currentY);
     currentY += (splitLine.length * 6);
+    
+    doc.setFontSize(10);
+    doc.setFont('times', 'italic');
+    doc.text(subLine, MARGIN, currentY);
+    currentY += 6;
+    doc.setFontSize(12);
+    doc.setFont('times', 'normal');
   });
 
-  doc.text('Civil Engineering Department,', MARGIN, currentY); currentY += 6;
+  doc.text(`${departmentName},`, MARGIN, currentY); currentY += 6;
   doc.text('Erode Sengunthar Engineering College,', MARGIN, currentY); currentY += 6;
   doc.text('Erode, 638057.', MARGIN, currentY); currentY += 15;
 
   // --- To Section ---
-  doc.setFont(undefined, 'bold');
+  doc.setFont('times', 'bold');
   doc.text('To:', MARGIN, currentY); currentY += 7;
-  doc.setFont(undefined, 'normal');
+  doc.setFont('times', 'normal');
   doc.text('The Advisor,', MARGIN, currentY); currentY += 6;
-  doc.text('Civil Engineering Department,', MARGIN, currentY); currentY += 6;
+  doc.text(`${departmentName},`, MARGIN, currentY); currentY += 6;
   doc.text('Erode Sengunthar Engineering College.', MARGIN, currentY); currentY += 15;
 
   // --- Subject Section ---
-  doc.setFont(undefined, 'bold');
+  doc.setFont('times', 'bold');
   const subjectLine = `Subject: Request for on-duty for ${request.event_type} - ${request.event_title} at ${request.organization_name}`;
   const splitSubject = doc.splitTextToSize(subjectLine, CONTENT_WIDTH);
   doc.text(splitSubject, MARGIN, currentY); 
   currentY += (splitSubject.length * 6) + 12;
 
   // --- Salutation ---
-  doc.setFont(undefined, 'normal');
+  doc.setFont('times', 'normal');
   doc.text('Respected Sir/Mam,', MARGIN, currentY); currentY += 10;
 
   // --- 3. Grammatical Switching & Body Construction ---
@@ -149,7 +158,7 @@ export const generateODDocument = async (request: ODRequest, studentProfile: Pro
     ? `from ${eventDateFormatted} to ${eventEndDateFormatted}`
     : `on ${eventDateFormatted}`;
   
-  const bodyText = `${pronoun}, ${formattedNames}, ${identityPhrase} of the Civil Engineering department. ${pronoun} wish to participate in the ${request.event_type} titled "${request.event_title}" organized by ${request.organization_name} ${dateRangeStr}. Hence, ${pronoun.toLowerCase()} kindly ${requestPhrase} to attend this technical event and grant On-Duty (OD) permission for the same.`;
+  const bodyText = `${pronoun}, ${formattedNames}, ${identityPhrase} of the ${departmentName}. ${pronoun} wish to participate in the ${request.event_type} titled "${request.event_title}" organized by ${request.organization_name} ${dateRangeStr}. Hence, ${pronoun.toLowerCase()} kindly ${requestPhrase} to attend this technical event and grant On-Duty (OD) permission for the same.`;
   
   const splitBody = doc.splitTextToSize(bodyText, CONTENT_WIDTH);
   doc.text(splitBody, MARGIN, currentY);
@@ -167,18 +176,18 @@ export const generateODDocument = async (request: ODRequest, studentProfile: Pro
       doc.addImage(facSigImg, 'PNG', signatureX, currentY, 40, 15, undefined, 'FAST');
     }
     currentY += 20;
-    doc.setFont(undefined, 'bold');
+    doc.setFont('times', 'bold');
     doc.text(`${facultyProfile.full_name}`, signatureX, currentY);
     currentY += 5;
     doc.setFontSize(10);
-    doc.setFont(undefined, 'normal');
+    doc.setFont('times', 'normal');
     // REMOVED / HOD as requested
     doc.text('Faculty Advisor', signatureX, currentY);
 
     // Approval Stamp
     doc.setFontSize(24);
     doc.setTextColor(34, 197, 94); // Green-500
-    doc.setFont(undefined, 'bold');
+    doc.setFont('times', 'bold');
     doc.text('APPROVED', 150, currentY - 5, { angle: 15 });
     doc.setTextColor(0, 0, 0);
   } else {
@@ -192,7 +201,7 @@ export const generateODDocument = async (request: ODRequest, studentProfile: Pro
   doc.setFont('times', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(150, 150, 150);
-  doc.text('Digitally generated by CivLog OS Terminal. Faculty authorization required for final validity.', 105, 282, { align: 'center' });
+  doc.text('Digitally generated by ESEC OD Portal. Faculty authorization required for final validity.', 105, 282, { align: 'center' });
 
   return doc.output('blob');
 };

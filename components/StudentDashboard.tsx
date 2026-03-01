@@ -2,9 +2,10 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { ODRequest, ODStatus, Profile } from '../types';
-import { Plus, XCircle, Loader2, HardHat, Terminal, Trophy } from 'lucide-react';
+import { Plus, XCircle, Loader2, GraduationCap, Terminal, Trophy } from 'lucide-react';
 import SubmissionForm from './SubmissionForm';
 import FeedCard from './FeedCard';
+import NotificationCenter from './NotificationCenter';
 import { Link } from 'react-router-dom';
 
 interface PrizeDetailsPromptModalProps {
@@ -69,7 +70,7 @@ const PrizeDetailsPromptModal: React.FC<PrizeDetailsPromptModalProps> = ({ onClo
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-blueprint-blue text-white py-3 rounded-xl font-black flex items-center justify-center gap-2 hover:bg-blue-900 transition-all shadow-lg shadow-blue-900/10 uppercase tracking-widest text-xs"
+            className="w-full bg-blueprint-blue text-white py-3 rounded-xl font-black flex items-center justify-center gap-2 hover:bg-goldenrod transition-all shadow-lg shadow-amber-500/10 uppercase tracking-widest text-xs"
           >
             {isLoading ? <Loader2 className="animate-spin" size={18} /> : 'Save Prize Details'}
           </button>
@@ -113,8 +114,8 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
   }, [profile.id]);
 
   const handleDelete = async (request: ODRequest) => {
-    if (request.status === 'Approved' || request.status === 'Completed') {
-      alert("Structural Violation: Authorized logs cannot be deleted from the central registry.");
+    if (request.status === 'Approved' || request.status === 'Completed' || request.status === 'Pending HOD') {
+      alert("System Violation: Authorized or partially authorized logs cannot be deleted.");
       return;
     }
 
@@ -125,7 +126,7 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
       .eq('user_id', profile.id);
 
     if (error) {
-      alert('Structural failure during deletion: ' + error.message);
+      alert('System failure during deletion: ' + error.message);
     } else {
       setRequests(prev => prev.filter(r => r.id !== request.id));
     }
@@ -194,11 +195,10 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
       nextPrizeDetails[currentPrizeIndex] = { type: prizeType, event: prizeEvent, url: tempPrizeUploadUrl };
       updates.prize_details = nextPrizeDetails;
       
-      // Auto-complete logic: at least one photo and one certificate required
-      const hasPhoto = currentPhotos.filter(Boolean).length > 0;
+      // Auto-complete logic: Mark as Completed if a certificate is uploaded
       const hasAnyCert = (currentCerts.filter(Boolean).length > 0) || (nextPrizeDetails.filter(p => p.url && p.url.trim() !== '').length > 0);
       
-      if (hasPhoto && hasAnyCert) {
+      if (hasAnyCert) {
         updates.status = 'Completed';
       }
 
@@ -265,11 +265,10 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
           updates.certificate_urls = nextCerts;
         } 
         
-        // Auto-complete logic: at least one photo and one certificate required
-        const hasPhoto = (type === 'photo' && updates.geotag_photo_urls?.[index]) || (currentPhotos.filter(Boolean).length > 0);
+        // Auto-complete logic: Mark as Completed if a certificate is uploaded
         const hasCert = (type === 'certificate' && updates.certificate_urls?.[index]) || (currentCerts.filter(Boolean).length > 0) || (currentPrizeDetails.filter(p => p.url && p.url.trim() !== '').length > 0);
         
-        if (hasPhoto && hasCert) {
+        if (hasCert) {
           updates.status = 'Completed';
         }
 
@@ -296,14 +295,17 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
       <div className="mb-8 flex justify-between items-end bg-white/50 backdrop-blur-sm p-6 rounded-2xl border border-blueprint-blue/10">
         <div>
           <h2 className="text-3xl font-black text-blueprint-blue tracking-tighter uppercase italic">ACTIVITY FEED</h2>
-          <p className="text-[10px] text-pencil-gray font-technical uppercase tracking-[0.2em] font-bold">Structural Log • Civil Engineering</p>
+          <p className="text-[10px] text-pencil-gray font-technical uppercase tracking-[0.2em] font-bold">Activity Log • {profile.department || 'ESEC'}</p>
         </div>
-        <button
-          onClick={() => setShowForm(true)}
-          className="bg-blueprint-blue text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-blue-900 transition-all shadow-lg shadow-blue-100 uppercase text-xs tracking-wider"
-        >
-          <Plus size={16} /> Log Entry
-        </button>
+        <div className="flex items-center gap-3">
+          <NotificationCenter userId={profile.id} />
+          <button
+            onClick={() => setShowForm(true)}
+            className="bg-blueprint-blue text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-goldenrod transition-all shadow-lg shadow-amber-500/10 uppercase text-xs tracking-wider"
+          >
+            <Plus size={16} /> Log Entry
+          </button>
+        </div>
       </div>
 
       {showForm && (
@@ -335,7 +337,7 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
         <div className="py-20 flex flex-col items-center gap-4">
           <div className="relative">
             <Loader2 className="animate-spin text-blueprint-blue" size={48} />
-            <span className="material-symbols-outlined absolute inset-0 flex items-center justify-center text-blueprint-blue text-sm">construction</span>
+            <span className="material-symbols-outlined absolute inset-0 flex items-center justify-center text-blueprint-blue text-sm">school</span>
           </div>
           <p className="text-pencil-gray font-technical uppercase tracking-widest text-xs font-bold">Synchronizing Feed...</p>
         </div>
@@ -373,7 +375,7 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
       {/* CTO FAB */}
       <Link 
         to="/profile/rahul-shyam" 
-        className="fixed bottom-24 lg:bottom-12 right-6 lg:right-12 w-14 h-14 bg-blueprint-blue text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-110 active:scale-95 transition-all z-[90] group"
+        className="fixed bottom-24 lg:bottom-12 right-6 lg:right-12 w-14 h-14 bg-blueprint-blue text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-110 active:scale-95 transition-all z-[90] group shadow-amber-500/20"
         title="CTO Terminal"
       >
         <Terminal size={24} className="group-hover:rotate-12 transition-transform" />

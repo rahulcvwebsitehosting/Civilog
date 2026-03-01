@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { ODRequest, ODStatus } from '../types';
 import { Search as SearchIcon, Loader2, Download, Image as ImageIcon, Award, FileCheck, Info, MapPin, CheckCircle2, Calendar } from 'lucide-react';
+import exifr from 'exifr';
 
 
 const TrackingView: React.FC = () => {
@@ -41,6 +42,13 @@ const TrackingView: React.FC = () => {
   const handleEvidenceUpload = async (request: ODRequest, file: File, type: 'photo' | 'certificate') => {
     setUploading({ id: request.id, type });
     try {
+      if (type === 'photo') {
+        const metadata = await exifr.gps(file);
+        if (!metadata || !metadata.latitude || !metadata.longitude) {
+          throw new Error('Validation Failed: Photo lacks GPS metadata. Ensure location services were active during field logging.');
+        }
+      }
+
       const fileName = `${Date.now()}_${type}_${request.register_no}.${file.name.split('.').pop()}`;
       const { error: uploadError } = await supabase.storage
         .from('od-files')
@@ -241,7 +249,7 @@ const TrackingView: React.FC = () => {
                       <FileCheck size={40} />
                     </div>
                     <h4 className="font-black uppercase text-[11px] tracking-[0.3em] italic">CYCLE CLOSED</h4>
-                    <p className="text-[9px] uppercase font-bold opacity-60 mt-2">Structural Authentication Verified</p>
+                    <p className="text-[9px] uppercase font-bold opacity-60 mt-2">Authentication Verified</p>
                    </div>
                 )}
               </div>

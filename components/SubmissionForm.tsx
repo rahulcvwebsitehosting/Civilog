@@ -14,6 +14,30 @@ interface SubmissionFormProps {
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
 
+const DEPARTMENTS = [
+  'Civil Engineering',
+  'Agriculture Engineering',
+  'Biomedical Engineering',
+  'Computer Science and Engineering',
+  'Electrical and Electronics Engineering',
+  'Electronics and Communication Engineering',
+  'Electronics and Instrumentation Engineering',
+  'Mechanical Engineering',
+  'Robotics and Automation',
+  'CSE (Cyber Security)',
+  'CSE (AI & ML)',
+  'CSE (IoT)',
+  'Chemical Engineering',
+  'Information Technology',
+  'Artificial Intelligence and Data Science',
+  'Computer Science and Design',
+  'M.Tech. CSE (5-Years)',
+  'MBA',
+  'MCA',
+  'Food Technology',
+  'S&H'
+];
+
 const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, profile }) => {
   const [formData, setFormData] = useState<SubmissionFormData>({
     student_name: profile.full_name || '',
@@ -21,6 +45,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
     roll_no: profile.roll_no || '',
     phone_number: '',
     year: profile.year || '2', 
+    department: profile.department || 'Computer Science and Engineering',
     semester: '3',
     event_title: '',
     organization_name: '',
@@ -70,7 +95,8 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
     setFormData(prev => ({
       ...prev,
       phone_number: '9876543210',
-      event_title: 'Bridge Design & Structural Analysis Workshop',
+      department: 'Computer Science and Engineering',
+      event_title: 'Technical Symposium on AI & Innovation',
       organization_name: 'IIT Madras',
       organization_location: 'Adyar, Chennai',
       event_type: 'Workshop',
@@ -81,7 +107,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
     setTeamMemberInput({
       name: 'Suresh Kumar',
       register_no: '2203730045',
-      roll_no: '22CE45',
+      roll_no: '22CS45',
       year: '3'
     });
   };
@@ -102,6 +128,10 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
       const newData = { ...prev, [name]: value };
       if (name === 'event_date' && !prev.event_end_date) {
         newData.event_end_date = value;
+      }
+      // Reset year if department changes and year 5 is no longer valid
+      if (name === 'department' && value !== 'M.Tech. CSE (5-Years)' && prev.year === '5') {
+        newData.year = '4';
       }
       return newData;
     });
@@ -184,6 +214,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
         roll_no: formData.roll_no,
         phone_number: formData.phone_number,
         year: formData.year,
+        department: formData.department,
         semester: formData.semester,
         event_title: formData.event_title,
         organization_name: formData.organization_name,
@@ -192,7 +223,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
         event_date: formData.event_date,
         event_end_date: formData.event_end_date || formData.event_date,
         team_members: formData.team_members,
-        status: 'Pending' as const,
+        status: 'Pending Advisor' as const,
         registration_proof_url: regUrl,
         payment_proof_url: payUrl,
         event_poster_url: posterUrl,
@@ -200,6 +231,9 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
         geotag_photo_urls: [], // Initialize as empty array
         certificate_urls: [], // Initialize as empty array
         prize_details: [], // Initialize as empty array
+        achievement_details: null,
+        advisor_id: null,
+        hod_id: null,
         remarks: null,
         // Legacy single fields - for backward compatibility, keep them null or empty
         geotag_photo_url: null,
@@ -240,14 +274,14 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
     <div className="relative w-full max-w-xl bg-[#F5F5F5] dark:bg-[#262626] rounded-xl shadow-2xl overflow-hidden border-4 border-gray-300 dark:border-gray-700 font-display">
       <div className="relative w-full h-3 bg-gray-300 dark:bg-gray-800 border-b border-gray-400 dark:border-gray-600">
         <div 
-          className="absolute top-0 left-0 h-full bg-primary bg-stripes shadow-[0_0_10px_rgba(255,87,34,0.6)] transition-[width] duration-700 ease-out"
+          className="absolute top-0 left-0 h-full bg-blueprint-blue bg-stripes shadow-[0_0_10px_rgba(245,158,11,0.6)] transition-[width] duration-700 ease-out"
           style={{ width: `${progress}%` }}
         ></div>
       </div>
 
       <div className="relative px-8 pt-10 pb-6 border-b-2 border-dashed border-gray-300 dark:border-gray-600 flex justify-between items-start">
         <div>
-          <h1 className="text-2xl font-black text-gray-800 dark:text-gray-100 uppercase tracking-tight italic">Structural OD Submittal</h1>
+          <h1 className="text-2xl font-black text-gray-800 dark:text-gray-100 uppercase tracking-tight italic">OD Submittal</h1>
           <button 
             type="button"
             onClick={handleAutoFill}
@@ -283,13 +317,23 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
               placeholder="Phone Number" 
             />
           </div>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
              <select name="year" value={formData.year} onChange={handleInputChange} className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg border-2 border-slate-200 outline-none">
                <option value="1">1st Year</option>
                <option value="2">2nd Year</option>
                <option value="3">3rd Year</option>
                <option value="4">4th Year</option>
+               {formData.department === 'M.Tech. CSE (5-Years)' && (
+                 <option value="5">5th Year (M.Tech)</option>
+               )}
              </select>
+             <select name="department" value={formData.department} onChange={handleInputChange} className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg border-2 border-slate-200 outline-none">
+               {DEPARTMENTS.map(dept => (
+                 <option key={dept} value={dept}>{dept}</option>
+               ))}
+             </select>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
              <input name="register_no" required value={formData.register_no} onChange={handleInputChange} className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg border-2 border-slate-200 outline-none font-mono" placeholder="Reg No" />
              <input name="roll_no" required value={formData.roll_no} onChange={handleInputChange} className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg border-2 border-slate-200 outline-none font-mono" placeholder="Roll No" />
           </div>
@@ -309,9 +353,12 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
                 <option value="2">2nd Year</option>
                 <option value="3">3rd Year</option>
                 <option value="4">4th Year</option>
+                {formData.department === 'M.Tech. CSE (5-Years)' && (
+                  <option value="5">5th Year (M.Tech)</option>
+                )}
               </select>
             </div>
-            <button type="button" onClick={addTeamMember} className="w-full bg-blueprint-blue text-white py-3 rounded-xl hover:bg-blue-900 transition-all font-black uppercase text-[10px] flex items-center justify-center gap-2">
+            <button type="button" onClick={addTeamMember} className="w-full bg-blueprint-blue text-white py-3 rounded-xl hover:bg-goldenrod transition-all font-black uppercase text-[10px] flex items-center justify-center gap-2 shadow-lg shadow-amber-500/10">
               <UserPlus size={14} /> Add Member
             </button>
           </div>
@@ -360,8 +407,8 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
            </div>
         </div>
 
-        {error && <div className="bg-red-50 text-red-600 p-4 rounded-lg border border-red-200 text-xs font-mono">{error}</div>}
-        <button type="submit" disabled={loading} className="w-full bg-blueprint-blue hover:bg-blue-900 text-white font-black py-5 px-8 rounded-xl shadow-xl transition-all disabled:opacity-50 uppercase tracking-widest text-xs">
+        {error && <div className="bg-amber-50 text-amber-700 p-4 rounded-lg border border-amber-200 text-xs font-mono">{error}</div>}
+        <button type="submit" disabled={loading} className="w-full bg-blueprint-blue hover:bg-goldenrod text-white font-black py-5 px-8 rounded-xl shadow-xl shadow-amber-500/10 transition-all disabled:opacity-50 uppercase tracking-widest text-xs">
           {loading ? <Loader2 className="animate-spin mx-auto" /> : 'Transmit OD Request'}
         </button>
       </form>

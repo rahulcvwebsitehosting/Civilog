@@ -12,7 +12,7 @@ const CTOProfile: React.FC<{ signature?: string | null }> = ({ signature }) => {
 
   const projects = [
     { name: 'Ecobrick (Startup)', tags: ['Next.js', '3D Viz', 'System Design'] },
-    { name: 'CivilVision AI', tags: ['React 19', 'Gemini AI', 'Tailwind'] },
+    { name: 'AcademicVision AI', tags: ['React 19', 'Gemini AI', 'Tailwind'] },
     { name: 'TunnelViz', tags: ['Three.js', 'React', 'D3.js'] },
     { name: 'Hostel Planner', tags: ['Canvas API', 'OpenAI', 'Next.js'] },
     { name: 'TypeArena', tags: ['Node.js', 'Socket.io', 'React'] },
@@ -114,16 +114,16 @@ const CTOProfile: React.FC<{ signature?: string | null }> = ({ signature }) => {
                    <div className="px-3 py-1 bg-white/10 rounded-full text-[9px] font-black uppercase tracking-widest border border-white/20">Active Tenure</div>
                    <div className="text-[9px] font-black uppercase tracking-widest opacity-60">2025 – Present</div>
                  </div>
-                 <h2 className="text-3xl font-black italic uppercase tracking-tight mb-2">CTO @ Green-Tech Infrastructure</h2>
+                 <h2 className="text-3xl font-black italic uppercase tracking-tight mb-2">CTO @ Academic Infrastructure</h2>
                  <p className="text-sm opacity-80 leading-relaxed font-medium max-w-xl">
-                   Leading technical architecture for a government-funded climate-tech venture converting industrial waste into structural construction bricks. Implementing digital twin monitoring and supply chain automation.
+                   Leading technical architecture for a government-funded educational-tech venture developing innovative academic solutions and supply chain automation.
                  </p>
                  <div className="mt-6 flex items-center gap-4">
                     <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest">
                       <ShieldCheck size={16} className="text-green-400" /> Gov-Funded
                     </div>
                     <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest">
-                      <Globe size={16} className="text-blue-300" /> Climate Tech
+                      <Globe size={16} className="text-blue-300" /> Ed-Tech
                     </div>
                  </div>
                </div>
@@ -211,7 +211,7 @@ const CTOProfile: React.FC<{ signature?: string | null }> = ({ signature }) => {
       </div>
 
       <div className="py-12 text-center">
-        <p className="text-[9px] font-black text-pencil-gray/30 uppercase tracking-[0.6em]">CIVLOG OS • CTO OFFICE • TERMINAL SECURE</p>
+        <p className="text-[9px] font-black text-pencil-gray/30 uppercase tracking-[0.6em]">ESEC OD OS • CTO OFFICE • TERMINAL SECURE</p>
       </div>
     </div>
   );

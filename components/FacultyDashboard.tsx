@@ -45,11 +45,17 @@ const FacultyDashboard: React.FC = () => {
       });
     }
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('od_requests')
       .select('*')
       .eq('status', 'Pending')
       .order('created_at', { ascending: false });
+
+    if (user?.user_metadata?.department) {
+      query = query.eq('department', user.user_metadata.department);
+    }
+
+    const { data, error } = await query;
 
     if (!error && data) {
       setRequests(data as ODRequest[]);

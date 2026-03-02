@@ -99,14 +99,28 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
 
   const fetchRequests = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('od_requests')
-      .select('*')
-      .eq('user_id', profile.id)
-      .order('created_at', { ascending: false });
+    try {
+      // Fetch all requests from the user's department to create a real "Activity Feed"
+      let query = supabase
+        .from('od_requests')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-    if (!error && data) setRequests(data as ODRequest[]);
-    setLoading(false);
+      if (profile.department) {
+        query = query.eq('department', profile.department);
+      } else {
+        // Fallback to only user's requests if department is missing
+        query = query.eq('user_id', profile.id);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      if (data) setRequests(data as ODRequest[]);
+    } catch (err: any) {
+      console.error("Error fetching feed:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -367,6 +381,7 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
               uploadType={uploadState.type || undefined}
               uploadIndex={uploadState.index || undefined}
               currentUserId={profile.id}
+              currentUserRegNo={profile.identification_no}
             />
           ))}
         </div>

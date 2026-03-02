@@ -13,6 +13,7 @@ interface FeedCardProps {
   uploadType?: string;
   uploadIndex?: number;
   currentUserId?: string;
+  currentUserRegNo?: string;
   isFaculty?: boolean;
   isProcessing?: boolean;
 }
@@ -87,6 +88,7 @@ const FeedCard: React.FC<FeedCardProps> = ({
   uploadType, 
   uploadIndex,
   currentUserId,
+  currentUserRegNo,
   isFaculty,
   isProcessing
 }) => {
@@ -124,6 +126,10 @@ const FeedCard: React.FC<FeedCardProps> = ({
   };
 
   const firstLetter = request.student_name?.charAt(0).toUpperCase() || '?';
+
+  const isLeadStudent = currentUserId === request.user_id;
+  const isTeamMember = request.team_members?.some(m => m.register_no === currentUserRegNo);
+  const canUploadEvidence = !isFaculty && (isLeadStudent || isTeamMember);
 
   // Aggregate all previews from arrays and individual fields
   const previews: {url: string, label: string, icon: any}[] = [];
@@ -346,8 +352,8 @@ const FeedCard: React.FC<FeedCardProps> = ({
           </div>
         )}
 
-        {/* Evidence Upload Section for Students */}
-        {!isFaculty && (request.status === 'Approved' || request.status === 'Completed') && onUploadEvidence && (
+        {/* Evidence Upload Section for Students - Restricted to Lead or Team Members */}
+        {canUploadEvidence && (request.status === 'Approved' || request.status === 'Completed') && onUploadEvidence && (
           <div className="border-t border-slate-100 bg-slate-50/50">
             <button 
               onClick={() => setShowEvidenceSlots(!showEvidenceSlots)}

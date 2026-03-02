@@ -232,8 +232,6 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
         certificate_urls: [], // Initialize as empty array
         prize_details: [], // Initialize as empty array
         achievement_details: null,
-        advisor_id: null,
-        hod_id: null,
         remarks: null,
         // Legacy single fields - for backward compatibility, keep them null or empty
         geotag_photo_url: null,

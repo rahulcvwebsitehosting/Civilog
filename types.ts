@@ -56,8 +56,8 @@ export interface ODRequest {
   event_poster_url: string | null;
   od_letter_url: string | null;
   achievement_details: string | null;
-  advisor_id: string | null;
-  hod_id: string | null;
+  advisor_id?: string | null;
+  hod_id?: string | null;
   // Legacy single fields (kept for compatibility)
   geotag_photo_url: string | null;
   certificate_url: string | null;

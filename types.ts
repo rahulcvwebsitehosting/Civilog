@@ -1,6 +1,6 @@
 
 export type ODStatus = 'Pending Advisor' | 'Pending HOD' | 'Approved' | 'Rejected' | 'Completed' | 'Archived' | 'Pending';
-export type UserRole = 'student' | 'faculty';
+export type UserRole = 'student' | 'advisor' | 'hod' | 'admin' | 'faculty';
 
 export interface Notification {
   id: string;

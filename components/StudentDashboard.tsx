@@ -107,7 +107,9 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
         .order('created_at', { ascending: false });
 
       if (profile.department) {
-        query = query.eq('department', profile.department);
+        // Use .or() to fetch requests that match the user's ID OR the user's department
+        // We wrap the department string in double quotes to handle spaces
+        query = query.or(`user_id.eq.${profile.id},department.eq."${profile.department}"`);
       } else {
         // Fallback to only user's requests if department is missing
         query = query.eq('user_id', profile.id);

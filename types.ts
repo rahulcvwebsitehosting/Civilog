@@ -31,6 +31,7 @@ export interface TeamMember {
   register_no: string;
   roll_no: string;
   year: string;
+  department: string;
 }
 
 export interface ODRequest {
@@ -58,6 +59,8 @@ export interface ODRequest {
   achievement_details: string | null;
   advisor_id?: string | null;
   hod_id?: string | null;
+  advisor_approved_at?: string | null;
+  hod_approved_at?: string | null;
   // Legacy single fields (kept for compatibility)
   geotag_photo_url: string | null;
   certificate_url: string | null;

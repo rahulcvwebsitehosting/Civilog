@@ -40,12 +40,12 @@ const DEPARTMENTS = [
 
 const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, profile }) => {
   const [formData, setFormData] = useState<SubmissionFormData>({
-    student_name: profile.full_name || '',
-    register_no: profile.identification_no || '',
-    roll_no: profile.roll_no || '',
+    student_name: profile?.full_name || '',
+    register_no: profile?.identification_no || '',
+    roll_no: profile?.roll_no || '',
     phone_number: '',
-    year: profile.year || '2', 
-    department: profile.department || 'Computer Science and Engineering',
+    year: profile?.year || '2', 
+    department: profile?.department || 'Computer Science and Engineering',
     semester: '3',
     event_title: '',
     organization_name: '',
@@ -65,8 +65,11 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
     name: '',
     register_no: '',
     roll_no: '',
-    year: '2'
+    year: '2',
+    department: profile?.department || 'Computer Science and Engineering'
   });
+
+  if (!profile) return null;
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -96,19 +99,32 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
       ...prev,
       phone_number: '9876543210',
       department: 'Computer Science and Engineering',
+      semester: '5',
       event_title: 'Technical Symposium on AI & Innovation',
       organization_name: 'IIT Madras',
       organization_location: 'Adyar, Chennai',
-      event_type: 'Workshop',
+      event_type: 'Other',
       event_date: '2026-01-10',
       event_end_date: '2026-01-12',
+      team_members: [
+        {
+          name: 'Suresh Kumar',
+          register_no: '2203730045',
+          roll_no: '22CS45',
+          year: '3',
+          department: 'Computer Science and Engineering'
+        }
+      ]
     }));
     
+    setCustomEventType('Inter-College Hackathon');
+    
     setTeamMemberInput({
-      name: 'Suresh Kumar',
-      register_no: '2203730045',
-      roll_no: '22CS45',
-      year: '3'
+      name: '',
+      register_no: '',
+      roll_no: '',
+      year: '2',
+      department: profile.department || 'Computer Science and Engineering'
     });
   };
 
@@ -170,12 +186,18 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
   };
 
   const addTeamMember = () => {
-    if (teamMemberInput.name && teamMemberInput.register_no && teamMemberInput.roll_no) {
+    if (teamMemberInput.name && teamMemberInput.register_no && teamMemberInput.roll_no && teamMemberInput.department) {
       setFormData(prev => ({ 
         ...prev, 
         team_members: [...prev.team_members, { ...teamMemberInput }] 
       }));
-      setTeamMemberInput({ name: '', register_no: '', roll_no: '', year: '2' });
+      setTeamMemberInput({ 
+        name: '', 
+        register_no: '', 
+        roll_no: '', 
+        year: '2', 
+        department: profile.department || 'Computer Science and Engineering' 
+      });
     } else {
       setError('Please fill all member fields.');
     }
@@ -315,8 +337,14 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
               placeholder="Phone Number" 
             />
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-             <select name="year" value={formData.year} onChange={handleInputChange} className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg border-2 border-slate-200 outline-none">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <select 
+              name="year" 
+              value={formData.year} 
+              onChange={handleInputChange} 
+              disabled={!!profile.year}
+              className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg border-2 border-slate-200 outline-none disabled:opacity-70"
+            >
                <option value="1">1st Year</option>
                <option value="2">2nd Year</option>
                <option value="3">3rd Year</option>
@@ -325,7 +353,23 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
                  <option value="5">5th Year (M.Tech)</option>
                )}
              </select>
-             <select name="department" value={formData.department} onChange={handleInputChange} className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg border-2 border-slate-200 outline-none">
+             <select 
+              name="semester" 
+              value={formData.semester} 
+              onChange={handleInputChange} 
+              className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg border-2 border-slate-200 outline-none"
+            >
+               {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(sem => (
+                 <option key={sem} value={sem.toString()}>{sem}{sem === 1 ? 'st' : sem === 2 ? 'nd' : sem === 3 ? 'rd' : 'th'} Sem</option>
+               ))}
+             </select>
+             <select 
+              name="department" 
+              value={formData.department} 
+              onChange={handleInputChange} 
+              disabled={!!profile.department}
+              className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg border-2 border-slate-200 outline-none disabled:opacity-70"
+            >
                {DEPARTMENTS.map(dept => (
                  <option key={dept} value={dept}>{dept}</option>
                ))}
@@ -356,6 +400,15 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
                 )}
               </select>
             </div>
+            <select 
+              value={teamMemberInput.department} 
+              onChange={(e) => setTeamMemberInput(prev => ({...prev, department: e.target.value}))} 
+              className="w-full bg-slate-50 text-sm p-3 rounded-lg border border-slate-200 outline-none"
+            >
+              {DEPARTMENTS.map(dept => (
+                <option key={dept} value={dept}>{dept}</option>
+              ))}
+            </select>
             <button type="button" onClick={addTeamMember} className="w-full bg-blueprint-blue text-white py-3 rounded-xl hover:bg-goldenrod transition-all font-black uppercase text-[10px] flex items-center justify-center gap-2 shadow-lg shadow-amber-500/10">
               <UserPlus size={14} /> Add Member
             </button>
@@ -363,7 +416,10 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
           <div className="space-y-2">
             {formData.team_members.map((member, i) => (
               <div key={i} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-lg shadow-sm">
-                <div className="text-[10px]"><p className="font-black text-slate-800 uppercase">{member.name} ({member.year}Y)</p><p className="text-slate-500 font-mono">ID: {member.register_no}</p></div>
+                <div className="text-[10px]">
+                  <p className="font-black text-slate-800 uppercase">{member.name} ({member.year}Y)</p>
+                  <p className="text-slate-500 font-mono">ID: {member.register_no} • {member.department}</p>
+                </div>
                 <button type="button" onClick={() => removeTeamMember(i)} className="text-red-400 p-1"><Trash2 size={16} /></button>
               </div>
             ))}
@@ -374,14 +430,51 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
           <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] font-mono">02 SPECIFICATIONS</h2>
           <input name="event_title" required value={formData.event_title} onChange={handleInputChange} className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg border-2 border-slate-200 outline-none font-mono" placeholder="Event Title" />
           <div className="grid grid-cols-2 gap-4">
-            <select name="event_type" value={formData.event_type} onChange={handleInputChange} className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg border-2 border-slate-200 outline-none">
-              <option value="Symposium">Symposium</option>
-              <option value="Workshop">Workshop</option>
-              <option value="Paper Presentation">Paper Presentation</option>
-              <option value="Other">Other</option>
-            </select>
-            <input name="organization_name" required value={formData.organization_name} onChange={handleInputChange} className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg border-2 border-slate-200 outline-none" placeholder="Organization" />
+            <div className="space-y-2">
+              <select name="event_type" value={formData.event_type} onChange={handleInputChange} className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg border-2 border-slate-200 outline-none">
+                <option value="Symposium">Symposium</option>
+                <option value="Workshop">Workshop</option>
+                <option value="Paper Presentation">Paper Presentation</option>
+                <option value="Other">Other</option>
+              </select>
+              {formData.event_type === 'Other' && (
+                <input 
+                  type="text"
+                  placeholder="Specify Event Type"
+                  value={customEventType}
+                  onChange={(e) => setCustomEventType(e.target.value)}
+                  className="w-full bg-white dark:bg-gray-700 text-sm p-3 rounded-lg border border-blueprint-blue outline-none animate-in slide-in-from-top-1 duration-200"
+                  required
+                />
+              )}
+            </div>
+            <input name="organization_name" required value={formData.organization_name} onChange={handleInputChange} className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg border-2 border-slate-200 outline-none h-fit" placeholder="Organization" />
           </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Start Date</label>
+              <input 
+                type="date" 
+                name="event_date" 
+                required 
+                value={formData.event_date} 
+                onChange={handleInputChange} 
+                className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg border-2 border-slate-200 outline-none" 
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">End Date</label>
+              <input 
+                type="date" 
+                name="event_end_date" 
+                required 
+                value={formData.event_end_date} 
+                onChange={handleInputChange} 
+                className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg border-2 border-slate-200 outline-none" 
+              />
+            </div>
+          </div>
+          <input name="organization_location" required value={formData.organization_location} onChange={handleInputChange} className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg border-2 border-slate-200 outline-none" placeholder="Organization Location (e.g. Chennai)" />
         </div>
 
         <div className="space-y-4 pt-2 pb-8">

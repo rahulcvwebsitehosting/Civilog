@@ -38,17 +38,19 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ profile, onUpdate }) => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [selectedSignatureFile, setSelectedSignatureFile] = useState<File | null>(null);
-  const [signaturePreview, setSignaturePreview] = useState<string | null>(profile.signature_url || null);
+  const [signaturePreview, setSignaturePreview] = useState<string | null>(profile?.signature_url || null);
   
   const [formData, setFormData] = useState({
-    full_name: profile.full_name || '',
-    identification_no: profile.identification_no || '',
-    roll_no: profile.roll_no || '',
-    year: profile.year || '1',
-    designation: profile.designation || '',
-    department: profile.department || 'Computer Science and Engineering',
-    is_hod: profile.is_hod || false
+    full_name: profile?.full_name || '',
+    identification_no: profile?.identification_no || '',
+    roll_no: profile?.roll_no || '',
+    year: profile?.year || '1',
+    designation: profile?.designation || '',
+    department: profile?.department || 'Computer Science and Engineering',
+    is_hod: profile?.is_hod || false
   });
+
+  if (!profile) return null;
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target as any;

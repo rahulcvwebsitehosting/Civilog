@@ -38,11 +38,16 @@ const MobileNav: React.FC<{ profile: Profile | null }> = ({ profile }) => {
 
   return (
     <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 px-6 py-3 flex justify-around items-center z-[50] shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
-      <Link to={profile.role === 'faculty' ? '/faculty-admin' : '/dashboard'} className={`flex flex-col items-center gap-1 ${isActive('/dashboard') || isActive('/faculty-admin') ? 'text-blueprint-blue' : 'text-slate-400'}`}>
-        <Home size={22} className={isActive('/dashboard') || isActive('/faculty-admin') ? 'fill-blueprint-blue/10' : ''} />
+      <Link to={
+        profile.role === 'admin' ? '/admin-panel' :
+        profile.role === 'hod' ? '/hod-dashboard' :
+        profile.role === 'advisor' ? '/advisor-dashboard' :
+        '/student-dashboard'
+      } className={`flex flex-col items-center gap-1 ${isActive('/student-dashboard') || isActive('/advisor-dashboard') || isActive('/hod-dashboard') || isActive('/admin-panel') ? 'text-blueprint-blue' : 'text-slate-400'}`}>
+        <Home size={22} className={isActive('/student-dashboard') || isActive('/advisor-dashboard') || isActive('/hod-dashboard') || isActive('/admin-panel') ? 'fill-blueprint-blue/10' : ''} />
         <span className="text-[8px] font-black uppercase tracking-tighter">Terminal</span>
       </Link>
-      {profile.role === 'faculty' && (
+      {(profile.role === 'advisor' || profile.role === 'hod' || profile.role === 'admin') && (
         <Link to="/faculty/registry" className={`flex flex-col items-center gap-1 ${isActive('/faculty/registry') ? 'text-blueprint-blue' : 'text-slate-400'}`}>
           <Database size={22} className={isActive('/faculty/registry') ? 'fill-blueprint-blue/10' : ''} />
           <span className="text-[8px] font-black uppercase tracking-tighter">Registry</span>
@@ -81,10 +86,14 @@ const Header: React.FC<{ profile: Profile | null; onLogout: () => void }> = ({ p
           {profile && profile.is_profile_complete && (
             <>
               {profile.role === 'student' ? (
-                <NavLink to="/dashboard" icon={<LayoutDashboard size={18} />}>Feed</NavLink>
+                <NavLink to="/student-dashboard" icon={<LayoutDashboard size={18} />}>Feed</NavLink>
               ) : (
                 <>
-                  <NavLink to="/faculty-admin" icon={<Settings size={18} />}>Admin</NavLink>
+                  <NavLink to={
+                    profile.role === 'admin' ? '/admin-panel' :
+                    profile.role === 'hod' ? '/hod-dashboard' :
+                    '/advisor-dashboard'
+                  } icon={<Settings size={18} />}>Admin</NavLink>
                   <NavLink to="/faculty/registry" icon={<Database size={18} />}>Registry</NavLink>
                 </>
               )}
@@ -141,11 +150,37 @@ const App: React.FC = () => {
     setLoading(false);
   };
 
+  const fetchProfile = async (userId: string) => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      
+      if (error) throw error;
+      if (data) {
+        setProfile(data as Profile);
+      }
+    } catch (err) {
+      console.error("Error fetching profile:", err);
+      // Fallback to metadata if table fetch fails
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        updateProfileFromUser(user);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const checkSession = async () => {
+    setLoading(true);
     const { data: { session } } = await supabase.auth.getSession();
     if (session) {
       setSession(session);
-      updateProfileFromUser(session.user);
+      await fetchProfile(session.user.id);
     } else {
       setLoading(false);
     }
@@ -157,7 +192,7 @@ const App: React.FC = () => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session) {
-        updateProfileFromUser(session.user);
+        fetchProfile(session.user.id);
       } else {
         setProfile(null);
         setLoading(false);
@@ -193,7 +228,10 @@ const App: React.FC = () => {
             <Route path="/" element={
               session ? (
                 profile?.is_profile_complete ? (
-                  <Navigate to={profile?.role === 'faculty' ? '/faculty-admin' : '/dashboard'} replace />
+                  profile.role === 'admin' ? <Navigate to="/admin-panel" replace /> :
+                  profile.role === 'hod' ? <Navigate to="/hod-dashboard" replace /> :
+                  profile.role === 'advisor' ? <Navigate to="/advisor-dashboard" replace /> :
+                  <Navigate to="/student-dashboard" replace />
                 ) : (
                   <Navigate to="/setup-profile" replace />
                 )
@@ -211,9 +249,9 @@ const App: React.FC = () => {
             } />
 
             <Route path="/setup-profile" element={
-              session ? (
-                !profile?.is_profile_complete ? (
-                  <ProfileSetup profile={profile!} onComplete={checkSession} />
+              session && profile ? (
+                !profile.is_profile_complete ? (
+                  <ProfileSetup profile={profile} onComplete={checkSession} />
                 ) : (
                   <Navigate to="/" replace />
                 )
@@ -224,7 +262,7 @@ const App: React.FC = () => {
 
             <Route path="/profile" element={
               session && profile?.is_profile_complete ? (
-                <ProfilePage profile={profile!} onUpdate={checkSession} />
+                <ProfilePage profile={profile} onUpdate={checkSession} />
               ) : (
                 <Navigate to="/" replace />
               )
@@ -234,24 +272,40 @@ const App: React.FC = () => {
               <CTOProfile signature={profile?.signature_url} />
             } />
 
-            <Route path="/dashboard" element={
+            <Route path="/student-dashboard" element={
               session && profile?.role === 'student' && profile?.is_profile_complete ? (
-                <StudentDashboard profile={profile!} />
+                <StudentDashboard profile={profile} />
               ) : (
                 <Navigate to="/" replace />
               )
             } />
 
-            <Route path="/faculty-admin" element={
-              session && profile?.role === 'faculty' && profile?.is_profile_complete ? (
-                <FacultyAdmin />
+            <Route path="/advisor-dashboard" element={
+              session && profile?.role === 'advisor' && profile?.is_profile_complete ? (
+                <FacultyAdmin role="advisor" />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            } />
+
+            <Route path="/hod-dashboard" element={
+              session && profile?.role === 'hod' && profile?.is_profile_complete ? (
+                <FacultyAdmin role="hod" />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            } />
+
+            <Route path="/admin-panel" element={
+              session && profile?.role === 'admin' && profile?.is_profile_complete ? (
+                <FacultyAdmin role="admin" />
               ) : (
                 <Navigate to="/" replace />
               )
             } />
 
             <Route path="/faculty/registry" element={
-              session && profile?.role === 'faculty' && profile?.is_profile_complete ? (
+              session && (profile?.role === 'advisor' || profile?.role === 'hod' || profile?.role === 'admin') && profile?.is_profile_complete ? (
                 <FacultyRegistry />
               ) : (
                 <Navigate to="/" replace />

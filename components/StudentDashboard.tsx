@@ -85,6 +85,8 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
   const [requests, setRequests] = useState<ODRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+
+  if (!profile) return null;
   const [uploadState, setUploadState] = useState<{ id: string | null; type: string | null; index: number | null }>({
     id: null,
     type: null,
@@ -109,7 +111,7 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
       if (profile.department) {
         // Use .or() to fetch requests that match the user's ID OR the user's department
         // We wrap the department string in double quotes to handle spaces
-        query = query.or(`user_id.eq.${profile.id},department.eq."${profile.department}"`);
+        query = query.or(`user_id.eq."${profile.id}",department.eq."${profile.department}"`);
       } else {
         // Fallback to only user's requests if department is missing
         query = query.eq('user_id', profile.id);

@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { ODRequest, ODStatus } from '../types';
-import { Trash2, Users, FileText, MapPin, Image as ImageIcon, ExternalLink, Phone, CreditCard, X, Download, CheckCircle, XCircle, Loader2, Calendar, Award, Trophy, ChevronDown, ChevronUp, Bell, Upload } from 'lucide-react';
+import { Trash2, Users, FileText, MapPin, Image as ImageIcon, ExternalLink, Phone, CreditCard, X, Download, CheckCircle, XCircle, Loader2, Calendar, Award, Trophy, ChevronDown, ChevronUp, Bell, Upload, FileCheck } from 'lucide-react';
 
 interface FeedCardProps {
   request: ODRequest;
@@ -199,12 +199,31 @@ const FeedCard: React.FC<FeedCardProps> = ({
                   <span className="material-symbols-outlined text-blueprint-blue text-[16px]">verified</span>
                 </div>
                 <p className="text-[10px] text-pencil-gray font-technical uppercase tracking-wider leading-tight">
-                  LEAD • {request.year} Year • ID: {request.register_no}
+                  LEAD • {request.year} Year • {request.semester}{request.semester === '1' ? 'st' : request.semester === '2' ? 'nd' : request.semester === '3' ? 'rd' : 'th'} Sem
                 </p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <p className="text-[9px] text-slate-500 font-mono">ID: {request.register_no}</p>
+                  <p className="text-[9px] text-slate-500 font-mono">ROLL: {request.roll_no}</p>
+                </div>
+                <p className="text-[8px] text-slate-400 font-bold uppercase mt-0.5">{request.department}</p>
                 {request.phone_number && (
                   <p className="text-[9px] text-primary font-black uppercase tracking-tighter flex items-center gap-1 mt-0.5">
                     <Phone size={10} /> {request.phone_number}
                   </p>
+                )}
+
+                {request.team_members && request.team_members.length > 0 && (
+                  <div className="mt-2 pt-2 border-t border-slate-100">
+                    <p className="text-[8px] font-black text-blueprint-blue uppercase tracking-widest mb-1">Team Members ({request.team_members.length})</p>
+                    <div className="flex flex-wrap gap-x-3 gap-y-1">
+                      {request.team_members.map((m, i) => (
+                        <div key={i} className="text-[9px]">
+                          <span className="font-bold text-slate-700 uppercase">{m.name}</span>
+                          <span className="text-slate-400 ml-1">({m.year}Y • {m.department.split(' ').map(w => w[0]).join('')})</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
@@ -226,11 +245,15 @@ const FeedCard: React.FC<FeedCardProps> = ({
           </div>
 
           <div className="mb-4">
-            <h2 className="text-lg font-black text-blueprint-blue mb-1 uppercase tracking-tight italic">{request.event_title}</h2>
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <h2 className="text-lg font-black text-blueprint-blue uppercase tracking-tight italic">{request.event_title}</h2>
+              <span className="px-2 py-0.5 bg-blueprint-blue/10 text-blueprint-blue text-[10px] font-black rounded-full uppercase tracking-widest border border-blueprint-blue/20">
+                {request.event_type}
+              </span>
+            </div>
             <div className="flex flex-col gap-1 text-sm text-gray-700 leading-snug font-body">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="px-1.5 py-0.5 bg-blue-50 text-blueprint-blue text-[10px] font-black rounded uppercase">{request.event_type}</span>
-                <span>at <span className="font-bold">{request.organization_name}</span></span>
+              <div className="flex items-center gap-2 flex-wrap text-[11px]">
+                <span className="font-bold text-slate-600">at {request.organization_name}</span>
               </div>
               {request.organization_location && (
                 <div className="flex items-center gap-1 text-[10px] text-slate-500 uppercase font-bold tracking-tight">
@@ -288,24 +311,61 @@ const FeedCard: React.FC<FeedCardProps> = ({
               </div>
             )}
             
-            {request.team_members && request.team_members.length > 0 && (
-              <div className="mt-3 space-y-1.5">
-                <div className="flex items-center gap-2 text-blueprint-blue font-black uppercase text-[9px] tracking-[0.1em]">
-                  <Users size={12} /> Unit Strength: {request.team_members.length + 1} Members
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {request.team_members.map((m, i) => (
-                    <div key={i} className="flex items-center gap-2 bg-slate-50 border border-slate-100 px-2.5 py-1.5 rounded-lg">
-                      <div className="w-1.5 h-1.5 bg-slate-300 rounded-full"></div>
-                      <div className="overflow-hidden">
-                        <p className="text-[10px] text-slate-800 font-black truncate leading-tight uppercase tracking-tighter">{m.name} ({m.year}Y)</p>
-                        <p className="text-[8px] text-slate-500 font-mono truncate">Reg: {m.register_no}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+            {/* Removed redundant team members section from here as it's now below lead name */}
+
+            {request.achievement_details && (
+              <div className="mt-3 p-3 bg-green-50 border border-green-100 rounded-xl">
+                <p className="text-[9px] font-black text-green-700 uppercase tracking-widest flex items-center gap-1.5 mb-1">
+                  <Award size={12} /> Achievement Notes
+                </p>
+                <p className="text-[11px] text-slate-700 font-medium">{request.achievement_details}</p>
               </div>
             )}
+
+            {request.remarks && (
+              <div className="mt-3 p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5 mb-1">
+                  <Bell size={12} /> Faculty Remarks
+                </p>
+                <p className="text-[11px] text-slate-600 italic">{request.remarks}</p>
+              </div>
+            )}
+
+            {/* Documentation Badges */}
+            <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap gap-2">
+              {request.registration_proof_url && (
+                <button 
+                  onClick={() => handlePreviewClick(request.registration_proof_url!, 'Registration Proof')}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-100 hover:bg-blueprint-blue hover:text-white text-slate-600 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all border border-slate-200"
+                >
+                  <FileText size={12} /> Reg Proof
+                </button>
+              )}
+              {request.payment_proof_url && (
+                <button 
+                  onClick={() => handlePreviewClick(request.payment_proof_url!, 'Payment Receipt')}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-50 hover:bg-amber-500 hover:text-white text-amber-600 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all border border-amber-100"
+                >
+                  <CreditCard size={12} /> Receipt
+                </button>
+              )}
+              {request.event_poster_url && (
+                <button 
+                  onClick={() => handlePreviewClick(request.event_poster_url!, 'Event Poster')}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-50 hover:bg-blue-500 hover:text-white text-blue-600 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all border border-blue-100"
+                >
+                  <ImageIcon size={12} /> Poster
+                </button>
+              )}
+              {request.od_letter_url && (
+                <button 
+                  onClick={() => handlePreviewClick(request.od_letter_url!, 'OD Requisition')}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-500 hover:text-white text-emerald-600 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all border border-emerald-100"
+                >
+                  <FileCheck size={12} /> OD Letter
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -456,8 +516,11 @@ const FeedCard: React.FC<FeedCardProps> = ({
         <div className="px-5 py-4 flex flex-col sm:flex-row items-center justify-between border-t border-slate-50 bg-slate-50/50 gap-4">
           <div className="flex flex-wrap gap-x-6 gap-y-3 w-full sm:w-auto">
             {request.od_letter_url && (
-              <button onClick={() => window.open(request.od_letter_url!, '_blank')} className="flex items-center gap-1.5 text-blueprint-blue font-black uppercase text-[10px] tracking-widest hover:scale-105 transition-transform border-b-2 border-transparent hover:border-blueprint-blue">
-                <span className="material-symbols-outlined text-[18px]">description</span> Letter
+              <button 
+                onClick={() => window.open(request.od_letter_url!, '_blank')} 
+                className={`flex items-center gap-1.5 font-black uppercase text-[10px] tracking-widest hover:scale-105 transition-transform border-b-2 border-transparent ${request.status === 'Approved' ? 'text-amber-600 hover:border-amber-600' : 'text-blueprint-blue hover:border-blueprint-blue'}`}
+              >
+                <Download size={16} /> {request.status === 'Approved' ? 'Official OD' : 'Requisition'}
               </button>
             )}
             {request.registration_proof_url && (

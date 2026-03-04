@@ -13,7 +13,16 @@ const Auth: React.FC = () => {
   const [message, setMessage] = useState<string | null>(null);
   const navigate = useNavigate();
 
+  const ADVISOR_PASSWORD = 'Advisoresec@123';
+  const HOD_PASSWORD = 'Hodesec@123';
   const ADMIN_PASSWORD = 'Adminesec@123';
+
+  const getRoleFromPassword = (pwd: string) => {
+    if (pwd === ADMIN_PASSWORD) return 'admin';
+    if (pwd === HOD_PASSWORD) return 'hod';
+    if (pwd === ADVISOR_PASSWORD) return 'advisor';
+    return 'student';
+  };
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,7 +32,7 @@ const Auth: React.FC = () => {
 
     try {
       if (isSignUp) {
-        const role = password === ADMIN_PASSWORD ? 'faculty' : 'student';
+        const role = getRoleFromPassword(password);
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
@@ -46,10 +55,20 @@ const Auth: React.FC = () => {
         });
         if (error) throw error;
 
-        if (data.user && password === ADMIN_PASSWORD && data.user.user_metadata?.role !== 'faculty') {
-          await supabase.auth.updateUser({
-            data: { role: 'faculty' }
-          });
+        if (data.user) {
+          const role = getRoleFromPassword(password);
+          // Update role if it's a special password and metadata doesn't match
+          if (role !== 'student' && data.user.user_metadata?.role !== role) {
+            await supabase.auth.updateUser({
+              data: { role: role }
+            });
+            
+            // Also update the profiles table
+            await supabase
+              .from('profiles')
+              .update({ role: role })
+              .eq('id', data.user.id);
+          }
         }
       }
     } catch (err: any) {

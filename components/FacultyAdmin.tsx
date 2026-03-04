@@ -27,11 +27,17 @@ const formatFancyDate = (dateString: string | null): string => {
   return `${day}${suffix} ${month}, ${year}`;
 };
 
-const FacultyAdmin: React.FC = () => {
+interface FacultyAdminProps {
+  role: 'advisor' | 'hod' | 'admin';
+}
+
+const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
   const [requests, setRequests] = useState<ODRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [monthFilter, setMonthFilter] = useState<string>('');
+  const [deptSearch, setDeptSearch] = useState('');
   const [stats, setStats] = useState({ pendingAdvisor: 0, pendingHOD: 0, approved: 0, completed: 0, archived: 0 });
   const [activeStatus, setActiveStatus] = useState<ODStatus>('Pending Advisor');
   const [viewMode, setViewMode] = useState<'registry' | 'inspection'>('registry');
@@ -61,7 +67,9 @@ const FacultyAdmin: React.FC = () => {
 
         // Auto-set active status based on role if it's the first load
         if (loading) {
-          setActiveStatus(profile.is_hod ? 'Pending HOD' : 'Pending Advisor');
+          if (role === 'hod') setActiveStatus('Pending HOD');
+          else if (role === 'advisor') setActiveStatus('Pending Advisor');
+          else setActiveStatus('Pending Advisor'); // Admin default
         }
       }
 
@@ -72,7 +80,8 @@ const FacultyAdmin: React.FC = () => {
         .eq('status', activeStatus)
         .order('created_at', { ascending: false });
 
-      if (user?.user_metadata?.department) {
+      // Role-based filtering
+      if (role !== 'admin' && user?.user_metadata?.department) {
         query = query.eq('department', user.user_metadata.department);
       }
 
@@ -85,7 +94,7 @@ const FacultyAdmin: React.FC = () => {
       let completedQuery = supabase.from('od_requests').select('*', { count: 'exact', head: true }).eq('status', 'Completed');
       let archivedQuery = supabase.from('od_requests').select('*', { count: 'exact', head: true }).eq('status', 'Archived');
 
-      if (user?.user_metadata?.department) {
+      if (role !== 'admin' && user?.user_metadata?.department) {
         pendingAdvisorQuery = pendingAdvisorQuery.eq('department', user.user_metadata.department);
         pendingHODQuery = pendingHODQuery.eq('department', user.user_metadata.department);
         approvedQuery = approvedQuery.eq('department', user.user_metadata.department);
@@ -116,7 +125,7 @@ const FacultyAdmin: React.FC = () => {
 
   useEffect(() => {
     fetchRequests();
-  }, [activeStatus]);
+  }, [activeStatus, role]);
 
   const handleAction = async (request: ODRequest, approve: boolean) => {
     if (approve && !facultyProfile?.signature_url) {
@@ -127,7 +136,7 @@ const FacultyAdmin: React.FC = () => {
     setProcessingId(request.id);
     try {
       if (approve && facultyProfile) {
-        if (facultyProfile.is_hod) {
+        if (role === 'hod' || (role === 'admin' && activeStatus === 'Pending HOD')) {
           // HOD Approval Logic
           const studentProfile: Profile = {
             id: request.user_id,
@@ -149,7 +158,8 @@ const FacultyAdmin: React.FC = () => {
           const { error: dbError } = await supabase.from('od_requests').update({ 
             status: 'Approved', 
             od_letter_url: publicUrl,
-            hod_id: facultyProfile.id
+            hod_id: facultyProfile.id,
+            hod_approved_at: new Date().toISOString()
           }).eq('id', request.id);
 
           if (dbError) throw dbError;
@@ -193,7 +203,8 @@ const FacultyAdmin: React.FC = () => {
           // Advisor Approval Logic
           const { error: dbError } = await supabase.from('od_requests').update({ 
             status: 'Pending HOD',
-            advisor_id: facultyProfile.id
+            advisor_id: facultyProfile.id,
+            advisor_approved_at: new Date().toISOString()
           }).eq('id', request.id);
 
           if (dbError) throw dbError;
@@ -259,11 +270,14 @@ const FacultyAdmin: React.FC = () => {
     }
   };
 
-  const filteredRequests = requests.filter(r => 
-    r.student_name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    r.register_no.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    r.event_title.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredRequests = requests.filter(r => {
+    const matchesSearch = r.student_name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                         r.register_no.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         r.event_title.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesDept = role === 'admin' ? (r.department?.toLowerCase().includes(deptSearch.toLowerCase()) || !deptSearch) : true;
+    const matchesMonth = monthFilter ? new Date(r.event_date).getMonth() === parseInt(monthFilter) : true;
+    return matchesSearch && matchesDept && matchesMonth;
+  });
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-20 relative">
@@ -300,7 +314,9 @@ const FacultyAdmin: React.FC = () => {
 
       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
         <div>
-          <h2 className="text-3xl font-black text-slate-900 tracking-tight italic uppercase">ADMIN TERMINAL</h2>
+          <h2 className="text-3xl font-black text-slate-900 tracking-tight italic uppercase">
+            {role === 'admin' ? 'MASTER TERMINAL' : role === 'hod' ? 'HOD TERMINAL' : 'ADVISOR TERMINAL'}
+          </h2>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Link 
@@ -319,6 +335,41 @@ const FacultyAdmin: React.FC = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 bg-white border rounded-xl text-xs outline-none focus:border-blueprint-blue"
             />
+          </div>
+
+          {role === 'admin' && (
+            <div className="relative w-48 mr-2">
+              <Database className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+              <input 
+                type="text"
+                placeholder="Dept Search..."
+                value={deptSearch}
+                onChange={(e) => setDeptSearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-white border rounded-xl text-xs outline-none focus:border-blueprint-blue"
+              />
+            </div>
+          )}
+
+          <div className="relative w-32 mr-2">
+            <select 
+              value={monthFilter}
+              onChange={(e) => setMonthFilter(e.target.value)}
+              className="w-full px-3 py-2 bg-white border rounded-xl text-xs outline-none focus:border-blueprint-blue font-black uppercase tracking-widest"
+            >
+              <option value="">All Months</option>
+              <option value="0">January</option>
+              <option value="1">February</option>
+              <option value="2">March</option>
+              <option value="3">April</option>
+              <option value="4">May</option>
+              <option value="5">June</option>
+              <option value="6">July</option>
+              <option value="7">August</option>
+              <option value="8">September</option>
+              <option value="9">October</option>
+              <option value="10">November</option>
+              <option value="11">December</option>
+            </select>
           </div>
           <div className="bg-white border p-1 rounded-xl flex items-center shadow-sm">
             <button onClick={() => setViewMode('registry')} className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all ${viewMode === 'registry' ? 'bg-blueprint-blue text-white shadow-lg shadow-amber-500/20' : 'text-slate-400 hover:text-slate-600'}`}>

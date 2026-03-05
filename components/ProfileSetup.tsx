@@ -84,6 +84,18 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ profile, onComplete }) => {
       });
 
       if (updateError) throw updateError;
+
+      // Also upsert the profiles table to keep it in sync
+      const { error: dbError } = await supabase.from('profiles').upsert({
+        id: profile.id,
+        email: profile.email,
+        role: profile.role,
+        ...formData,
+        signature_url: signatureUrl,
+        is_profile_complete: true
+      });
+
+      if (dbError) throw dbError;
       onComplete();
     } catch (err: any) {
       setError(err.message || 'Profile synchronization failed.');

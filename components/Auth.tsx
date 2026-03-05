@@ -57,17 +57,27 @@ const Auth: React.FC = () => {
 
         if (data.user) {
           const role = getRoleFromPassword(password);
-          // Update role if it's a special password and metadata doesn't match
-          if (role !== 'student' && data.user.user_metadata?.role !== role) {
+          
+          // Always ensure metadata is synced with the password-derived role
+          if (data.user.user_metadata?.role !== role) {
             await supabase.auth.updateUser({
               data: { role: role }
             });
+          }
+          
+          // Upsert the profile to ensure it exists and has the correct role
+          const { error: upsertError } = await supabase
+            .from('profiles')
+            .upsert({ 
+              id: data.user.id, 
+              email: data.user.email,
+              role: role,
+              full_name: data.user.user_metadata?.full_name || '',
+              is_profile_complete: !!data.user.user_metadata?.is_profile_complete
+            }, { onConflict: 'id' });
             
-            // Also update the profiles table
-            await supabase
-              .from('profiles')
-              .update({ role: role })
-              .eq('id', data.user.id);
+          if (upsertError) {
+            console.error("Profile upsert failed:", upsertError);
           }
         }
       }

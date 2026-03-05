@@ -128,6 +128,11 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
   }, [activeStatus, role]);
 
   const handleAction = async (request: ODRequest, approve: boolean) => {
+    if (role === 'admin') {
+      alert("Admin cannot authorize. Only Advisor and HOD can authorize.");
+      return;
+    }
+
     if (approve && !facultyProfile?.signature_url) {
       alert("Faculty E-Signature is required for approval. Please update your profile.");
       return;
@@ -136,7 +141,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
     setProcessingId(request.id);
     try {
       if (approve && facultyProfile) {
-        if (role === 'hod' || (role === 'admin' && activeStatus === 'Pending HOD')) {
+        if (role === 'hod') {
           // HOD Approval Logic
           const studentProfile: Profile = {
             id: request.user_id,
@@ -166,30 +171,56 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
 
           // Trigger Email & In-App Notification
           try {
-            const { data: studentProfile } = await supabase
+            const { data: studentProfileData } = await supabase
               .from('profiles')
-              .select('email')
+              .select('email, full_name')
               .eq('id', request.user_id)
               .single();
 
-            const notificationMessage = `Dear ${request.student_name}, your OD for ${request.event_title} has been sanctioned. All the best for your presentation! - ESEC OD Portal.`;
+            const studentName = studentProfileData?.full_name || request.student_name;
+            const studentEmail = studentProfileData?.email;
+            const notificationMessage = `Dear ${studentName}, your OD for ${request.event_title} has been sanctioned. All the best for your presentation! - Team ESEC OD.`;
 
-            // 1. Try Email (Currently on hold as per user request)
-            /*
-            if (studentProfile?.email) {
-              await fetch('/api/send-email', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  to: studentProfile.email,
-                  subject: 'OD Sanctioned - ESEC OD Portal',
-                  message: notificationMessage
-                })
-              });
+            // 1. Send Email via Resend API
+            if (studentEmail) {
+              try {
+                const emailResponse = await fetch('/api/send-email', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    to: studentEmail,
+                    subject: 'OD Sanctioned - ESEC OD Portal',
+                    message: notificationMessage
+                  })
+                });
+                
+                const emailResult = await emailResponse.json();
+                
+                if (!emailResult.success) {
+                  // Log failure to notifications_log
+                  await supabase.from('notifications_log').insert({
+                    user_id: request.user_id,
+                    request_id: request.id,
+                    error_message: JSON.stringify(emailResult.error) || 'Email delivery failed',
+                    status: 'failed',
+                    type: 'email',
+                    created_at: new Date().toISOString()
+                  });
+                }
+              } catch (emailErr: any) {
+                console.error("Email API Call Failed:", emailErr);
+                await supabase.from('notifications_log').insert({
+                  user_id: request.user_id,
+                  request_id: request.id,
+                  error_message: emailErr.message || 'Network error during email trigger',
+                  status: 'failed',
+                  type: 'email',
+                  created_at: new Date().toISOString()
+                });
+              }
             }
-            */
 
-            // 2. Try In-App Notification (Assuming notifications table exists)
+            // 2. In-App Notification
             await supabase.from('notifications').insert({
               user_id: request.user_id,
               message: notificationMessage,
@@ -197,7 +228,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
               read: false
             });
           } catch (notificationErr) {
-            console.error("Failed to send notification:", notificationErr);
+            console.error("Failed to process notifications:", notificationErr);
           }
         } else {
           // Advisor Approval Logic

@@ -159,13 +159,23 @@ const App: React.FC = () => {
         .eq('id', userId)
         .single();
       
-      if (error) throw error;
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // Profile doesn't exist yet, fallback to user metadata
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            updateProfileFromUser(user);
+          }
+          return;
+        }
+        throw error;
+      }
+      
       if (data) {
         setProfile(data as Profile);
       }
     } catch (err) {
-      console.error("Error fetching profile:", err);
-      // Fallback to metadata if table fetch fails
+      console.error("Profile synchronization error:", err);
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         updateProfileFromUser(user);

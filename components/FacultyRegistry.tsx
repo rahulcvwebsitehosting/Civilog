@@ -15,6 +15,14 @@ const FacultyRegistry: React.FC = () => {
   const fetchRegistry = async () => {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    // Fetch profile from DB for source of truth
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('department, role')
+      .eq('id', user.id)
+      .single();
     
     let query = supabase
       .from('od_requests')
@@ -22,8 +30,11 @@ const FacultyRegistry: React.FC = () => {
       .in('status', ['Approved', 'Completed', 'Pending Advisor', 'Pending HOD'])
       .order('created_at', { ascending: false });
 
-    if (user?.user_metadata?.department) {
-      query = query.eq('department', user.user_metadata.department);
+    const dept = profile?.department || user.user_metadata?.department;
+    const role = profile?.role || user.user_metadata?.role;
+
+    if (role !== 'admin' && dept) {
+      query = query.eq('department', dept);
     }
 
     const { data, error } = await query;

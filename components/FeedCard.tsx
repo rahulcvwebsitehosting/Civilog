@@ -219,7 +219,7 @@ const FeedCard: React.FC<FeedCardProps> = ({
                       {request.team_members.map((m, i) => (
                         <div key={i} className="text-[9px]">
                           <span className="font-bold text-slate-700 uppercase">{m.name}</span>
-                          <span className="text-slate-400 ml-1">({m.year}Y • {m.department.split(' ').map(w => w[0]).join('')})</span>
+                          <span className="text-slate-400 ml-1">({m.year}Y • {m.department?.split(' ').map(w => w[0]).join('') || 'ESEC'})</span>
                         </div>
                       ))}
                     </div>
@@ -567,8 +567,8 @@ const FeedCard: React.FC<FeedCardProps> = ({
               </div>
             ) : (
               <div className="flex items-center gap-2 ml-auto">
-                <span className={`w-2.5 h-2.5 rounded-full ring-4 ring-offset-2 ${getStatusColor(request.status).split(' ')[1].replace('bg-', 'ring-')}/20 ${getStatusColor(request.status).split(' ')[1]}`}></span>
-                <span className={`text-[11px] font-black uppercase tracking-[0.2em] italic ${getStatusColor(request.status).split(' ')[0]}`}>
+                <span className={`w-2.5 h-2.5 rounded-full ring-4 ring-offset-2 ${(getStatusColor(request.status).split(' ')[1] || 'bg-slate-400').replace('bg-', 'ring-')}/20 ${getStatusColor(request.status).split(' ')[1] || 'bg-slate-400'}`}></span>
+                <span className={`text-[11px] font-black uppercase tracking-[0.2em] italic ${getStatusColor(request.status).split(' ')[0] || 'text-slate-400'}`}>
                   {request.status}
                 </span>
               </div>

@@ -72,6 +72,7 @@ export interface ODRequest {
   prize_details: { type: string; event: string; url: string; }[] | null;
   remarks: string | null;
   team_members: TeamMember[] | null;
+  notification_sent?: boolean;
 }
 
 export interface SubmissionFormData {

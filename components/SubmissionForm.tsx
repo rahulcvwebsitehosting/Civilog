@@ -274,14 +274,48 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
         .from('od-files')
         .getPublicUrl(letterPath);
 
-      const { error: dbError } = await supabase.from('od_requests').insert([
+      const { data: insertedData, error: dbError } = await supabase.from('od_requests').insert([
         {
           ...requestData,
-          od_letter_url: letterUrl
+          od_letter_url: letterUrl,
+          notification_sent: false
         },
-      ]);
+      ]).select().single();
 
       if (dbError) throw dbError;
+
+      // Trigger Advisor Notification
+      try {
+        const { data: advisorProfile } = await supabase
+          .from('profiles')
+          .select('email')
+          .eq('role', 'advisor')
+          .eq('department', formData.department)
+          .single();
+
+        if (advisorProfile?.email) {
+          const dashboardUrl = `${window.location.origin}/advisor-dashboard`;
+          const emailMessage = `New OD Request for ${formData.department}. A student has submitted a request that requires your review. <a href="${dashboardUrl}">Click Here to View Dashboard</a>`;
+
+          const emailResponse = await fetch('/api/send-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              to: advisorProfile.email,
+              subject: `New OD Request - ${formData.department}`,
+              message: emailMessage
+            })
+          });
+
+          const emailResult = await emailResponse.json();
+          if (emailResult.success) {
+            await supabase.from('od_requests').update({ notification_sent: true }).eq('id', insertedData.id);
+          }
+        }
+      } catch (notifyErr) {
+        console.error("Advisor notification failed:", notifyErr);
+      }
+
       onSuccess();
     } catch (err: any) {
       setError(err.message || 'Transmission failed.');

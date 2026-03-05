@@ -106,11 +106,11 @@ const Header: React.FC<{ profile: Profile | null; onLogout: () => void }> = ({ p
           <div className="flex items-center gap-3 pl-4 border-l border-blueprint-blue/10">
             <Link to="/profile" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
               <div className="text-right hidden sm:block">
-                <p className="text-[10px] font-technical font-bold text-blueprint-blue uppercase">{profile.full_name || profile.email.split('@')[0]}</p>
+                <p className="text-[10px] font-technical font-bold text-blueprint-blue uppercase">{profile.full_name || profile.email?.split('@')[0] || 'User'}</p>
                 <p className="text-[9px] uppercase text-pencil-gray font-black tracking-widest opacity-60">{profile.role}</p>
               </div>
               <div className="w-9 h-9 rounded-xl bg-blueprint-blue text-white flex items-center justify-center text-sm font-black shadow-lg shadow-amber-500/10 border-2 border-white">
-                {profile.full_name?.charAt(0) || profile.email.charAt(0).toUpperCase()}
+                {profile.full_name?.charAt(0) || profile.email?.charAt(0).toUpperCase() || '?'}
               </div>
             </Link>
             <button 

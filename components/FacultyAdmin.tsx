@@ -2,11 +2,13 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { ODRequest, Profile, ODStatus } from '../types';
-import { Loader2, RefreshCw, Search, BarChart3, Clock, CheckCircle2, LayoutList, BookOpen, AlertCircle, ChevronLeft, Terminal, FileText, Download, ExternalLink, Database, Trash2, Archive, RefreshCcw, Lock, X } from 'lucide-react';
+import { Loader2, RefreshCw, Search, BarChart3, Clock, CheckCircle2, LayoutList, BookOpen, AlertCircle, ChevronLeft, Terminal, FileText, Download, ExternalLink, Database, Trash2, Archive, RefreshCcw, Lock, X, Folder } from 'lucide-react';
 import { generateODDocument } from '../services/pdfService';
 import { Link } from 'react-router-dom';
 import FeedCard from './FeedCard';
 import NotificationCenter from './NotificationCenter';
+import NestedFolderView from './NestedFolderView';
+import { motion } from 'motion/react';
 
 // Utility function to format date as "01st October, 2026"
 const formatFancyDate = (dateString: string | null): string => {
@@ -40,7 +42,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
   const [deptSearch, setDeptSearch] = useState('');
   const [stats, setStats] = useState({ pendingAdvisor: 0, pendingHOD: 0, approved: 0, completed: 0, archived: 0 });
   const [activeStatus, setActiveStatus] = useState<ODStatus>('Pending Advisor');
-  const [viewMode, setViewMode] = useState<'registry' | 'inspection'>('registry');
+  const [viewMode, setViewMode] = useState<'registry' | 'inspection' | 'nested'>('registry');
   const [facultyProfile, setFacultyProfile] = useState<Profile | null>(null);
 
   // Auth for Delete
@@ -53,24 +55,33 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const profile: Profile = {
-          id: user.id,
-          email: user.email || '',
-          role: user.user_metadata?.role || 'faculty',
-          full_name: user.user_metadata?.full_name || '',
-          signature_url: user.user_metadata?.signature_url || null,
-          department: user.user_metadata?.department || null,
-          is_hod: user.user_metadata?.is_hod || false,
-        };
-        setFacultyProfile(profile);
+      if (!user) return;
 
-        // Auto-set active status based on role if it's the first load
-        if (loading) {
-          if (role === 'hod') setActiveStatus('Pending HOD');
-          else if (role === 'advisor') setActiveStatus('Pending Advisor');
-          else setActiveStatus('Pending Advisor'); // Admin default
-        }
+      // Fetch profile from DB for source of truth
+      const { data: dbProfile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      const profile: Profile = dbProfile ? (dbProfile as Profile) : {
+        id: user.id,
+        email: user.email || '',
+        role: user.user_metadata?.role || 'faculty',
+        full_name: user.user_metadata?.full_name || '',
+        signature_url: user.user_metadata?.signature_url || null,
+        department: user.user_metadata?.department || null,
+        is_hod: user.user_metadata?.is_hod || false,
+      };
+      
+      setFacultyProfile(profile);
+      const dept = profile.department;
+
+      // Auto-set active status based on role if it's the first load
+      if (loading) {
+        if (role === 'hod') setActiveStatus('Pending HOD');
+        else if (role === 'advisor') setActiveStatus('Pending Advisor');
+        else setActiveStatus('Pending Advisor'); // Admin default
       }
 
       // Fetch list based on active status
@@ -81,8 +92,8 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         .order('created_at', { ascending: false });
 
       // Role-based filtering
-      if (role !== 'admin' && user?.user_metadata?.department) {
-        query = query.eq('department', user.user_metadata.department);
+      if (role !== 'admin' && dept) {
+        query = query.eq('department', dept);
       }
 
       const { data: listData } = await query;
@@ -94,12 +105,12 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
       let completedQuery = supabase.from('od_requests').select('*', { count: 'exact', head: true }).eq('status', 'Completed');
       let archivedQuery = supabase.from('od_requests').select('*', { count: 'exact', head: true }).eq('status', 'Archived');
 
-      if (role !== 'admin' && user?.user_metadata?.department) {
-        pendingAdvisorQuery = pendingAdvisorQuery.eq('department', user.user_metadata.department);
-        pendingHODQuery = pendingHODQuery.eq('department', user.user_metadata.department);
-        approvedQuery = approvedQuery.eq('department', user.user_metadata.department);
-        completedQuery = completedQuery.eq('department', user.user_metadata.department);
-        archivedQuery = archivedQuery.eq('department', user.user_metadata.department);
+      if (role !== 'admin' && dept) {
+        pendingAdvisorQuery = pendingAdvisorQuery.eq('department', dept);
+        pendingHODQuery = pendingHODQuery.eq('department', dept);
+        approvedQuery = approvedQuery.eq('department', dept);
+        completedQuery = completedQuery.eq('department', dept);
+        archivedQuery = archivedQuery.eq('department', dept);
       }
 
       const { count: pendingAdvisorCount } = await pendingAdvisorQuery;
@@ -171,6 +182,8 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
 
           // Trigger Email & In-App Notification
           try {
+            if (request.notification_sent) return; // Prevent duplicates
+
             const { data: studentProfileData } = await supabase
               .from('profiles')
               .select('email, full_name')
@@ -196,7 +209,9 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                 
                 const emailResult = await emailResponse.json();
                 
-                if (!emailResult.success) {
+                if (emailResult.success) {
+                  await supabase.from('od_requests').update({ notification_sent: true }).eq('id', request.id);
+                } else {
                   // Log failure to notifications_log
                   await supabase.from('notifications_log').insert({
                     user_id: request.user_id,
@@ -235,10 +250,45 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
           const { error: dbError } = await supabase.from('od_requests').update({ 
             status: 'Pending HOD',
             advisor_id: facultyProfile.id,
-            advisor_approved_at: new Date().toISOString()
+            advisor_approved_at: new Date().toISOString(),
+            notification_sent: false // Reset for HOD notification
           }).eq('id', request.id);
 
           if (dbError) throw dbError;
+
+          // Trigger HOD Notification
+          try {
+            if (request.notification_sent) return; // Prevent duplicates
+
+            const { data: hodProfile } = await supabase
+              .from('profiles')
+              .select('email')
+              .eq('role', 'hod')
+              .eq('department', request.department)
+              .single();
+
+            if (hodProfile?.email) {
+              const dashboardUrl = `${window.location.origin}/hod-dashboard`;
+              const emailMessage = `OD Request Level 1 Approved. The Department Advisor has cleared an OD request; your final authorization is required. <a href="${dashboardUrl}">Click Here to View Dashboard</a>`;
+
+              const emailResponse = await fetch('/api/send-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  to: hodProfile.email,
+                  subject: `OD Authorization Required - ${request.department}`,
+                  message: emailMessage
+                })
+              });
+
+              const emailResult = await emailResponse.json();
+              if (emailResult.success) {
+                await supabase.from('od_requests').update({ notification_sent: true }).eq('id', request.id);
+              }
+            }
+          } catch (notifyErr) {
+            console.error("HOD notification failed:", notifyErr);
+          }
         }
       } else {
         await supabase.from('od_requests').update({ status: 'Rejected' }).eq('id', request.id);
@@ -381,30 +431,12 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
             </div>
           )}
 
-          <div className="relative w-32 mr-2">
-            <select 
-              value={monthFilter}
-              onChange={(e) => setMonthFilter(e.target.value)}
-              className="w-full px-3 py-2 bg-white border rounded-xl text-xs outline-none focus:border-blueprint-blue font-black uppercase tracking-widest"
-            >
-              <option value="">All Months</option>
-              <option value="0">January</option>
-              <option value="1">February</option>
-              <option value="2">March</option>
-              <option value="3">April</option>
-              <option value="4">May</option>
-              <option value="5">June</option>
-              <option value="6">July</option>
-              <option value="7">August</option>
-              <option value="8">September</option>
-              <option value="9">October</option>
-              <option value="10">November</option>
-              <option value="11">December</option>
-            </select>
-          </div>
           <div className="bg-white border p-1 rounded-xl flex items-center shadow-sm">
             <button onClick={() => setViewMode('registry')} className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all ${viewMode === 'registry' ? 'bg-blueprint-blue text-white shadow-lg shadow-amber-500/20' : 'text-slate-400 hover:text-slate-600'}`}>
               <LayoutList size={14} /> List
+            </button>
+            <button onClick={() => setViewMode('nested')} className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all ${viewMode === 'nested' ? 'bg-blueprint-blue text-white shadow-lg shadow-amber-500/20' : 'text-slate-400 hover:text-slate-600'}`}>
+              <Folder size={14} /> Folder
             </button>
             <button onClick={() => setViewMode('inspection')} className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all ${viewMode === 'inspection' ? 'bg-blueprint-blue text-white shadow-lg shadow-amber-500/20' : 'text-slate-400 hover:text-slate-600'}`}>
               <BookOpen size={14} /> Detail
@@ -457,11 +489,36 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         </button>
       </div>
 
+      <div className="bg-white border border-slate-200 rounded-[2rem] p-4 flex flex-wrap items-center justify-center gap-2 shadow-sm">
+        <button 
+          onClick={() => setMonthFilter('')}
+          className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${monthFilter === '' ? 'bg-blueprint-blue text-white shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
+        >
+          All Time
+        </button>
+        {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((m, i) => (
+          <button
+            key={m}
+            onClick={() => setMonthFilter(i.toString())}
+            className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${monthFilter === i.toString() ? 'bg-blueprint-blue text-white shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
+          >
+            {m}
+          </button>
+        ))}
+      </div>
+
       {loading ? (
         <div className="p-20 flex flex-col items-center justify-center gap-4 bg-white rounded-[2rem] border shadow-sm">
           <Loader2 className="animate-spin text-blueprint-blue" size={48} />
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Synchronizing Registry...</p>
         </div>
+      ) : viewMode === 'nested' ? (
+        <NestedFolderView 
+          requests={filteredRequests} 
+          onApprove={(req) => handleAction(req, true)}
+          onReject={(req) => handleAction(req, false)}
+          processingId={processingId}
+        />
       ) : viewMode === 'registry' ? (
         <div className="bg-white rounded-[2rem] border shadow-xl overflow-hidden">
           <table className="w-full text-left">

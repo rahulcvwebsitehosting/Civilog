@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { HashRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import { LogOut, Search as SearchIcon, LayoutDashboard, Settings, User, Home, Terminal, Database } from 'lucide-react';
 import { supabase } from './supabaseClient';
@@ -132,6 +132,8 @@ const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const currentUserIdRef = useRef<string | null>(null);
+  const sessionRef = useRef<any>(null);
 
   const updateProfileFromUser = (user: any) => {
     setProfile({
@@ -150,8 +152,8 @@ const App: React.FC = () => {
     setLoading(false);
   };
 
-  const fetchProfile = async (userId: string) => {
-    setLoading(true);
+  const fetchProfile = async (userId: string, skipLoading = false) => {
+    if (!skipLoading) setLoading(true);
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -173,6 +175,7 @@ const App: React.FC = () => {
       
       if (data) {
         setProfile(data as Profile);
+        currentUserIdRef.current = userId;
       }
     } catch (err) {
       console.error("Profile synchronization error:", err);
@@ -181,30 +184,67 @@ const App: React.FC = () => {
         updateProfileFromUser(user);
       }
     } finally {
-      setLoading(false);
-    }
-  };
-
-  const checkSession = async () => {
-    setLoading(true);
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session) {
-      setSession(session);
-      await fetchProfile(session.user.id);
-    } else {
-      setLoading(false);
+      if (!skipLoading) setLoading(false);
     }
   };
 
   useEffect(() => {
-    checkSession();
+    // Initial session check
+    const initSession = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          if (error.message.includes('refresh_token_not_found') || error.message.includes('Invalid Refresh Token')) {
+            await supabase.auth.signOut();
+            setSession(null);
+            setProfile(null);
+            currentUserIdRef.current = null;
+          }
+          setLoading(false);
+          return;
+        }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session) {
-        fetchProfile(session.user.id);
-      } else {
+        if (session) {
+          setSession(session);
+          currentUserIdRef.current = session.user.id;
+          await fetchProfile(session.user.id);
+        } else {
+          setLoading(false);
+        }
+      } catch (err) {
+        console.error("Initial session check failed:", err);
+        setLoading(false);
+      }
+    };
+
+    initSession();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log(`Auth Event: ${event}`);
+      
+      if (event === 'SIGNED_OUT') {
+        setSession(null);
         setProfile(null);
+        currentUserIdRef.current = null;
+        sessionRef.current = null;
+        setLoading(false);
+      } else if (session) {
+        const isNewUser = currentUserIdRef.current !== session.user.id;
+        const isNewSession = session.access_token !== sessionRef.current?.access_token;
+        
+        if (isNewSession) {
+          setSession(session);
+          sessionRef.current = session;
+        }
+        
+        if (isNewUser) {
+          currentUserIdRef.current = session.user.id;
+          await fetchProfile(session.user.id);
+        } else {
+          setLoading(false);
+        }
+      } else if (event === 'INITIAL_SESSION' && !session) {
         setLoading(false);
       }
     });
@@ -261,7 +301,7 @@ const App: React.FC = () => {
             <Route path="/setup-profile" element={
               session && profile ? (
                 !profile.is_profile_complete ? (
-                  <ProfileSetup profile={profile} onComplete={checkSession} />
+                  <ProfileSetup profile={profile} onComplete={() => fetchProfile(session.user.id)} />
                 ) : (
                   <Navigate to="/" replace />
                 )
@@ -272,7 +312,7 @@ const App: React.FC = () => {
 
             <Route path="/profile" element={
               session && profile?.is_profile_complete ? (
-                <ProfilePage profile={profile} onUpdate={checkSession} />
+                <ProfilePage profile={profile} onUpdate={() => fetchProfile(session.user.id)} />
               ) : (
                 <Navigate to="/" replace />
               )

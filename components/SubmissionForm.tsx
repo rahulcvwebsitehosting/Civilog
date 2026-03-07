@@ -286,42 +286,62 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
 
       // Trigger Advisor Notification
       try {
-        const { data: advisorProfile } = await supabase
+        const { data: advisorProfiles } = await supabase
           .from('profiles')
-          .select('email')
+          .select('id, email')
           .eq('role', 'advisor')
-          .eq('department', formData.department)
-          .single();
+          .eq('department', formData.department);
 
-        if (advisorProfile?.email) {
+        if (advisorProfiles && advisorProfiles.length > 0) {
           const dashboardUrl = `${window.location.origin}/advisor-dashboard`;
           const emailMessage = `
             <div style="font-family: sans-serif; line-height: 1.6; color: #333;">
               <h2 style="color: #003366;">New OD Request Received</h2>
               <p>A new On-Duty request has been submitted by <strong>${formData.student_name}</strong> (${formData.register_no}) from the <strong>${formData.department}</strong> department.</p>
               <p><strong>Event:</strong> ${formData.event_title}</p>
-              <p><strong>Date:</strong> ${formData.event_date}</p>
               <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
               <p>Please log in to your dashboard to review and authorize this request.</p>
-              <a href="${dashboardUrl}" style="display: inline-block; padding: 12px 24px; background-color: #003366; color: #fff; text-decoration: none; rounded: 8px; font-weight: bold;">View Advisor Dashboard</a>
+              <a href="${dashboardUrl}" style="display: inline-block; padding: 12px 24px; background-color: #003366; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold;">View Advisor Dashboard</a>
               <p style="font-size: 12px; color: #666; margin-top: 30px;">Ref: OD-${new Date().getFullYear()}-${formData.register_no}</p>
             </div>
           `;
 
-          const emailResponse = await fetch('/api/send-email', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              to: advisorProfile.email,
-              subject: `OD Request: ${formData.student_name} - ${formData.department}`,
-              message: emailMessage
-            })
-          });
+          for (const advisor of advisorProfiles) {
+            if (advisor.email) {
+              const emailResponse = await fetch('/api/send-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  to: advisor.email,
+                  subject: `New OD: ${formData.event_title}`,
+                  message: emailMessage
+                })
+              });
 
-          const emailResult = await emailResponse.json();
-          if (emailResult.success) {
-            await supabase.from('od_requests').update({ notification_sent: true }).eq('id', insertedData.id);
+              const emailResult = await emailResponse.json();
+              if (!emailResult.success) {
+                await supabase.from('notifications_log').insert({
+                  user_id: advisor.id,
+                  request_id: insertedData.id,
+                  error_message: JSON.stringify(emailResult.error) || 'Advisor Email delivery failed',
+                  status: 'failed',
+                  type: 'email',
+                  created_at: new Date().toISOString()
+                });
+              }
+            }
           }
+          await supabase.from('od_requests').update({ notification_sent: true }).eq('id', insertedData.id);
+        } else {
+          // No Advisor found - Log for admin review
+          await supabase.from('notifications_log').insert({
+            user_id: profile.id,
+            request_id: insertedData.id,
+            error_message: `No Advisor assigned for department: ${formData.department}`,
+            status: 'failed',
+            type: 'system',
+            created_at: new Date().toISOString()
+          });
         }
       } catch (notifyErr) {
         console.error("Advisor notification failed:", notifyErr);

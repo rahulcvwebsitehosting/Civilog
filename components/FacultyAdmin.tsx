@@ -2,13 +2,38 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { ODRequest, Profile, ODStatus } from '../types';
-import { Loader2, RefreshCw, Search, BarChart3, Clock, CheckCircle2, LayoutList, BookOpen, AlertCircle, ChevronLeft, Terminal, FileText, Download, ExternalLink, Database, Trash2, Archive, RefreshCcw, Lock, X, Folder, Bell } from 'lucide-react';
+import { Loader2, RefreshCw, Search, BarChart3, Clock, CheckCircle2, LayoutList, BookOpen, AlertCircle, ChevronLeft, Terminal, FileText, Download, ExternalLink, Database, Trash2, Archive, RefreshCcw, Lock, X, Folder, Bell, Filter, FileSpreadsheet, UserCheck, GraduationCap } from 'lucide-react';
 import { generateODDocument } from '../services/pdfService';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import FeedCard from './FeedCard';
 import NotificationCenter from './NotificationCenter';
 import NestedFolderView from './NestedFolderView';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
+import * as XLSX from 'xlsx';
+
+const DEPARTMENTS = [
+  'Civil Engineering',
+  'Agriculture Engineering',
+  'Biomedical Engineering',
+  'Computer Science and Engineering',
+  'Electrical and Electronics Engineering',
+  'Electronics and Communication Engineering',
+  'Electronics and Instrumentation Engineering',
+  'Mechanical Engineering',
+  'Robotics and Automation',
+  'CSE (Cyber Security)',
+  'CSE (AI & ML)',
+  'CSE (IoT)',
+  'Chemical Engineering',
+  'Information Technology',
+  'Artificial Intelligence and Data Science',
+  'Computer Science and Design',
+  'M.Tech. CSE (5-Years)',
+  'MBA',
+  'MCA',
+  'Food Technology',
+  'S&H'
+];
 
 // Utility function to format date as "01st October, 2026"
 const formatFancyDate = (dateString: string | null): string => {
@@ -44,6 +69,14 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
   const [activeStatus, setActiveStatus] = useState<ODStatus>('Pending Advisor');
   const [viewMode, setViewMode] = useState<'registry' | 'inspection' | 'nested'>('nested');
   const [facultyProfile, setFacultyProfile] = useState<Profile | null>(null);
+  const [searchParams] = useSearchParams();
+  const requestId = searchParams.get('request_id');
+
+  // Admin Filters
+  const [selectedDept, setSelectedDept] = useState<string>('');
+  const [selectedYear, setSelectedYear] = useState<string>('');
+  const [showSignatureModal, setShowSignatureModal] = useState(false);
+  const [signatureModalMessage, setSignatureModalMessage] = useState('');
 
   // Auth for Delete
   const [deleteCandidateId, setDeleteCandidateId] = useState<string | null>(null);
@@ -88,8 +121,13 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
       let query = supabase
         .from('od_requests')
         .select('*')
-        .eq('status', activeStatus)
         .order('created_at', { ascending: false });
+
+      if (requestId) {
+        query = query.eq('id', requestId);
+      } else {
+        query = query.eq('status', activeStatus);
+      }
 
       // Role-based filtering
       if (role !== 'admin' && dept) {
@@ -135,25 +173,34 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
   };
 
   useEffect(() => {
+    if (requestId) {
+      setViewMode('inspection');
+    }
+  }, [requestId]);
+
+  useEffect(() => {
     fetchRequests();
-  }, [activeStatus, role]);
+  }, [activeStatus, role, requestId]);
 
   const handleAction = async (request: ODRequest, approve: boolean) => {
-    if (role === 'admin') {
-      alert("Admin cannot authorize. Only Advisor and HOD can authorize.");
-      return;
-    }
-
-    if (approve && !facultyProfile?.signature_url) {
-      alert("Faculty E-Signature is required for approval. Please update your profile.");
+    // Admins are exempt from signature requirements
+    if (approve && role !== 'admin' && !facultyProfile?.signature_url) {
+      setSignatureModalMessage(role === 'advisor' ? "Advisor E-Signature is required for approval." : "HOD E-Signature is required for approval.");
+      setShowSignatureModal(true);
       return;
     }
 
     setProcessingId(request.id);
     try {
-      if (approve && facultyProfile) {
-        if (role === 'hod') {
-          // HOD Approval Logic
+      if (approve) {
+        // For admins, we might not have a full facultyProfile if they haven't set it up
+        // but we need an ID for the advisor_id/hod_id fields.
+        const activeFacultyId = facultyProfile?.id || (await supabase.auth.getUser()).data.user?.id;
+        
+        if (!activeFacultyId) throw new Error("Authentication session lost. Please reload.");
+
+        if (role === 'hod' || (role === 'admin' && request.status === 'Pending HOD')) {
+          // HOD Approval Logic (Final Sanction)
           const studentProfile: Profile = {
             id: request.user_id,
             email: '',
@@ -162,7 +209,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
             year: request.year
           };
 
-          const pdfBlob = await generateODDocument(request, studentProfile, facultyProfile);
+          const pdfBlob = await generateODDocument(request, studentProfile, facultyProfile || undefined);
           const fileName = `Approved_OD_${request.register_no}_${Date.now()}.pdf`;
           const filePath = `od_letters/${fileName}`;
           
@@ -174,7 +221,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
           const { error: dbError } = await supabase.from('od_requests').update({ 
             status: 'Approved', 
             od_letter_url: publicUrl,
-            hod_id: facultyProfile.id,
+            hod_id: activeFacultyId,
             hod_approved_at: new Date().toISOString()
           }).eq('id', request.id);
 
@@ -200,15 +247,9 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                 <h2 style="color: #2e7d32;">OD Request Sanctioned!</h2>
                 <p>Dear <strong>${studentName}</strong>,</p>
                 <p>Your On-Duty request for <strong>${request.event_title}</strong> has been officially sanctioned by the Department HOD.</p>
-                <p>You can now download your formal OD letter from the portal tracking section.</p>
+                <p>All the best for your presentation!</p>
+                <p><strong>Download OD Letter:</strong> <a href="${publicUrl}" style="color: #2e7d32; font-weight: bold;">Click here to download</a></p>
                 <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
-                <p><strong>Next Steps:</strong></p>
-                <ul>
-                  <li>Attend the event and represent the college with pride.</li>
-                  <li>Collect participation evidence (Photos/Certificates).</li>
-                  <li>Upload the evidence to the portal immediately after the event to complete the cycle.</li>
-                </ul>
-                <p>All the best for your event!</p>
                 <p style="font-size: 12px; color: #666; margin-top: 30px;">Team ESEC OD Portal</p>
               </div>
             `;
@@ -221,7 +262,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
                     to: studentEmail,
-                    subject: 'OD Sanctioned: All the best! - ESEC OD Portal',
+                    subject: `OD Sanctioned: ${request.event_title}`,
                     message: emailMessage
                   })
                 });
@@ -240,6 +281,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                     type: 'email',
                     created_at: new Date().toISOString()
                   });
+                  alert("Email delivery failed. Logged for retry.");
                 }
               } catch (emailErr: any) {
                 console.error("Email API Call Failed:", emailErr);
@@ -251,6 +293,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                   type: 'email',
                   created_at: new Date().toISOString()
                 });
+                alert("Email queued for retry due to network error.");
               }
             }
 
@@ -265,10 +308,10 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
             console.error("Failed to process notifications:", notificationErr);
           }
         } else {
-          // Advisor Approval Logic
+          // Advisor Approval Logic (or Admin acting as Advisor)
           const { error: dbError } = await supabase.from('od_requests').update({ 
             status: 'Pending HOD',
-            advisor_id: facultyProfile.id,
+            advisor_id: activeFacultyId,
             advisor_approved_at: new Date().toISOString(),
             notification_sent: false // Reset for HOD notification
           }).eq('id', request.id);
@@ -281,21 +324,20 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
             const { data: latestReq } = await supabase.from('od_requests').select('notification_sent').eq('id', request.id).single();
             if (latestReq?.notification_sent) return;
 
-            const { data: hodProfile } = await supabase
+            const { data: hodProfiles } = await supabase
               .from('profiles')
-              .select('email')
+              .select('id, email, full_name')
               .eq('role', 'hod')
-              .eq('department', request.department)
-              .single();
+              .eq('department', request.department);
 
-            if (hodProfile?.email) {
-              const dashboardUrl = `${window.location.origin}/hod-dashboard`;
+            if (hodProfiles && hodProfiles.length > 0) {
+              const advisorName = facultyProfile?.full_name || 'Department Advisor';
+              const dashboardUrl = `${window.location.origin}/hod-dashboard?request_id=${request.id}`;
               const emailMessage = `
                 <div style="font-family: sans-serif; line-height: 1.6; color: #333;">
                   <h2 style="color: #003366;">OD Authorization Required</h2>
-                  <p>An OD request for <strong>${request.student_name}</strong> (${request.register_no}) has been <strong>Approved by the Department Advisor</strong> and now requires your final authorization.</p>
+                  <p>An OD request for <strong>${request.student_name}</strong> (${request.register_no}) has been <strong>Approved by Advisor</strong> and now requires your final authorization.</p>
                   <p><strong>Event:</strong> ${request.event_title}</p>
-                  <p><strong>Department:</strong> ${request.department}</p>
                   <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
                   <p>Please log in to your dashboard to provide the final signature.</p>
                   <a href="${dashboardUrl}" style="display: inline-block; padding: 12px 24px; background-color: #003366; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold;">View HOD Dashboard</a>
@@ -303,20 +345,44 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                 </div>
               `;
 
-              const emailResponse = await fetch('/api/send-email', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  to: hodProfile.email,
-                  subject: `Final Authorization Required: ${request.student_name}`,
-                  message: emailMessage
-                })
-              });
-
-              const emailResult = await emailResponse.json();
-              if (emailResult.success) {
-                await supabase.from('od_requests').update({ notification_sent: true }).eq('id', request.id);
+              // Send to all HODs found for the department
+              for (const hod of hodProfiles) {
+                if (hod.email) {
+                  const emailResponse = await fetch('/api/send-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      to: hod.email,
+                      subject: `Advisor Approved: ${request.event_title}`,
+                      message: emailMessage
+                    })
+                  });
+                  const emailResult = await emailResponse.json();
+                  if (!emailResult.success) {
+                     await supabase.from('notifications_log').insert({
+                      user_id: hod.id || activeFacultyId,
+                      request_id: request.id,
+                      error_message: JSON.stringify(emailResult.error) || 'HOD Email delivery failed',
+                      status: 'failed',
+                      type: 'email',
+                      created_at: new Date().toISOString()
+                    });
+                  }
+                }
               }
+              await supabase.from('od_requests').update({ notification_sent: true }).eq('id', request.id);
+            } else {
+              // No HOD found - Log and notify admin
+              console.warn(`No HOD found for department: ${request.department}`);
+              await supabase.from('notifications_log').insert({
+                user_id: activeFacultyId,
+                request_id: request.id,
+                error_message: `No HOD assigned for department: ${request.department}`,
+                status: 'failed',
+                type: 'system',
+                created_at: new Date().toISOString()
+              });
+              alert(`No HOD assigned for ${request.department}. Logged for admin review.`);
             }
           } catch (notifyErr) {
             console.error("HOD notification failed:", notifyErr);
@@ -387,13 +453,74 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
     const matchesSearch = r.student_name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                          r.register_no.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          r.event_title.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesDept = role === 'admin' ? (r.department?.toLowerCase().includes(deptSearch.toLowerCase()) || !deptSearch) : true;
+    const matchesDept = selectedDept ? r.department === selectedDept : true;
+    const matchesYear = selectedYear ? r.year === selectedYear : true;
     const matchesMonth = monthFilter ? new Date(r.event_date).getMonth() === parseInt(monthFilter) : true;
-    return matchesSearch && matchesDept && matchesMonth;
+    return matchesSearch && matchesDept && matchesYear && matchesMonth;
   });
+
+  const exportToExcel = () => {
+    const dataToExport = filteredRequests.map(r => ({
+      'Student Name': r.student_name,
+      'Register No': r.register_no,
+      'Roll No': r.roll_no,
+      'Department': r.department,
+      'Year': r.year,
+      'Semester': r.semester,
+      'Event Title': r.event_title,
+      'Organization': r.organization_name,
+      'Event Type': r.event_type,
+      'Start Date': r.event_date,
+      'End Date': r.event_end_date,
+      'Status': r.status,
+      'Advisor Approved': r.advisor_approved_at ? 'Yes' : 'No',
+      'HOD Approved': r.hod_approved_at ? 'Yes' : 'No'
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'OD Requests');
+    XLSX.writeFile(wb, `ESEC_OD_Registry_${activeStatus}_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-20 relative">
+      {/* Signature Blocking Modal */}
+      <AnimatePresence>
+        {showSignatureModal && (
+          <div className="fixed inset-0 z-[200] bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-[2.5rem] p-10 max-w-md w-full shadow-2xl border-4 border-amber-100 text-center"
+            >
+              <div className="w-20 h-20 bg-amber-100 text-amber-600 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                <UserCheck size={40} />
+              </div>
+              <h3 className="text-2xl font-black text-slate-900 uppercase italic mb-2 tracking-tight">Signature Required</h3>
+              <p className="text-slate-500 text-sm mb-8 leading-relaxed">
+                {signatureModalMessage} You must upload your digital signature in your profile settings before authorizing any requests.
+              </p>
+              <div className="flex flex-col gap-3">
+                <Link 
+                  to="/profile" 
+                  className="w-full bg-blueprint-blue text-white font-black uppercase text-xs py-4 rounded-xl shadow-lg shadow-amber-500/20 hover:bg-goldenrod transition-all"
+                >
+                  Go to Profile Settings
+                </Link>
+                <button 
+                  onClick={() => setShowSignatureModal(false)}
+                  className="w-full py-4 text-slate-400 font-black uppercase text-[10px] tracking-widest hover:text-slate-600 transition-colors"
+                >
+                  Maybe Later
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Password Modal for Hard Delete */}
       {deleteCandidateId && (
         <div className="fixed inset-0 z-[150] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
@@ -432,6 +559,15 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
           </h2>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {role === 'admin' && (
+            <button 
+              onClick={exportToExcel}
+              className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-emerald-700 transition-all shadow-lg mr-2"
+            >
+              <FileSpreadsheet size={14} /> Export Excel
+            </button>
+          )}
+          
           <Link 
             to="/faculty/registry"
             className="px-4 py-2 bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-slate-700 transition-all shadow-lg mr-2"
@@ -451,16 +587,30 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
           </div>
 
           {role === 'admin' && (
-            <div className="relative w-48 mr-2">
-              <Database className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-              <input 
-                type="text"
-                placeholder="Dept Search..."
-                value={deptSearch}
-                onChange={(e) => setDeptSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-white border rounded-xl text-xs outline-none focus:border-blueprint-blue"
-              />
-            </div>
+            <>
+              <div className="relative w-48 mr-2">
+                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                <select 
+                  value={selectedDept}
+                  onChange={(e) => setSelectedDept(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 bg-white border rounded-xl text-xs outline-none focus:border-blueprint-blue appearance-none"
+                >
+                  <option value="">All Departments</option>
+                  {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+              <div className="relative w-32 mr-2">
+                <GraduationCap className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                <select 
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 bg-white border rounded-xl text-xs outline-none focus:border-blueprint-blue appearance-none"
+                >
+                  <option value="">All Years</option>
+                  {[1, 2, 3, 4, 5].map(y => <option key={y} value={y.toString()}>{y} Year</option>)}
+                </select>
+              </div>
+            </>
           )}
 
           <div className="bg-white border p-1 rounded-xl flex items-center shadow-sm">

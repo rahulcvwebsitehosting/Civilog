@@ -11,29 +11,7 @@ import NestedFolderView from './NestedFolderView';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
 
-const DEPARTMENTS = [
-  'Civil Engineering',
-  'Agriculture Engineering',
-  'Biomedical Engineering',
-  'Computer Science and Engineering',
-  'Electrical and Electronics Engineering',
-  'Electronics and Communication Engineering',
-  'Electronics and Instrumentation Engineering',
-  'Mechanical Engineering',
-  'Robotics and Automation',
-  'CSE (Cyber Security)',
-  'CSE (AI & ML)',
-  'CSE (IoT)',
-  'Chemical Engineering',
-  'Information Technology',
-  'Artificial Intelligence and Data Science',
-  'Computer Science and Design',
-  'M.Tech. CSE (5-Years)',
-  'MBA',
-  'MCA',
-  'Food Technology',
-  'S&H'
-];
+import { DEPARTMENTS } from '../constants';
 
 // Utility function to format date as "01st October, 2026"
 const formatFancyDate = (dateString: string | null): string => {
@@ -257,6 +235,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
             // 1. Send Email via Resend API
             if (studentEmail) {
               try {
+                console.log(`Sending sanction email to student: ${studentEmail}`);
                 const emailResponse = await fetch('/api/send-email', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
@@ -268,6 +247,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                 });
                 
                 const emailResult = await emailResponse.json();
+                console.log("Email result for student:", studentEmail, emailResult);
                 
                 if (emailResult.success) {
                   await supabase.from('od_requests').update({ notification_sent: true }).eq('id', request.id);
@@ -348,6 +328,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
               // Send to all HODs found for the department
               for (const hod of hodProfiles) {
                 if (hod.email) {
+                  console.log(`Sending advisor-approved email to HOD: ${hod.email}`);
                   const emailResponse = await fetch('/api/send-email', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -358,6 +339,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                     })
                   });
                   const emailResult = await emailResponse.json();
+                  console.log("Email result for HOD:", hod.email, emailResult);
                   if (!emailResult.success) {
                      await supabase.from('notifications_log').insert({
                       user_id: hod.id || activeFacultyId,

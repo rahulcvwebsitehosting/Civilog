@@ -4,29 +4,7 @@ import { supabase } from '../supabaseClient';
 import { Profile } from '../types';
 import { Loader2, User, Fingerprint, Briefcase, GraduationCap, Building2, Upload } from 'lucide-react';
 
-const DEPARTMENTS = [
-  'Civil Engineering',
-  'Agriculture Engineering',
-  'Biomedical Engineering',
-  'Computer Science and Engineering',
-  'Electrical and Electronics Engineering',
-  'Electronics and Communication Engineering',
-  'Electronics and Instrumentation Engineering',
-  'Mechanical Engineering',
-  'Robotics and Automation',
-  'CSE (Cyber Security)',
-  'CSE (AI & ML)',
-  'CSE (IoT)',
-  'Chemical Engineering',
-  'Information Technology',
-  'Artificial Intelligence and Data Science',
-  'Computer Science and Design',
-  'M.Tech. CSE (5-Years)',
-  'MBA',
-  'MCA',
-  'Food Technology',
-  'S&H'
-];
+import { DEPARTMENTS } from '../constants';
 
 interface ProfileSetupProps {
   profile: Profile;

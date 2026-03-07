@@ -14,29 +14,7 @@ interface SubmissionFormProps {
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
 
-const DEPARTMENTS = [
-  'Civil Engineering',
-  'Agriculture Engineering',
-  'Biomedical Engineering',
-  'Computer Science and Engineering',
-  'Electrical and Electronics Engineering',
-  'Electronics and Communication Engineering',
-  'Electronics and Instrumentation Engineering',
-  'Mechanical Engineering',
-  'Robotics and Automation',
-  'CSE (Cyber Security)',
-  'CSE (AI & ML)',
-  'CSE (IoT)',
-  'Chemical Engineering',
-  'Information Technology',
-  'Artificial Intelligence and Data Science',
-  'Computer Science and Design',
-  'M.Tech. CSE (5-Years)',
-  'MBA',
-  'MCA',
-  'Food Technology',
-  'S&H'
-];
+import { DEPARTMENTS } from '../constants';
 
 const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, profile }) => {
   const [formData, setFormData] = useState<SubmissionFormData>({
@@ -286,11 +264,18 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
 
       // Trigger Advisor Notification
       try {
-        const { data: advisorProfiles } = await supabase
+        console.log("Attempting to notify Advisor for department:", formData.department);
+        const { data: advisorProfiles, error: advisorError } = await supabase
           .from('profiles')
           .select('id, email')
           .eq('role', 'advisor')
           .eq('department', formData.department);
+
+        if (advisorError) {
+          console.error("Error fetching advisor profiles:", advisorError);
+        }
+
+        console.log("Found advisor profiles:", advisorProfiles);
 
         if (advisorProfiles && advisorProfiles.length > 0) {
           const dashboardUrl = `${window.location.origin}/advisor-dashboard`;
@@ -308,6 +293,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
 
           for (const advisor of advisorProfiles) {
             if (advisor.email) {
+              console.log(`Sending email to advisor: ${advisor.email}`);
               const emailResponse = await fetch('/api/send-email', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -319,6 +305,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
               });
 
               const emailResult = await emailResponse.json();
+              console.log("Email result for advisor:", advisor.email, emailResult);
               if (!emailResult.success) {
                 await supabase.from('notifications_log').insert({
                   user_id: advisor.id,

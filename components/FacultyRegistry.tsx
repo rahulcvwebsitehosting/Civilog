@@ -9,6 +9,7 @@ const FacultyRegistry: React.FC = () => {
   const [requests, setRequests] = useState<ODRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [eventTypeFilter, setEventTypeFilter] = useState<string>('All');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
 
@@ -118,11 +119,17 @@ const FacultyRegistry: React.FC = () => {
     }
   };
 
-  const filteredRequests = requests.filter(r => 
-    r.student_name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    r.register_no.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    r.event_title.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredRequests = requests.filter(r => {
+    const matchesSearch = r.student_name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      r.register_no.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      r.event_title.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesType = eventTypeFilter === 'All' || r.event_type === eventTypeFilter;
+    
+    return matchesSearch && matchesType;
+  });
+
+  const eventTypes = ['All', ...Array.from(new Set(requests.map(r => r.event_type))).sort()];
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 pb-20">
@@ -142,6 +149,15 @@ const FacultyRegistry: React.FC = () => {
               className="w-full pl-10 pr-4 py-2.5 bg-white border rounded-xl text-xs outline-none focus:border-blueprint-blue shadow-sm"
             />
           </div>
+          <select
+            value={eventTypeFilter}
+            onChange={(e) => setEventTypeFilter(e.target.value)}
+            className="px-4 py-2.5 bg-white border rounded-xl text-xs outline-none focus:border-blueprint-blue shadow-sm min-w-[140px]"
+          >
+            {eventTypes.map(type => (
+              <option key={type} value={type}>{type}</option>
+            ))}
+          </select>
           <button 
             onClick={fetchRegistry}
             className="p-2.5 bg-white border rounded-xl hover:bg-slate-50 transition-colors shadow-sm"
@@ -165,6 +181,7 @@ const FacultyRegistry: React.FC = () => {
               <tr>
                 <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">IDENTIFICATION</th>
                 <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">FIELD ACTIVITY</th>
+                <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">EVENT TYPE</th>
                 <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">TIMELINE</th>
                 <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">ACHIEVEMENT / PRIZE DETAILS</th>
                 <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] text-right">STATUS</th>
@@ -200,6 +217,11 @@ const FacultyRegistry: React.FC = () => {
                     <td className="px-8 py-6">
                       <p className="font-black text-blueprint-blue uppercase text-xs italic tracking-tighter">{request.event_title}</p>
                       <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">{request.organization_name}</p>
+                    </td>
+                    <td className="px-8 py-6">
+                      <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded-md text-[9px] font-black uppercase tracking-wider border border-slate-200">
+                        {request.event_type}
+                      </span>
                     </td>
                     <td className="px-8 py-6">
                       <div className="flex flex-col gap-0.5">

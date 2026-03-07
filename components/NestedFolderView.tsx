@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronRight, ChevronDown, Folder, GraduationCap, Layers, Users } from 'lucide-react';
+import { ChevronRight, ChevronDown, Folder, GraduationCap, Layers, Users, Bell } from 'lucide-react';
 import { ODRequest } from '../types';
 import FeedCard from './FeedCard';
 
@@ -145,14 +145,28 @@ const NestedFolderView: React.FC<NestedFolderViewProps> = ({ requests, onApprove
                                             className="px-4 pb-4 pt-2 space-y-4"
                                           >
                                             {semRequests.map(req => (
-                                              <FeedCard
-                                                key={req.id}
-                                                request={req}
-                                                isFaculty={true}
-                                                isProcessing={processingId === req.id}
-                                                onApprove={onApprove}
-                                                onReject={onReject}
-                                              />
+                                              <div key={req.id} className="relative">
+                                                <div className="absolute top-4 right-4 z-10">
+                                                  {req.notification_sent ? (
+                                                    <div className="flex items-center gap-1 px-2 py-1 bg-green-50 text-green-600 rounded-lg border border-green-100 shadow-sm">
+                                                      <Bell size={10} className="fill-green-600/20" />
+                                                      <span className="text-[8px] font-black uppercase tracking-widest">Notified</span>
+                                                    </div>
+                                                  ) : (
+                                                    <div className="flex items-center gap-1 px-2 py-1 bg-slate-50 text-slate-300 rounded-lg border border-slate-100">
+                                                      <Bell size={10} />
+                                                      <span className="text-[8px] font-black uppercase tracking-widest">Pending</span>
+                                                    </div>
+                                                  )}
+                                                </div>
+                                                <FeedCard
+                                                  request={req}
+                                                  isFaculty={true}
+                                                  isProcessing={processingId === req.id}
+                                                  onApprove={onApprove}
+                                                  onReject={onReject}
+                                                />
+                                              </div>
                                             ))}
                                           </motion.div>
                                         )}

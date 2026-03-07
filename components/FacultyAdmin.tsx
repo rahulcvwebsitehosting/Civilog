@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { ODRequest, Profile, ODStatus } from '../types';
-import { Loader2, RefreshCw, Search, BarChart3, Clock, CheckCircle2, LayoutList, BookOpen, AlertCircle, ChevronLeft, Terminal, FileText, Download, ExternalLink, Database, Trash2, Archive, RefreshCcw, Lock, X, Folder } from 'lucide-react';
+import { Loader2, RefreshCw, Search, BarChart3, Clock, CheckCircle2, LayoutList, BookOpen, AlertCircle, ChevronLeft, Terminal, FileText, Download, ExternalLink, Database, Trash2, Archive, RefreshCcw, Lock, X, Folder, Bell } from 'lucide-react';
 import { generateODDocument } from '../services/pdfService';
 import { Link } from 'react-router-dom';
 import FeedCard from './FeedCard';
@@ -42,7 +42,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
   const [deptSearch, setDeptSearch] = useState('');
   const [stats, setStats] = useState({ pendingAdvisor: 0, pendingHOD: 0, approved: 0, completed: 0, archived: 0 });
   const [activeStatus, setActiveStatus] = useState<ODStatus>('Pending Advisor');
-  const [viewMode, setViewMode] = useState<'registry' | 'inspection' | 'nested'>('registry');
+  const [viewMode, setViewMode] = useState<'registry' | 'inspection' | 'nested'>('nested');
   const [facultyProfile, setFacultyProfile] = useState<Profile | null>(null);
 
   // Auth for Delete
@@ -182,7 +182,9 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
 
           // Trigger Email & In-App Notification
           try {
-            if (request.notification_sent) return; // Prevent duplicates
+            // Fetch latest status to be sure
+            const { data: latestReq } = await supabase.from('od_requests').select('notification_sent').eq('id', request.id).single();
+            if (latestReq?.notification_sent) return;
 
             const { data: studentProfileData } = await supabase
               .from('profiles')
@@ -193,6 +195,23 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
             const studentName = studentProfileData?.full_name || request.student_name;
             const studentEmail = studentProfileData?.email;
             const notificationMessage = `Dear ${studentName}, your OD for ${request.event_title} has been sanctioned. All the best for your presentation! - Team ESEC OD.`;
+            const emailMessage = `
+              <div style="font-family: sans-serif; line-height: 1.6; color: #333;">
+                <h2 style="color: #2e7d32;">OD Request Sanctioned!</h2>
+                <p>Dear <strong>${studentName}</strong>,</p>
+                <p>Your On-Duty request for <strong>${request.event_title}</strong> has been officially sanctioned by the Department HOD.</p>
+                <p>You can now download your formal OD letter from the portal tracking section.</p>
+                <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
+                <p><strong>Next Steps:</strong></p>
+                <ul>
+                  <li>Attend the event and represent the college with pride.</li>
+                  <li>Collect participation evidence (Photos/Certificates).</li>
+                  <li>Upload the evidence to the portal immediately after the event to complete the cycle.</li>
+                </ul>
+                <p>All the best for your event!</p>
+                <p style="font-size: 12px; color: #666; margin-top: 30px;">Team ESEC OD Portal</p>
+              </div>
+            `;
 
             // 1. Send Email via Resend API
             if (studentEmail) {
@@ -202,8 +221,8 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
                     to: studentEmail,
-                    subject: 'OD Sanctioned - ESEC OD Portal',
-                    message: notificationMessage
+                    subject: 'OD Sanctioned: All the best! - ESEC OD Portal',
+                    message: emailMessage
                   })
                 });
                 
@@ -258,7 +277,9 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
 
           // Trigger HOD Notification
           try {
-            if (request.notification_sent) return; // Prevent duplicates
+            // Fetch latest status to be sure
+            const { data: latestReq } = await supabase.from('od_requests').select('notification_sent').eq('id', request.id).single();
+            if (latestReq?.notification_sent) return;
 
             const { data: hodProfile } = await supabase
               .from('profiles')
@@ -269,14 +290,25 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
 
             if (hodProfile?.email) {
               const dashboardUrl = `${window.location.origin}/hod-dashboard`;
-              const emailMessage = `OD Request Level 1 Approved. The Department Advisor has cleared an OD request; your final authorization is required. <a href="${dashboardUrl}">Click Here to View Dashboard</a>`;
+              const emailMessage = `
+                <div style="font-family: sans-serif; line-height: 1.6; color: #333;">
+                  <h2 style="color: #003366;">OD Authorization Required</h2>
+                  <p>An OD request for <strong>${request.student_name}</strong> (${request.register_no}) has been <strong>Approved by the Department Advisor</strong> and now requires your final authorization.</p>
+                  <p><strong>Event:</strong> ${request.event_title}</p>
+                  <p><strong>Department:</strong> ${request.department}</p>
+                  <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
+                  <p>Please log in to your dashboard to provide the final signature.</p>
+                  <a href="${dashboardUrl}" style="display: inline-block; padding: 12px 24px; background-color: #003366; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold;">View HOD Dashboard</a>
+                  <p style="font-size: 12px; color: #666; margin-top: 30px;">Ref: OD-AUTH-${request.id.substring(0, 8)}</p>
+                </div>
+              `;
 
               const emailResponse = await fetch('/api/send-email', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   to: hodProfile.email,
-                  subject: `OD Authorization Required - ${request.department}`,
+                  subject: `Final Authorization Required: ${request.student_name}`,
                   message: emailMessage
                 })
               });
@@ -526,7 +558,9 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
               <tr>
                 <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Lead Student</th>
                 <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Activity</th>
+                <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Type</th>
                 <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Assets</th>
+                <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Alerts</th>
                 <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Action</th>
               </tr>
             </thead>
@@ -554,6 +588,11 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                         <p className="text-[9px] text-slate-500 font-technical mt-1">{dateDisplay}</p>
                       </td>
                       <td className="px-8 py-6">
+                        <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded-md text-[8px] font-black uppercase tracking-wider border border-slate-200">
+                          {request.event_type}
+                        </span>
+                      </td>
+                      <td className="px-8 py-6">
                         <div className="flex items-center gap-3">
                           {request.od_letter_url ? (
                             <a 
@@ -574,6 +613,19 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                             </div>
                           )}
                         </div>
+                      </td>
+                      <td className="px-8 py-6">
+                        {request.notification_sent ? (
+                          <div className="flex items-center gap-1.5 text-green-600">
+                            <Bell size={12} className="fill-green-600/20" />
+                            <span className="text-[9px] font-black uppercase tracking-widest">Notified</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 text-slate-300">
+                            <Bell size={12} />
+                            <span className="text-[9px] font-black uppercase tracking-widest">Pending</span>
+                          </div>
+                        )}
                       </td>
                       <td className="px-8 py-6 text-right">
                         <div className="flex justify-end gap-2">

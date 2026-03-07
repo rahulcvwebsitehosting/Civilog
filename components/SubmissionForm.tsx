@@ -295,14 +295,25 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
 
         if (advisorProfile?.email) {
           const dashboardUrl = `${window.location.origin}/advisor-dashboard`;
-          const emailMessage = `New OD Request for ${formData.department}. A student has submitted a request that requires your review. <a href="${dashboardUrl}">Click Here to View Dashboard</a>`;
+          const emailMessage = `
+            <div style="font-family: sans-serif; line-height: 1.6; color: #333;">
+              <h2 style="color: #003366;">New OD Request Received</h2>
+              <p>A new On-Duty request has been submitted by <strong>${formData.student_name}</strong> (${formData.register_no}) from the <strong>${formData.department}</strong> department.</p>
+              <p><strong>Event:</strong> ${formData.event_title}</p>
+              <p><strong>Date:</strong> ${formData.event_date}</p>
+              <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
+              <p>Please log in to your dashboard to review and authorize this request.</p>
+              <a href="${dashboardUrl}" style="display: inline-block; padding: 12px 24px; background-color: #003366; color: #fff; text-decoration: none; rounded: 8px; font-weight: bold;">View Advisor Dashboard</a>
+              <p style="font-size: 12px; color: #666; margin-top: 30px;">Ref: OD-${new Date().getFullYear()}-${formData.register_no}</p>
+            </div>
+          `;
 
           const emailResponse = await fetch('/api/send-email', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               to: advisorProfile.email,
-              subject: `New OD Request - ${formData.department}`,
+              subject: `OD Request: ${formData.student_name} - ${formData.department}`,
               message: emailMessage
             })
           });
@@ -466,10 +477,20 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <select name="event_type" value={formData.event_type} onChange={handleInputChange} className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg border-2 border-slate-200 outline-none">
-                <option value="Symposium">Symposium</option>
-                <option value="Workshop">Workshop</option>
+                <option value="Conference">Conference</option>
+                <option value="Culturals">Culturals</option>
+                <option value="FDP">FDP</option>
+                <option value="Hackathon">Hackathon</option>
+                <option value="NSS/NCC">NSS/NCC</option>
                 <option value="Paper Presentation">Paper Presentation</option>
-                <option value="Other">Other</option>
+                <option value="Project Contest">Project Contest</option>
+                <option value="Quiz Event">Quiz Event</option>
+                <option value="Seminar">Seminar</option>
+                <option value="Sports / Games">Sports / Games</option>
+                <option value="Symposium">Symposium</option>
+                <option value="Webinar">Webinar</option>
+                <option value="Workshop">Workshop</option>
+                <option value="Other">Others</option>
               </select>
               {formData.event_type === 'Other' && (
                 <input 

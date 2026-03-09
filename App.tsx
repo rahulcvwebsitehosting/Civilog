@@ -195,7 +195,11 @@ const App: React.FC = () => {
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
-          if (error.message.includes('refresh_token_not_found') || error.message.includes('Invalid Refresh Token')) {
+          const errMsg = error.message.toLowerCase();
+          if (errMsg.includes('refresh_token_not_found') || 
+              errMsg.includes('invalid refresh token') || 
+              errMsg.includes('refresh token not found') ||
+              errMsg.includes('session_not_found')) {
             await supabase.auth.signOut();
             setSession(null);
             setProfile(null);

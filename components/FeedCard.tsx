@@ -214,10 +214,10 @@ const FeedCard: React.FC<FeedCardProps> = ({
 
                 {request.team_members && request.team_members.length > 0 && (
                   <div className="mt-2 pt-2 border-t border-slate-100">
-                    <p className="text-[8px] font-black text-blueprint-blue uppercase tracking-widest mb-1">Team Members ({request.team_members.length})</p>
+                    <p className="text-[10px] font-black text-blueprint-blue uppercase tracking-widest mb-1">Team Members ({request.team_members.length})</p>
                     <div className="flex flex-wrap gap-x-3 gap-y-1">
                       {request.team_members.map((m, i) => (
-                        <div key={i} className="text-[9px]">
+                        <div key={i} className="text-[11px]">
                           <span className="font-bold text-slate-700 uppercase">{m.name}</span>
                           <span className="text-slate-400 ml-1">({m.year}Y • {m.department?.split(' ').map(w => w[0]).join('') || 'ESEC'})</span>
                         </div>

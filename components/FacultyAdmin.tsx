@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { ODRequest, Profile, ODStatus } from '../types';
-import { Loader2, RefreshCw, Search, BarChart3, Clock, CheckCircle2, LayoutList, BookOpen, AlertCircle, ChevronLeft, Terminal, FileText, Download, ExternalLink, Database, Trash2, Archive, RefreshCcw, Lock, X, Folder, Bell, Filter, FileSpreadsheet, UserCheck, GraduationCap } from 'lucide-react';
+import { Loader2, RefreshCw, Search, BarChart3, Clock, CheckCircle2, LayoutList, BookOpen, AlertCircle, ChevronLeft, Terminal, FileText, Download, ExternalLink, Database, Trash2, Archive, RefreshCcw, Lock, X, Folder, Bell, Filter, FileSpreadsheet, UserCheck, GraduationCap, Mail, Check } from 'lucide-react';
 import { generateODDocument } from '../services/pdfService';
 import { Link, useSearchParams } from 'react-router-dom';
 import FeedCard from './FeedCard';
@@ -205,12 +205,8 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
 
           if (dbError) throw dbError;
 
-          // Trigger Email & In-App Notification
+          // Trigger Email & In-App Notification (Client-side fallback)
           try {
-            // Fetch latest status to be sure
-            const { data: latestReq } = await supabase.from('od_requests').select('notification_sent').eq('id', request.id).single();
-            if (latestReq?.notification_sent) return;
-
             const { data: studentProfileData } = await supabase
               .from('profiles')
               .select('email, full_name')
@@ -232,58 +228,36 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
               </div>
             `;
 
-            // 1. Send Email via Resend API
             if (studentEmail) {
-              try {
-                console.log(`Sending sanction email to student: ${studentEmail}`);
-                const emailResponse = await fetch('/api/send-email', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    to: studentEmail,
-                    subject: `OD Sanctioned: ${request.event_title}`,
-                    message: emailMessage
-                  })
-                });
-                
-                const emailResult = await emailResponse.json();
-                console.log("Email result for student:", studentEmail, emailResult);
-                
-                if (emailResult.success) {
-                  await supabase.from('od_requests').update({ notification_sent: true }).eq('id', request.id);
-                } else {
-                  // Log failure to notifications_log
-                  await supabase.from('notifications_log').insert({
-                    user_id: request.user_id,
-                    request_id: request.id,
-                    error_message: JSON.stringify(emailResult.error) || 'Email delivery failed',
-                    status: 'failed',
-                    type: 'email',
-                    created_at: new Date().toISOString()
-                  });
-                  alert("Email delivery failed. Logged for retry.");
-                }
-              } catch (emailErr: any) {
-                console.error("Email API Call Failed:", emailErr);
+              const emailRes = await fetch('/api/send-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  to: studentEmail,
+                  subject: `OD Sanctioned: ${request.event_title}`,
+                  message: emailMessage
+                })
+              });
+              const emailResult = await emailRes.json();
+              if (!emailResult.success) {
                 await supabase.from('notifications_log').insert({
                   user_id: request.user_id,
                   request_id: request.id,
-                  error_message: emailErr.message || 'Network error during email trigger',
+                  error_message: JSON.stringify(emailResult.error) || 'Student Email delivery failed',
                   status: 'failed',
                   type: 'email',
                   created_at: new Date().toISOString()
                 });
-                alert("Email queued for retry due to network error.");
               }
             }
 
-            // 2. In-App Notification
             await supabase.from('notifications').insert({
               user_id: request.user_id,
               message: notificationMessage,
               type: 'success',
               read: false
             });
+            await supabase.from('od_requests').update({ notification_sent: true }).eq('id', request.id);
           } catch (notificationErr) {
             console.error("Failed to process notifications:", notificationErr);
           }
@@ -298,12 +272,8 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
 
           if (dbError) throw dbError;
 
-          // Trigger HOD Notification
+          // Trigger HOD Notification (Client-side fallback)
           try {
-            // Fetch latest status to be sure
-            const { data: latestReq } = await supabase.from('od_requests').select('notification_sent').eq('id', request.id).single();
-            if (latestReq?.notification_sent) return;
-
             const { data: hodProfiles } = await supabase
               .from('profiles')
               .select('id, email, full_name')
@@ -311,7 +281,6 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
               .eq('department', request.department);
 
             if (hodProfiles && hodProfiles.length > 0) {
-              const advisorName = facultyProfile?.full_name || 'Department Advisor';
               const dashboardUrl = `${window.location.origin}/hod-dashboard?request_id=${request.id}`;
               const emailMessage = `
                 <div style="font-family: sans-serif; line-height: 1.6; color: #333;">
@@ -325,11 +294,9 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                 </div>
               `;
 
-              // Send to all HODs found for the department
               for (const hod of hodProfiles) {
                 if (hod.email) {
-                  console.log(`Sending advisor-approved email to HOD: ${hod.email}`);
-                  const emailResponse = await fetch('/api/send-email', {
+                  const emailRes = await fetch('/api/send-email', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -338,10 +305,9 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                       message: emailMessage
                     })
                   });
-                  const emailResult = await emailResponse.json();
-                  console.log("Email result for HOD:", hod.email, emailResult);
+                  const emailResult = await emailRes.json();
                   if (!emailResult.success) {
-                     await supabase.from('notifications_log').insert({
+                    await supabase.from('notifications_log').insert({
                       user_id: hod.id || activeFacultyId,
                       request_id: request.id,
                       error_message: JSON.stringify(emailResult.error) || 'HOD Email delivery failed',
@@ -353,18 +319,6 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                 }
               }
               await supabase.from('od_requests').update({ notification_sent: true }).eq('id', request.id);
-            } else {
-              // No HOD found - Log and notify admin
-              console.warn(`No HOD found for department: ${request.department}`);
-              await supabase.from('notifications_log').insert({
-                user_id: activeFacultyId,
-                request_id: request.id,
-                error_message: `No HOD assigned for department: ${request.department}`,
-                status: 'failed',
-                type: 'system',
-                created_at: new Date().toISOString()
-              });
-              alert(`No HOD assigned for ${request.department}. Logged for admin review.`);
             }
           } catch (notifyErr) {
             console.error("HOD notification failed:", notifyErr);
@@ -428,6 +382,63 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
       fetchRequests();
     } catch (err: any) {
       alert("Deletion Error: " + err.message);
+    }
+  };
+
+  // Manual Notification Fallback
+  const sendManualNotification = async (request: ODRequest) => {
+    try {
+      setProcessingId(request.id);
+      let targetEmail = '';
+      let subject = '';
+      let message = '';
+
+      if (request.status === 'Pending Advisor') {
+        const { data: advisors } = await supabase.from('profiles').select('email').eq('role', 'advisor').eq('department', request.department);
+        if (advisors && advisors.length > 0) {
+          targetEmail = advisors[0].email;
+          subject = `New OD: ${request.event_title}`;
+          message = `<h2>New OD Request</h2><p>Student: ${request.student_name}</p><p>Event: ${request.event_title}</p><p>Please review in Advisor Dashboard.</p>`;
+        }
+      } else if (request.status === 'Pending HOD') {
+        const { data: hods } = await supabase.from('profiles').select('email').eq('role', 'hod').eq('department', request.department);
+        if (hods && hods.length > 0) {
+          targetEmail = hods[0].email;
+          subject = `Advisor Approved: ${request.event_title}`;
+          message = `<h2>OD Authorization Required</h2><p>Student: ${request.student_name}</p><p>Event: ${request.event_title}</p><p>Final authorization required in HOD Dashboard.</p>`;
+        }
+      } else if (request.status === 'Approved') {
+        const { data: student } = await supabase.from('profiles').select('email').eq('id', request.user_id).single();
+        if (student) {
+          targetEmail = student.email;
+          subject = `OD Sanctioned: ${request.event_title}`;
+          message = `<h2>OD Sanctioned!</h2><p>Your OD for ${request.event_title} has been approved. Download the letter from the portal.</p>`;
+        }
+      }
+
+      if (!targetEmail) {
+        alert("No target email found for this status/department.");
+        return;
+      }
+
+      const res = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: targetEmail, subject, message })
+      });
+
+      const result = await res.json();
+      if (result.success) {
+        alert(`Notification sent to ${targetEmail}`);
+        await supabase.from('od_requests').update({ notification_sent: true }).eq('id', request.id);
+        fetchRequests();
+      } else {
+        throw new Error(result.error || "Failed to send");
+      }
+    } catch (err: any) {
+      alert("Manual Notification Failed: " + err.message);
+    } finally {
+      setProcessingId(null);
     }
   };
 
@@ -767,6 +778,16 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                           >
                             <BookOpen size={14} /> Inspect
                           </button>
+
+                          <button
+                            onClick={() => sendManualNotification(request)}
+                            disabled={processingId === request.id}
+                            className={`px-3 py-2 border rounded-xl transition-all flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest ${request.notification_sent ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-100'}`}
+                            title={request.notification_sent ? "Resend Notification" : "Send Initial Notification"}
+                          >
+                            {processingId === request.id ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
+                            {request.notification_sent ? "Resend" : "Notify"}
+                          </button>
                           
                           {activeStatus === 'Archived' ? (
                             <>
@@ -827,24 +848,34 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                   onReject={(req) => handleAction(req, false)}
                 />
                 
-                {activeStatus === 'Archived' ? (
-                   <div className="absolute top-4 right-16 flex gap-2">
-                      <button onClick={() => handleRestore(request.id)} className="bg-white p-2 rounded-lg text-green-600 shadow-sm border border-slate-200 hover:bg-green-50 font-bold text-[10px] uppercase flex items-center gap-1">
-                        <RefreshCcw size={14} /> Restore
-                      </button>
-                      <button onClick={() => initiateHardDelete(request.id)} className="bg-white p-2 rounded-lg text-red-600 shadow-sm border border-slate-200 hover:bg-red-50 font-bold text-[10px] uppercase flex items-center gap-1">
-                        <Trash2 size={14} /> Delete Forever
-                      </button>
-                   </div>
-                ) : (
+                <div className="absolute top-4 right-16 flex gap-2">
                   <button 
-                    onClick={() => handleSoftDelete(request.id)}
-                    className="absolute top-4 right-16 bg-white p-2 rounded-lg text-slate-400 hover:text-red-500 shadow-sm border border-slate-200 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
-                    title="Remove to Recycle Bin"
+                    onClick={() => sendManualNotification(request)}
+                    disabled={processingId === request.id}
+                    className={`bg-white p-2 rounded-lg shadow-sm border font-bold text-[10px] uppercase flex items-center gap-1 transition-all ${request.notification_sent ? 'text-emerald-600 border-emerald-200 hover:bg-emerald-50' : 'text-amber-600 border-amber-200 hover:bg-amber-50'}`}
                   >
-                    <Trash2 size={16} />
+                    {processingId === request.id ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
+                    {request.notification_sent ? "Resend" : "Notify"}
                   </button>
-                )}
+                  {activeStatus === 'Archived' ? (
+                     <>
+                        <button onClick={() => handleRestore(request.id)} className="bg-white p-2 rounded-lg text-green-600 shadow-sm border border-slate-200 hover:bg-green-50 font-bold text-[10px] uppercase flex items-center gap-1">
+                          <RefreshCcw size={14} /> Restore
+                        </button>
+                        <button onClick={() => initiateHardDelete(request.id)} className="bg-white p-2 rounded-lg text-red-600 shadow-sm border border-slate-200 hover:bg-red-50 font-bold text-[10px] uppercase flex items-center gap-1">
+                          <Trash2 size={14} /> Delete Forever
+                        </button>
+                     </>
+                  ) : (
+                    <button 
+                      onClick={() => handleSoftDelete(request.id)}
+                      className="bg-white p-2 rounded-lg text-slate-400 hover:text-red-500 shadow-sm border border-slate-200 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
+                      title="Remove to Recycle Bin"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                </div>
               </div>
             ))
           )}

@@ -10,27 +10,25 @@ async function startServer() {
   app.use(express.json());
 
   // Resend API Setup
-  const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+  // Use environment variable if available, otherwise fallback to the provided key for this deployment
+  const RESEND_KEY = process.env.RESEND_API_KEY || 're_Wu19m8Ld_A9HoQtvdS1qREXxNhSNjEso2';
+  const resend = new Resend(RESEND_KEY);
 
   // API routes
   app.post("/api/send-email", async (req, res) => {
     const { to, subject, message } = req.body;
 
-    if (!resend) {
-      console.log("Resend API key not configured. Email would have been sent to:", to);
-      return res.status(200).json({ 
-        success: true, 
-        fallback: true,
-        message: "Email notification simulated (Resend not configured)" 
-      });
+    if (!to || !subject || !message) {
+      return res.status(400).json({ success: false, error: "Missing required fields (to, subject, message)" });
     }
 
     try {
+      console.log(`Attempting to send email to: ${to} | Subject: ${subject}`);
       const { data, error } = await resend.emails.send({
         from: 'ESEC OD Portal <onboarding@resend.dev>',
         to: [to],
         subject: subject,
-        html: `<p>${message}</p>`,
+        html: message, // Message is already HTML from the frontend
       });
 
       if (error) {

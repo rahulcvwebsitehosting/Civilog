@@ -120,7 +120,8 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
     const { name, value } = e.target;
     setFormData(prev => {
       const newData = { ...prev, [name]: value };
-      if (name === 'event_date' && !prev.event_end_date) {
+      // Sync end date with start date if end date is empty or was previously synced
+      if (name === 'event_date' && (prev.event_end_date === '' || prev.event_end_date === prev.event_date)) {
         newData.event_end_date = value;
       }
       // Reset year if department changes and year 5 is no longer valid
@@ -262,20 +263,13 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
 
       if (dbError) throw dbError;
 
-      // Trigger Advisor Notification
+      // 3. Trigger Advisor Notification (Client-side fallback since Edge Function is not deployed)
       try {
-        console.log("Attempting to notify Advisor for department:", formData.department);
-        const { data: advisorProfiles, error: advisorError } = await supabase
+        const { data: advisorProfiles } = await supabase
           .from('profiles')
-          .select('id, email')
+          .select('id, email, full_name')
           .eq('role', 'advisor')
           .eq('department', formData.department);
-
-        if (advisorError) {
-          console.error("Error fetching advisor profiles:", advisorError);
-        }
-
-        console.log("Found advisor profiles:", advisorProfiles);
 
         if (advisorProfiles && advisorProfiles.length > 0) {
           const dashboardUrl = `${window.location.origin}/advisor-dashboard`;
@@ -293,8 +287,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
 
           for (const advisor of advisorProfiles) {
             if (advisor.email) {
-              console.log(`Sending email to advisor: ${advisor.email}`);
-              const emailResponse = await fetch('/api/send-email', {
+              const emailRes = await fetch('/api/send-email', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -303,9 +296,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
                   message: emailMessage
                 })
               });
-
-              const emailResult = await emailResponse.json();
-              console.log("Email result for advisor:", advisor.email, emailResult);
+              const emailResult = await emailRes.json();
               if (!emailResult.success) {
                 await supabase.from('notifications_log').insert({
                   user_id: advisor.id,
@@ -319,21 +310,12 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
             }
           }
           await supabase.from('od_requests').update({ notification_sent: true }).eq('id', insertedData.id);
-        } else {
-          // No Advisor found - Log for admin review
-          await supabase.from('notifications_log').insert({
-            user_id: profile.id,
-            request_id: insertedData.id,
-            error_message: `No Advisor assigned for department: ${formData.department}`,
-            status: 'failed',
-            type: 'system',
-            created_at: new Date().toISOString()
-          });
         }
       } catch (notifyErr) {
         console.error("Advisor notification failed:", notifyErr);
       }
 
+      // 4. Trigger Success Callback
       onSuccess();
     } catch (err: any) {
       setError(err.message || 'Transmission failed.');
@@ -468,9 +450,9 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
           <div className="space-y-2">
             {formData.team_members.map((member, i) => (
               <div key={i} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-lg shadow-sm">
-                <div className="text-[10px]">
+                <div className="text-xs">
                   <p className="font-black text-slate-800 uppercase">{member.name} ({member.year}Y)</p>
-                  <p className="text-slate-500 font-mono">ID: {member.register_no} • {member.department}</p>
+                  <p className="text-slate-500 font-mono text-[11px]">ID: {member.register_no} • {member.department}</p>
                 </div>
                 <button type="button" onClick={() => removeTeamMember(i)} className="text-red-400 p-1"><Trash2 size={16} /></button>
               </div>

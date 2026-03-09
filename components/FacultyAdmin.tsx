@@ -88,13 +88,6 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
       setFacultyProfile(profile);
       const dept = profile.department;
 
-      // Auto-set active status based on role if it's the first load
-      if (loading) {
-        if (role === 'hod') setActiveStatus('Pending HOD');
-        else if (role === 'advisor') setActiveStatus('Pending Advisor');
-        else setActiveStatus('Pending Advisor'); // Admin default
-      }
-
       // Fetch list based on active status
       let query = supabase
         .from('od_requests')
@@ -149,6 +142,13 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    // Set initial status based on role
+    if (role === 'hod') setActiveStatus('Pending HOD');
+    else if (role === 'advisor') setActiveStatus('Pending Advisor');
+    else setActiveStatus('Pending Advisor');
+  }, [role]);
 
   useEffect(() => {
     if (requestId) {

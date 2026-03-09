@@ -18,7 +18,7 @@ const getEnv = (key: string, fallback: string): string => {
   return fallback;
 };
 
-const supabaseUrl = getEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://kjbqmczcmzuqtqmltoml.supabase.co');
-const supabaseAnonKey = getEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY', 'sb_publishable_3sO9BGar1mN32EZ9k1ER7A_JreG-8IN');
+const supabaseUrl = getEnv('SUPABASE_URL', 'https://kjbqmczcmzuqtqmltoml.supabase.co');
+const supabaseAnonKey = getEnv('SUPABASE_ANON_KEY', 'sb_publishable_3sO9BGar1mN32EZ9k1ER7A_JreG-8IN');
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);

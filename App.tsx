@@ -132,8 +132,22 @@ const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showRetry, setShowRetry] = useState(false);
+  const loadingRef = useRef(true);
   const currentUserIdRef = useRef<string | null>(null);
   const sessionRef = useRef<any>(null);
+
+  // Sync ref with state
+  useEffect(() => {
+    loadingRef.current = loading;
+  }, [loading]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (loading) setShowRetry(true);
+    }, 6000);
+    return () => clearTimeout(timer);
+  }, [loading]);
 
   const updateProfileFromUser = (user: any) => {
     setProfile({
@@ -153,8 +167,12 @@ const App: React.FC = () => {
   };
 
   const fetchProfile = async (userId: string, skipLoading = false) => {
-    if (!skipLoading) setLoading(true);
+    // Only show full-screen loading if we don't have a profile yet
+    if (!skipLoading && !profile) {
+      setLoading(true);
+    }
     try {
+      console.log(`Fetching profile for user: ${userId}`);
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -163,10 +181,17 @@ const App: React.FC = () => {
       
       if (error) {
         if (error.code === 'PGRST116') {
-          // Profile doesn't exist yet, fallback to user metadata
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user) {
-            updateProfileFromUser(user);
+          console.log("Profile not found, using metadata fallback");
+          // Profile doesn't exist yet, fallback to session user metadata if available
+          if (session?.user) {
+            updateProfileFromUser(session.user);
+          } else {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+              updateProfileFromUser(user);
+            } else {
+              setLoading(false);
+            }
           }
           return;
         }
@@ -179,9 +204,20 @@ const App: React.FC = () => {
       }
     } catch (err) {
       console.error("Profile synchronization error:", err);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        updateProfileFromUser(user);
+      try {
+        if (session?.user) {
+          updateProfileFromUser(session.user);
+        } else {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            updateProfileFromUser(user);
+          } else {
+            setLoading(false);
+          }
+        }
+      } catch (authErr) {
+        console.error("Auth fallback failed:", authErr);
+        setLoading(false);
       }
     } finally {
       if (!skipLoading) setLoading(false);
@@ -189,6 +225,14 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
+    // Safety timeout: Ensure loading screen doesn't stay forever
+    const safetyTimeout = setTimeout(() => {
+      if (loadingRef.current) {
+        console.warn("Auth initialization timed out, forcing loading to false");
+        setLoading(false);
+      }
+    }, 10000); // 10 seconds safety margin
+
     // Initial session check
     const initSession = async () => {
       try {
@@ -253,7 +297,10 @@ const App: React.FC = () => {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(safetyTimeout);
+    };
   }, []);
 
   const handleLogout = async () => {
@@ -269,6 +316,24 @@ const App: React.FC = () => {
           <span className="material-symbols-outlined absolute inset-0 flex items-center justify-center text-blueprint-blue">school</span>
         </div>
         <p className="mt-6 text-[10px] font-technical font-bold text-blueprint-blue uppercase tracking-[0.4em] animate-pulse">Synchronizing ESEC OD Portal...</p>
+        
+        {showRetry && (
+          <div className="mt-8 flex flex-col items-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            <p className="text-[9px] text-pencil-gray uppercase font-bold tracking-widest opacity-60">Connection taking longer than expected</p>
+            <button 
+              onClick={() => setLoading(false)}
+              className="px-6 py-2 bg-blueprint-blue text-white rounded-xl font-bold text-[10px] uppercase tracking-widest shadow-lg shadow-amber-500/20 hover:scale-105 transition-transform"
+            >
+              Force Enter Portal
+            </button>
+            <button 
+              onClick={() => window.location.reload()}
+              className="text-[9px] text-blueprint-blue uppercase font-black tracking-widest hover:underline"
+            >
+              Reload System
+            </button>
+          </div>
+        )}
       </div>
     );
   }
@@ -281,13 +346,30 @@ const App: React.FC = () => {
           <Routes>
             <Route path="/" element={
               session ? (
-                profile?.is_profile_complete ? (
-                  profile.role === 'admin' ? <Navigate to="/admin-panel" replace /> :
-                  profile.role === 'hod' ? <Navigate to="/hod-dashboard" replace /> :
-                  profile.role === 'advisor' ? <Navigate to="/advisor-dashboard" replace /> :
-                  <Navigate to="/student-dashboard" replace />
+                profile ? (
+                  profile.is_profile_complete ? (
+                    profile.role === 'admin' ? <Navigate to="/admin-panel" replace /> :
+                    profile.role === 'hod' ? <Navigate to="/hod-dashboard" replace /> :
+                    profile.role === 'advisor' ? <Navigate to="/advisor-dashboard" replace /> :
+                    <Navigate to="/student-dashboard" replace />
+                  ) : (
+                    <Navigate to="/setup-profile" replace />
+                  )
                 ) : (
-                  <Navigate to="/setup-profile" replace />
+                  // Session exists but profile is null (e.g. fetch failed or in progress)
+                  <div className="min-h-screen flex flex-col items-center justify-center bg-drafting-paper grid-bg">
+                    <div className="relative">
+                      <div className="w-16 h-16 border-4 border-blueprint-blue/10 border-t-blueprint-blue rounded-full animate-spin"></div>
+                      <span className="material-symbols-outlined absolute inset-0 flex items-center justify-center text-blueprint-blue">school</span>
+                    </div>
+                    <p className="mt-6 text-[10px] font-technical font-bold text-blueprint-blue uppercase tracking-[0.4em] animate-pulse">Synchronizing Profile...</p>
+                    <button 
+                      onClick={() => window.location.reload()}
+                      className="mt-4 text-[9px] text-blueprint-blue uppercase font-black tracking-widest hover:underline"
+                    >
+                      Reload System
+                    </button>
+                  </div>
                 )
               ) : (
                 <Navigate to="/login" replace />
@@ -303,9 +385,13 @@ const App: React.FC = () => {
             } />
 
             <Route path="/setup-profile" element={
-              session && profile ? (
-                !profile.is_profile_complete ? (
-                  <ProfileSetup profile={profile} onComplete={() => fetchProfile(session.user.id)} />
+              session ? (
+                profile ? (
+                  !profile.is_profile_complete ? (
+                    <ProfileSetup profile={profile} onComplete={() => fetchProfile(session.user.id)} />
+                  ) : (
+                    <Navigate to="/" replace />
+                  )
                 ) : (
                   <Navigate to="/" replace />
                 )

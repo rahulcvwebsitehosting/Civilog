@@ -10,9 +10,9 @@ async function startServer() {
   app.use(express.json());
 
   // Resend API Setup
-  // Use environment variable if available, otherwise fallback to the provided key for this deployment
-  const RESEND_KEY = process.env.RESEND_API_KEY || 're_Wu19m8Ld_A9HoQtvdS1qREXxNhSNjEso2';
-  const resend = new Resend(RESEND_KEY);
+  // Use environment variable as requested
+  const RESEND_API_KEY = process.env.RESEND_API_KEY;
+  const resend = new Resend(RESEND_API_KEY);
 
   // API routes
   app.post("/api/send-email", async (req, res) => {

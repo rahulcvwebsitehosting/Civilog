@@ -64,6 +64,11 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
   
   const fetchRequests = async () => {
     setLoading(true);
+    const timeoutId = setTimeout(() => {
+      setLoading(false);
+      console.warn("Registry synchronization timed out");
+    }, 10000); // 10 second timeout
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
@@ -105,40 +110,45 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         query = query.eq('department', dept);
       }
 
-      const { data: listData } = await query;
+      // Fetch all counts for stats in parallel
+      const getCount = (status: ODStatus) => {
+        let q = supabase.from('od_requests').select('*', { count: 'exact', head: true }).eq('status', status);
+        if (role !== 'admin' && dept) {
+          q = q.eq('department', dept);
+        }
+        return q;
+      };
 
-      // Fetch all counts for stats
-      let pendingAdvisorQuery = supabase.from('od_requests').select('*', { count: 'exact', head: true }).eq('status', 'Pending Advisor');
-      let pendingHODQuery = supabase.from('od_requests').select('*', { count: 'exact', head: true }).eq('status', 'Pending HOD');
-      let approvedQuery = supabase.from('od_requests').select('*', { count: 'exact', head: true }).eq('status', 'Approved');
-      let completedQuery = supabase.from('od_requests').select('*', { count: 'exact', head: true }).eq('status', 'Completed');
-      let archivedQuery = supabase.from('od_requests').select('*', { count: 'exact', head: true }).eq('status', 'Archived');
+      const [
+        listResult,
+        pendingAdvisorResult,
+        pendingHODResult,
+        approvedResult,
+        completedResult,
+        archivedResult
+      ] = await Promise.all([
+        query,
+        getCount('Pending Advisor'),
+        getCount('Pending HOD'),
+        getCount('Approved'),
+        getCount('Completed'),
+        getCount('Archived')
+      ]);
 
-      if (role !== 'admin' && dept) {
-        pendingAdvisorQuery = pendingAdvisorQuery.eq('department', dept);
-        pendingHODQuery = pendingHODQuery.eq('department', dept);
-        approvedQuery = approvedQuery.eq('department', dept);
-        completedQuery = completedQuery.eq('department', dept);
-        archivedQuery = archivedQuery.eq('department', dept);
-      }
+      if (listResult.error) throw listResult.error;
 
-      const { count: pendingAdvisorCount } = await pendingAdvisorQuery;
-      const { count: pendingHODCount } = await pendingHODQuery;
-      const { count: approvedCount } = await approvedQuery;
-      const { count: completedCount } = await completedQuery;
-      const { count: archivedCount } = await archivedQuery;
-
-      if (listData) setRequests(listData as ODRequest[]);
+      if (listResult.data) setRequests(listResult.data as ODRequest[]);
       setStats({ 
-        pendingAdvisor: pendingAdvisorCount || 0,
-        pendingHOD: pendingHODCount || 0,
-        approved: approvedCount || 0, 
-        completed: completedCount || 0,
-        archived: archivedCount || 0
+        pendingAdvisor: pendingAdvisorResult.count || 0,
+        pendingHOD: pendingHODResult.count || 0,
+        approved: approvedResult.count || 0, 
+        completed: completedResult.count || 0,
+        archived: archivedResult.count || 0
       });
     } catch (err) {
       console.error("Fetch Error:", err);
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
     }
   };
@@ -686,6 +696,12 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         <div className="p-20 flex flex-col items-center justify-center gap-4 bg-white rounded-[2rem] border shadow-sm">
           <Loader2 className="animate-spin text-blueprint-blue" size={48} />
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Synchronizing Registry...</p>
+          <button 
+            onClick={() => fetchRequests()}
+            className="mt-4 text-[9px] text-blueprint-blue uppercase font-black tracking-widest hover:underline"
+          >
+            Retry Sync
+          </button>
         </div>
       ) : viewMode === 'nested' ? (
         <NestedFolderView 

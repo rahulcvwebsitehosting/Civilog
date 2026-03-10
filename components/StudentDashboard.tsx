@@ -101,7 +101,13 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
 
   const fetchRequests = async () => {
     setLoading(true);
+    const timeoutId = setTimeout(() => {
+      setLoading(false);
+      console.warn("Feed synchronization timed out");
+    }, 8000); // 8 second timeout for feed
+
     try {
+      console.log("Fetching feed for profile:", profile.id, profile.department);
       // Fetch all requests from the user's department to create a real "Activity Feed"
       let query = supabase
         .from('od_requests')
@@ -110,8 +116,9 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
 
       if (profile.department) {
         // Use .or() to fetch requests that match the user's ID OR the user's department
-        // We wrap the department string in double quotes to handle spaces
-        query = query.or(`user_id.eq."${profile.id}",department.eq."${profile.department}"`);
+        // We wrap the values in double quotes to handle spaces correctly in PostgREST
+        const orFilter = `user_id.eq.${profile.id},department.eq."${profile.department}"`;
+        query = query.or(orFilter);
       } else {
         // Fallback to only user's requests if department is missing
         query = query.eq('user_id', profile.id);
@@ -119,10 +126,14 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
 
       const { data, error } = await query;
       if (error) throw error;
-      if (data) setRequests(data as ODRequest[]);
+      if (data) {
+        console.log(`Fetched ${data.length} requests for feed`);
+        setRequests(data as ODRequest[]);
+      }
     } catch (err: any) {
       console.error("Error fetching feed:", err);
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
     }
   };
@@ -358,6 +369,12 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
             <span className="material-symbols-outlined absolute inset-0 flex items-center justify-center text-blueprint-blue text-sm">school</span>
           </div>
           <p className="text-pencil-gray font-technical uppercase tracking-widest text-xs font-bold">Synchronizing Feed...</p>
+          <button 
+            onClick={() => fetchRequests()}
+            className="mt-4 text-[9px] text-blueprint-blue uppercase font-black tracking-widest hover:underline"
+          >
+            Retry Sync
+          </button>
         </div>
       ) : requests.length === 0 ? (
         <div className="bg-white border-2 border-dashed border-slate-200 rounded-[2rem] p-16 text-center">

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { HashRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import { LogOut, Search as SearchIcon, LayoutDashboard, Settings, User, Home, Terminal, Database } from 'lucide-react';
 import { supabase } from './supabaseClient';
@@ -149,8 +149,10 @@ const App: React.FC = () => {
     return () => clearTimeout(timer);
   }, [loading]);
 
-  const updateProfileFromUser = (user: any) => {
-    setProfile({
+  const updateProfileFromUser = useCallback((user: any) => {
+    if (!user) return;
+    console.log("Updating profile from user metadata fallback");
+    const metadataProfile: Profile = {
       id: user.id,
       email: user.email || '',
       role: user.user_metadata?.role || 'student',
@@ -162,15 +164,22 @@ const App: React.FC = () => {
       department: user.user_metadata?.department || '',
       signature_url: user.user_metadata?.signature_url || null,
       is_profile_complete: !!user.user_metadata?.is_profile_complete
+    };
+
+    setProfile(prev => {
+      // Only update if data actually changed to prevent re-render loops
+      if (prev && JSON.stringify(prev) === JSON.stringify(metadataProfile)) return prev;
+      return metadataProfile;
     });
     setLoading(false);
-  };
+  }, []);
 
-  const fetchProfile = async (userId: string, skipLoading = false) => {
-    // Only show full-screen loading if we don't have a profile yet
+  const fetchProfile = useCallback(async (userId: string, skipLoading = false) => {
+    // Only show full-screen loading if we don't have a profile yet and not skipping
     if (!skipLoading && !profile) {
       setLoading(true);
     }
+    
     try {
       console.log(`Fetching profile for user: ${userId}`);
       const { data, error } = await supabase
@@ -181,7 +190,7 @@ const App: React.FC = () => {
       
       if (error) {
         if (error.code === 'PGRST116') {
-          console.log("Profile not found, using metadata fallback");
+          console.log("Profile not found in database, using metadata fallback");
           // Profile doesn't exist yet, fallback to session user metadata if available
           if (session?.user) {
             updateProfileFromUser(session.user);
@@ -189,8 +198,6 @@ const App: React.FC = () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
               updateProfileFromUser(user);
-            } else {
-              setLoading(false);
             }
           }
           return;
@@ -199,30 +206,32 @@ const App: React.FC = () => {
       }
       
       if (data) {
-        setProfile(data as Profile);
+        console.log("Profile fetched successfully from database");
+        const dbProfile = data as Profile;
+        setProfile(prev => {
+          // Only update if data actually changed
+          if (prev && JSON.stringify(prev) === JSON.stringify(dbProfile)) return prev;
+          return dbProfile;
+        });
         currentUserIdRef.current = userId;
       }
     } catch (err) {
       console.error("Profile synchronization error:", err);
-      try {
-        if (session?.user) {
-          updateProfileFromUser(session.user);
-        } else {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user) {
-            updateProfileFromUser(user);
-          } else {
-            setLoading(false);
-          }
+      // Fallback to metadata on any error
+      if (session?.user) {
+        updateProfileFromUser(session.user);
+      } else {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          updateProfileFromUser(user);
         }
-      } catch (authErr) {
-        console.error("Auth fallback failed:", authErr);
-        setLoading(false);
       }
     } finally {
-      if (!skipLoading) setLoading(false);
+      if (!skipLoading) {
+        setLoading(false);
+      }
     }
-  };
+  }, [session, profile, updateProfileFromUser]);
 
   useEffect(() => {
     // Safety timeout: Ensure loading screen doesn't stay forever
@@ -254,10 +263,16 @@ const App: React.FC = () => {
         }
 
         if (session) {
+          console.log("Session found in initSession");
           setSession(session);
+          sessionRef.current = session;
           currentUserIdRef.current = session.user.id;
-          await fetchProfile(session.user.id);
+          // Set initial profile from metadata to avoid stuck loading
+          updateProfileFromUser(session.user);
+          // Then fetch real profile in background
+          await fetchProfile(session.user.id, true);
         } else {
+          console.log("No session found in initSession");
           setLoading(false);
         }
       } catch (err) {
@@ -282,13 +297,18 @@ const App: React.FC = () => {
         const isNewSession = session.access_token !== sessionRef.current?.access_token;
         
         if (isNewSession) {
+          console.log("New session detected in onAuthStateChange");
           setSession(session);
           sessionRef.current = session;
         }
         
         if (isNewUser) {
+          console.log(`New user detected: ${session.user.id}`);
           currentUserIdRef.current = session.user.id;
-          await fetchProfile(session.user.id);
+          // Set initial profile from metadata to avoid stuck loading
+          updateProfileFromUser(session.user);
+          // Then fetch real profile in background
+          await fetchProfile(session.user.id, true);
         } else {
           setLoading(false);
         }
@@ -356,13 +376,13 @@ const App: React.FC = () => {
                     <Navigate to="/setup-profile" replace />
                   )
                 ) : (
-                  // Session exists but profile is null (e.g. fetch failed or in progress)
+                  // This case should be rare now as we set profile from metadata
                   <div className="min-h-screen flex flex-col items-center justify-center bg-drafting-paper grid-bg">
                     <div className="relative">
                       <div className="w-16 h-16 border-4 border-blueprint-blue/10 border-t-blueprint-blue rounded-full animate-spin"></div>
                       <span className="material-symbols-outlined absolute inset-0 flex items-center justify-center text-blueprint-blue">school</span>
                     </div>
-                    <p className="mt-6 text-[10px] font-technical font-bold text-blueprint-blue uppercase tracking-[0.4em] animate-pulse">Synchronizing Profile...</p>
+                    <p className="mt-6 text-[10px] font-technical font-bold text-blueprint-blue uppercase tracking-[0.4em] animate-pulse">Finalizing Synchronization...</p>
                     <button 
                       onClick={() => window.location.reload()}
                       className="mt-4 text-[9px] text-blueprint-blue uppercase font-black tracking-widest hover:underline"

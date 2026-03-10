@@ -112,6 +112,11 @@ async function notifyStudent(supabase: any, record: any) {
 }
 
 async function sendEmail(to: string, subject: string, html: string) {
+  if (!RESEND_API_KEY) {
+    console.error('RESEND_API_KEY is not configured in Edge Function')
+    return new Response(JSON.stringify({ error: 'Email service not configured' }), { status: 500 })
+  }
+
   return await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {

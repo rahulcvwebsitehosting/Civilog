@@ -12,7 +12,7 @@ async function startServer() {
   // Resend API Setup
   // Use environment variable as requested
   const RESEND_API_KEY = process.env.RESEND_API_KEY;
-  const resend = new Resend(RESEND_API_KEY);
+  const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
 
   // API routes
   app.post("/api/send-email", async (req, res) => {
@@ -20,6 +20,11 @@ async function startServer() {
 
     if (!to || !subject || !message) {
       return res.status(400).json({ success: false, error: "Missing required fields (to, subject, message)" });
+    }
+
+    if (!resend) {
+      console.error("RESEND_API_KEY is not configured");
+      return res.status(500).json({ success: false, error: "Email service not configured. Please set RESEND_API_KEY." });
     }
 
     try {

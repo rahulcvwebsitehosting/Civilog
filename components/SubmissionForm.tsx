@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { supabase } from '../supabaseClient';
-import { Loader2, UserPlus, Trash2, Phone, Tag, MapPin, AlertCircle, Upload, Info, CheckCircle2, Calendar, Beaker, Image as ImageIcon, FileText, CreditCard, X, User } from 'lucide-react';
+import { Loader2, UserPlus, Trash2, Phone, Tag, MapPin, AlertCircle, Upload, Info, CheckCircle2, Calendar, Beaker, Image as ImageIcon, FileText, CreditCard, X, User, Database } from 'lucide-react';
 import { SubmissionFormData, Profile, TeamMember, ODRequest } from '../types';
 import { generateODDocument } from '../services/pdfService';
 
@@ -81,7 +81,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
       event_title: 'Technical Symposium on AI & Innovation',
       organization_name: 'IIT Madras',
       organization_location: 'Adyar, Chennai',
-      event_type: 'Other',
+      event_type: 'Others',
       event_date: '2026-01-10',
       event_end_date: '2026-01-12',
       team_members: [
@@ -151,16 +151,34 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
     const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
     const fullPath = `${path}/${fileName}`;
 
-    const { error: uploadError } = await supabase.storage
+    console.log(`[STORAGE] Starting upload to ${fullPath}...`);
+    
+    // Create a promise that rejects after 15 seconds
+    const uploadPromise = supabase.storage
       .from('od-files')
       .upload(fullPath, file);
+      
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error(`Upload to ${path} timed out after 15s`)), 15000)
+    );
 
-    if (uploadError) throw uploadError;
+    const result = await Promise.race([uploadPromise, timeoutPromise]) as any;
+    
+    if (result instanceof Error) throw result;
+    const { error: uploadError } = result;
 
-    const { data: { publicUrl } } = supabase.storage
+    if (uploadError) {
+      console.error(`[STORAGE] Upload error for ${path}:`, uploadError);
+      throw uploadError;
+    }
+
+    const { data } = supabase.storage
       .from('od-files')
       .getPublicUrl(fullPath);
+    
+    const publicUrl = data.publicUrl;
 
+    console.log(`[STORAGE] Upload complete: ${publicUrl}`);
     return publicUrl;
   };
 
@@ -195,30 +213,34 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
     // Add a safety timeout
     const timeoutId = setTimeout(() => {
       setLoading(false);
-      setError('Transmission timed out. Please check your Supabase Storage "od-files" bucket and RLS policies.');
-    }, 45000);
+      setError('Transmission timed out (25s). This usually happens if the Supabase URL/Key is incorrect or the network is blocked. Check your browser console (F12) for more details.');
+      console.error("SUBMISSION TIMEOUT: The request took too long. Check network tab.");
+    }, 25000);
 
     try {
-      console.log("Starting file uploads...");
+      console.log("--- SUBMISSION START ---");
+      console.log("Profile ID:", profile.id);
+      console.log("Step 1: Starting file uploads...");
+      
       let regUrl = null;
       if (regFile) {
+        console.log("Uploading registration proof...");
         regUrl = await uploadFile(regFile, 'registration_proofs');
-        console.log("Reg proof uploaded:", regUrl);
       }
       
       let posterUrl = null;
       if (posterFile) {
+        console.log("Uploading event poster...");
         posterUrl = await uploadFile(posterFile, 'event_posters');
-        console.log("Poster uploaded:", posterUrl);
       }
       
       let payUrl = null;
       if (payFile) {
+        console.log("Uploading payment proof...");
         payUrl = await uploadFile(payFile, 'payment_proofs');
-        console.log("Payment proof uploaded:", payUrl);
       }
 
-      const finalEventType = formData.event_type === 'Other' ? customEventType : formData.event_type;
+      const finalEventType = formData.event_type === 'Others' ? customEventType : formData.event_type;
 
       const requestData = {
         user_id: profile.id,
@@ -251,24 +273,42 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
         certificate_url: null,
       };
 
-      console.log("Generating OD Document...");
+      console.log("Step 2: Generating OD Document...");
       const letterBlob = await generateODDocument({ ...requestData, id: 'PENDING' } as ODRequest, profile);
+      console.log("OD Document generated, size:", (letterBlob.size / 1024).toFixed(2), "KB");
+
       const letterFileName = `Requisition_${formData.register_no}_${Date.now()}.pdf`;
       const letterPath = `od_requisitions/${letterFileName}`;
 
-      console.log("Uploading OD Letter...");
-      const { error: letterUploadError } = await supabase.storage
+      console.log("Step 3: Uploading OD Letter to storage...");
+      // Add timeout to this upload too
+      const letterUploadPromise = supabase.storage
         .from('od-files')
         .upload(letterPath, letterBlob);
+        
+      const letterTimeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("OD Letter upload timed out after 15s")), 15000)
+      );
 
-      if (letterUploadError) throw letterUploadError;
+      const letterResult = await Promise.race([letterUploadPromise, letterTimeoutPromise]) as any;
+      if (letterResult instanceof Error) throw letterResult;
+      const { error: letterUploadError } = letterResult;
 
-      const { data: { publicUrl: letterUrl } } = supabase.storage
+      if (letterUploadError) {
+        console.error("OD Letter Upload Error:", letterUploadError);
+        throw letterUploadError;
+      }
+
+      const { data: letterData } = supabase.storage
         .from('od-files')
         .getPublicUrl(letterPath);
+      
+      const letterUrl = letterData.publicUrl;
+      console.log("OD Letter uploaded:", letterUrl);
 
-      console.log("Inserting into database...");
-      const { data: insertedData, error: dbError } = await supabase.from('od_requests').insert([
+      console.log("Step 4: Inserting into database...");
+      // Add timeout to database insert
+      const dbInsertPromise = supabase.from('od_requests').insert([
         {
           ...requestData,
           od_letter_url: letterUrl,
@@ -276,18 +316,27 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
         },
       ]).select().single();
 
+      const dbTimeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("Database insertion timed out after 15s")), 15000)
+      );
+
+      const dbResult = await Promise.race([dbInsertPromise, dbTimeoutPromise]) as any;
+      if (dbResult instanceof Error) throw dbResult;
+      const { data: insertedData, error: dbError } = dbResult;
+
       if (dbError) {
         console.error("Database Insert Error:", dbError);
         throw dbError;
       }
 
+      console.log("Step 5: Submission successful! ID:", insertedData?.id);
       clearTimeout(timeoutId);
-      console.log("Submission successful!");
       onSuccess();
     } catch (err: any) {
       clearTimeout(timeoutId);
-      console.error("OD Submission Error:", err);
-      setError(err.message || 'Transmission failed. Check console for details.');
+      console.error("--- SUBMISSION FAILED ---");
+      console.error("Error Object:", err);
+      setError(`Error: ${err.message || 'Unknown error'}. Check console for details.`);
     } finally {
       setLoading(false);
     }
@@ -305,13 +354,34 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
       <div className="relative px-10 pt-12 pb-8 border-b border-slate-200 dark:border-gray-600 flex justify-between items-start">
         <div>
           <h1 className="text-3xl font-black text-slate-900 dark:text-gray-100 uppercase tracking-tighter italic leading-none">OD Submittal</h1>
-          <button 
-            type="button"
-            onClick={handleAutoFill}
-            className="mt-3 flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-amber-600 shadow-lg shadow-amber-500/20 transition-all active:scale-95"
-          >
-            <span className="material-symbols-outlined text-[16px]">terminal</span> DEBUG: AUTO-FILL
-          </button>
+          <div className="flex flex-wrap gap-2 mt-3">
+            <button 
+              type="button"
+              onClick={handleAutoFill}
+              className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-amber-600 shadow-lg shadow-amber-500/20 transition-all active:scale-95"
+            >
+              <span className="material-symbols-outlined text-[16px]">terminal</span> DEBUG: AUTO-FILL
+            </button>
+            <button 
+              type="button"
+              onClick={async () => {
+                const start = Date.now();
+                console.log("--- SYSTEM CHECK START ---");
+                try {
+                  const { data, error } = await supabase.from('profiles').select('count').limit(1);
+                  const duration = Date.now() - start;
+                  if (error) throw error;
+                  alert(`System Check: SUCCESS!\nResponse time: ${duration}ms\nConnection to Supabase is active.`);
+                } catch (err: any) {
+                  console.error("System Check Failed:", err);
+                  alert(`System Check: FAILED!\nError: ${err.message}\nCheck console for full details.`);
+                }
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-900 shadow-lg shadow-slate-500/20 transition-all active:scale-95"
+            >
+              <Database size={14} /> SYSTEM CHECK
+            </button>
+          </div>
         </div>
         <button onClick={onClose} className="text-slate-300 hover:text-red-500 transition-colors p-2 bg-slate-100 rounded-full" type="button">
           <X size={20} />
@@ -414,9 +484,9 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
                 <option value="Symposium">Symposium</option>
                 <option value="Webinar">Webinar</option>
                 <option value="Workshop">Workshop</option>
-                <option value="Other">Others</option>
+                <option value="Others">Others</option>
               </select>
-              {formData.event_type === 'Other' && (
+              {formData.event_type === 'Others' && (
                 <input 
                   type="text"
                   placeholder="Specify Event Type"

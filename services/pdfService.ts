@@ -42,6 +42,7 @@ const getOrdinalYear = (year: string) => {
  * Enforced: Strictly single-page output.
  */
 export const generateODDocument = async (request: ODRequest, studentProfile: Profile, facultyProfile?: Profile): Promise<Blob> => {
+  console.log("[PDF] Starting document generation for:", request.event_title);
   const PAGE_WIDTH = 210;
   const MARGIN = 20;
   const CONTENT_WIDTH = PAGE_WIDTH - (MARGIN * 2);

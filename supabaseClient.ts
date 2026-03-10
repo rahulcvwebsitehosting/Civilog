@@ -21,4 +21,9 @@ const getEnv = (key: string, fallback: string): string => {
 const supabaseUrl = getEnv('SUPABASE_URL', 'https://kjbqmczcmzuqtqmltoml.supabase.co');
 const supabaseAnonKey = getEnv('SUPABASE_ANON_KEY', 'sb_publishable_3sO9BGar1mN32EZ9k1ER7A_JreG-8IN');
 
+console.log("[SUPABASE] Initializing with URL:", supabaseUrl);
+if (supabaseAnonKey.startsWith('sb_publishable_')) {
+  console.warn("[SUPABASE] Warning: The Anon Key starts with 'sb_publishable_'. This is unusual for Supabase (standard keys start with 'eyJ'). Please verify your VITE_SUPABASE_ANON_KEY.");
+}
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);

@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { supabase } from '../supabaseClient';
-import { Loader2, UserPlus, Trash2, Phone, Tag, MapPin, AlertCircle, Upload, Info, CheckCircle2, Calendar, Beaker, Image as ImageIcon, FileText, CreditCard } from 'lucide-react';
+import { Loader2, UserPlus, Trash2, Phone, Tag, MapPin, AlertCircle, Upload, Info, CheckCircle2, Calendar, Beaker, Image as ImageIcon, FileText, CreditCard, X, User } from 'lucide-react';
 import { SubmissionFormData, Profile, TeamMember, ODRequest } from '../types';
 import { generateODDocument } from '../services/pdfService';
 
@@ -189,20 +189,33 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!regFile || !posterFile) {
-      setError('Poster and Registration proof are mandatory.');
-      return;
-    }
-
     setLoading(true);
     setError(null);
 
+    // Add a safety timeout
+    const timeoutId = setTimeout(() => {
+      setLoading(false);
+      setError('Transmission timed out. Please check your Supabase Storage "od-files" bucket and RLS policies.');
+    }, 45000);
+
     try {
-      const regUrl = await uploadFile(regFile, 'registration_proofs');
-      const posterUrl = await uploadFile(posterFile, 'event_posters');
+      console.log("Starting file uploads...");
+      let regUrl = null;
+      if (regFile) {
+        regUrl = await uploadFile(regFile, 'registration_proofs');
+        console.log("Reg proof uploaded:", regUrl);
+      }
+      
+      let posterUrl = null;
+      if (posterFile) {
+        posterUrl = await uploadFile(posterFile, 'event_posters');
+        console.log("Poster uploaded:", posterUrl);
+      }
+      
       let payUrl = null;
       if (payFile) {
         payUrl = await uploadFile(payFile, 'payment_proofs');
+        console.log("Payment proof uploaded:", payUrl);
       }
 
       const finalEventType = formData.event_type === 'Other' ? customEventType : formData.event_type;
@@ -229,20 +242,21 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
         payment_proof_url: payUrl,
         event_poster_url: posterUrl,
         od_letter_url: null,
-        geotag_photo_urls: [], // Initialize as empty array
-        certificate_urls: [], // Initialize as empty array
-        prize_details: [], // Initialize as empty array
+        geotag_photo_urls: [],
+        certificate_urls: [],
+        prize_details: [],
         achievement_details: null,
         remarks: null,
-        // Legacy single fields - for backward compatibility, keep them null or empty
         geotag_photo_url: null,
         certificate_url: null,
       };
 
+      console.log("Generating OD Document...");
       const letterBlob = await generateODDocument({ ...requestData, id: 'PENDING' } as ODRequest, profile);
       const letterFileName = `Requisition_${formData.register_no}_${Date.now()}.pdf`;
       const letterPath = `od_requisitions/${letterFileName}`;
 
+      console.log("Uploading OD Letter...");
       const { error: letterUploadError } = await supabase.storage
         .from('od-files')
         .upload(letterPath, letterBlob);
@@ -253,6 +267,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
         .from('od-files')
         .getPublicUrl(letterPath);
 
+      console.log("Inserting into database...");
       const { data: insertedData, error: dbError } = await supabase.from('od_requests').insert([
         {
           ...requestData,
@@ -261,123 +276,86 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
         },
       ]).select().single();
 
-      if (dbError) throw dbError;
-
-      // 3. Trigger Advisor Notification (Client-side fallback since Edge Function is not deployed)
-      try {
-        const { data: advisorProfiles } = await supabase
-          .from('profiles')
-          .select('id, email, full_name')
-          .eq('role', 'advisor')
-          .eq('department', formData.department);
-
-        if (advisorProfiles && advisorProfiles.length > 0) {
-          const dashboardUrl = `${window.location.origin}/advisor-dashboard`;
-          const emailMessage = `
-            <div style="font-family: sans-serif; line-height: 1.6; color: #333;">
-              <h2 style="color: #003366;">New OD Request Received</h2>
-              <p>A new On-Duty request has been submitted by <strong>${formData.student_name}</strong> (${formData.register_no}) from the <strong>${formData.department}</strong> department.</p>
-              <p><strong>Event:</strong> ${formData.event_title}</p>
-              <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
-              <p>Please log in to your dashboard to review and authorize this request.</p>
-              <a href="${dashboardUrl}" style="display: inline-block; padding: 12px 24px; background-color: #003366; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold;">View Advisor Dashboard</a>
-              <p style="font-size: 12px; color: #666; margin-top: 30px;">Ref: OD-${new Date().getFullYear()}-${formData.register_no}</p>
-            </div>
-          `;
-
-          for (const advisor of advisorProfiles) {
-            if (advisor.email) {
-              const emailRes = await fetch('/api/send-email', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  to: advisor.email,
-                  subject: `New OD: ${formData.event_title}`,
-                  message: emailMessage
-                })
-              });
-              const emailResult = await emailRes.json();
-              if (!emailResult.success) {
-                await supabase.from('notifications_log').insert({
-                  user_id: advisor.id,
-                  request_id: insertedData.id,
-                  error_message: JSON.stringify(emailResult.error) || 'Advisor Email delivery failed',
-                  status: 'failed',
-                  type: 'email',
-                  created_at: new Date().toISOString()
-                });
-              }
-            }
-          }
-          await supabase.from('od_requests').update({ notification_sent: true }).eq('id', insertedData.id);
-        }
-      } catch (notifyErr) {
-        console.error("Advisor notification failed:", notifyErr);
+      if (dbError) {
+        console.error("Database Insert Error:", dbError);
+        throw dbError;
       }
 
-      // 4. Trigger Success Callback
+      clearTimeout(timeoutId);
+      console.log("Submission successful!");
       onSuccess();
     } catch (err: any) {
-      setError(err.message || 'Transmission failed.');
+      clearTimeout(timeoutId);
+      console.error("OD Submission Error:", err);
+      setError(err.message || 'Transmission failed. Check console for details.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="relative w-full max-w-xl bg-[#F5F5F5] dark:bg-[#262626] rounded-xl shadow-2xl overflow-hidden border-4 border-gray-300 dark:border-gray-700 font-display">
-      <div className="relative w-full h-3 bg-gray-300 dark:bg-gray-800 border-b border-gray-400 dark:border-gray-600">
+    <div className="relative w-full max-w-xl bg-[#F5F5F5] dark:bg-[#262626] rounded-[2.5rem] shadow-2xl overflow-hidden border-4 border-white dark:border-gray-700 font-display">
+      <div className="relative w-full h-3 bg-gray-200 dark:bg-gray-800">
         <div 
-          className="absolute top-0 left-0 h-full bg-blueprint-blue bg-stripes shadow-[0_0_10px_rgba(245,158,11,0.6)] transition-[width] duration-700 ease-out"
+          className="absolute top-0 left-0 h-full bg-blueprint-blue shadow-[0_0_15px_rgba(0,51,102,0.4)] transition-[width] duration-700 ease-out"
           style={{ width: `${progress}%` }}
         ></div>
       </div>
 
-      <div className="relative px-8 pt-10 pb-6 border-b-2 border-dashed border-gray-300 dark:border-gray-600 flex justify-between items-start">
+      <div className="relative px-10 pt-12 pb-8 border-b border-slate-200 dark:border-gray-600 flex justify-between items-start">
         <div>
-          <h1 className="text-2xl font-black text-gray-800 dark:text-gray-100 uppercase tracking-tight italic">OD Submittal</h1>
+          <h1 className="text-3xl font-black text-slate-900 dark:text-gray-100 uppercase tracking-tighter italic leading-none">OD Submittal</h1>
           <button 
             type="button"
             onClick={handleAutoFill}
-            className="mt-2 flex items-center gap-2 px-3 py-1.5 bg-amber-500 text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-amber-600 shadow-md"
+            className="mt-3 flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-amber-600 shadow-lg shadow-amber-500/20 transition-all active:scale-95"
           >
-            <Beaker size={14} /> DEBUG: AUTO-FILL
+            <span className="material-symbols-outlined text-[16px]">terminal</span> DEBUG: AUTO-FILL
           </button>
         </div>
-        <button onClick={onClose} className="text-gray-400 hover:text-primary transition-colors p-1" type="button">
-          <span className="material-symbols-outlined text-2xl">close</span>
+        <button onClick={onClose} className="text-slate-300 hover:text-red-500 transition-colors p-2 bg-slate-100 rounded-full" type="button">
+          <X size={20} />
         </button>
       </div>
 
-      <form onSubmit={handleSubmit} className="p-8 space-y-8 max-h-[65vh] overflow-y-auto custom-scrollbar bg-topo">
-        <div className="space-y-4">
-          <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] font-mono">01 LEAD IDENTIFICATION</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <input 
-              name="student_name"
-              required
-              value={formData.student_name}
-              onChange={handleInputChange}
-              className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg border-2 border-slate-200 outline-none" 
-              placeholder="Lead Student Name" 
-            />
-            <input 
-              name="phone_number"
-              required
-              type="tel"
-              value={formData.phone_number}
-              onChange={handleInputChange}
-              className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg border-2 border-slate-200 outline-none" 
-              placeholder="Phone Number" 
-            />
+      <form onSubmit={handleSubmit} className="p-10 space-y-10 max-h-[65vh] overflow-y-auto custom-scrollbar bg-topo">
+        {/* ... (Lead Identification section remains same) ... */}
+        <div className="space-y-5">
+          <h2 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] font-mono flex items-center gap-2">
+            <span className="w-8 h-[1px] bg-slate-200"></span> 01 LEAD IDENTIFICATION
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <div className="relative">
+              <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+              <input 
+                name="student_name"
+                required
+                value={formData.student_name}
+                onChange={handleInputChange}
+                className="w-full bg-white dark:bg-gray-800 text-sm pl-12 pr-4 py-4 rounded-2xl border border-slate-200 outline-none focus:border-blueprint-blue transition-colors shadow-sm" 
+                placeholder="Lead Student Name" 
+              />
+            </div>
+            <div className="relative">
+              <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+              <input 
+                name="phone_number"
+                required
+                type="tel"
+                value={formData.phone_number}
+                onChange={handleInputChange}
+                className="w-full bg-white dark:bg-gray-800 text-sm pl-12 pr-4 py-4 rounded-2xl border border-slate-200 outline-none focus:border-blueprint-blue transition-colors shadow-sm" 
+                placeholder="Phone Number" 
+              />
+            </div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
             <select 
               name="year" 
               value={formData.year} 
               onChange={handleInputChange} 
               disabled={!!profile.year}
-              className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg border-2 border-slate-200 outline-none disabled:opacity-70"
+              className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none disabled:opacity-70 shadow-sm"
             >
                <option value="1">1st Year</option>
                <option value="2">2nd Year</option>
@@ -391,7 +369,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
               name="semester" 
               value={formData.semester} 
               onChange={handleInputChange} 
-              className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg border-2 border-slate-200 outline-none"
+              className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none shadow-sm"
             >
                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(sem => (
                  <option key={sem} value={sem.toString()}>{sem}{sem === 1 ? 'st' : sem === 2 ? 'nd' : sem === 3 ? 'rd' : 'th'} Sem</option>
@@ -402,70 +380,27 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
               value={formData.department} 
               onChange={handleInputChange} 
               disabled={!!profile.department}
-              className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg border-2 border-slate-200 outline-none disabled:opacity-70"
+              className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none disabled:opacity-70 shadow-sm"
             >
                {DEPARTMENTS.map(dept => (
                  <option key={dept} value={dept}>{dept}</option>
                ))}
              </select>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-             <input name="register_no" required value={formData.register_no} onChange={handleInputChange} className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg border-2 border-slate-200 outline-none font-mono" placeholder="Reg No" />
-             <input name="roll_no" required value={formData.roll_no} onChange={handleInputChange} className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg border-2 border-slate-200 outline-none font-mono" placeholder="Roll No" />
+          <div className="grid grid-cols-2 gap-5">
+             <input name="register_no" required value={formData.register_no} onChange={handleInputChange} className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none font-mono shadow-sm" placeholder="Reg No" />
+             <input name="roll_no" required value={formData.roll_no} onChange={handleInputChange} className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none font-mono shadow-sm" placeholder="Roll No" />
           </div>
         </div>
 
-        <div className="space-y-4 pt-2">
-          <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] font-mono">01.1 ADDITIONAL TEAM</h2>
-          <div className="bg-white p-5 rounded-2xl border-2 border-slate-200 space-y-4 shadow-inner">
-            <div className="grid grid-cols-2 gap-3">
-              <input value={teamMemberInput.name} onChange={(e) => setTeamMemberInput(prev => ({...prev, name: e.target.value}))} placeholder="Name" className="bg-slate-50 text-sm p-3 rounded-lg border border-slate-200 outline-none" />
-              <input value={teamMemberInput.register_no} onChange={(e) => setTeamMemberInput(prev => ({...prev, register_no: e.target.value}))} placeholder="Reg No" className="bg-slate-50 text-sm p-3 rounded-lg border border-slate-200 outline-none font-mono" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <input value={teamMemberInput.roll_no} onChange={(e) => setTeamMemberInput(prev => ({...prev, roll_no: e.target.value}))} placeholder="Roll No" className="bg-slate-50 text-sm p-3 rounded-lg border border-slate-200 outline-none font-mono" />
-              <select value={teamMemberInput.year} onChange={(e) => setTeamMemberInput(prev => ({...prev, year: e.target.value}))} className="bg-slate-50 text-sm p-3 rounded-lg border border-slate-200 outline-none">
-                <option value="1">1st Year</option>
-                <option value="2">2nd Year</option>
-                <option value="3">3rd Year</option>
-                <option value="4">4th Year</option>
-                {formData.department === 'M.Tech. CSE (5-Years)' && (
-                  <option value="5">5th Year (M.Tech)</option>
-                )}
-              </select>
-            </div>
-            <select 
-              value={teamMemberInput.department} 
-              onChange={(e) => setTeamMemberInput(prev => ({...prev, department: e.target.value}))} 
-              className="w-full bg-slate-50 text-sm p-3 rounded-lg border border-slate-200 outline-none"
-            >
-              {DEPARTMENTS.map(dept => (
-                <option key={dept} value={dept}>{dept}</option>
-              ))}
-            </select>
-            <button type="button" onClick={addTeamMember} className="w-full bg-blueprint-blue text-white py-3 rounded-xl hover:bg-goldenrod transition-all font-black uppercase text-[10px] flex items-center justify-center gap-2 shadow-lg shadow-amber-500/10">
-              <UserPlus size={14} /> Add Member
-            </button>
-          </div>
-          <div className="space-y-2">
-            {formData.team_members.map((member, i) => (
-              <div key={i} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-lg shadow-sm">
-                <div className="text-xs">
-                  <p className="font-black text-slate-800 uppercase">{member.name} ({member.year}Y)</p>
-                  <p className="text-slate-500 font-mono text-[11px]">ID: {member.register_no} • {member.department}</p>
-                </div>
-                <button type="button" onClick={() => removeTeamMember(i)} className="text-red-400 p-1"><Trash2 size={16} /></button>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="space-y-4 pt-2">
-          <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] font-mono">02 SPECIFICATIONS</h2>
-          <input name="event_title" required value={formData.event_title} onChange={handleInputChange} className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg border-2 border-slate-200 outline-none font-mono" placeholder="Event Title" />
-          <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-5 pt-2">
+          <h2 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] font-mono flex items-center gap-2">
+            <span className="w-8 h-[1px] bg-slate-200"></span> 02 SPECIFICATIONS
+          </h2>
+          <input name="event_title" required value={formData.event_title} onChange={handleInputChange} className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none font-bold shadow-sm" placeholder="Event Title" />
+          <div className="grid grid-cols-2 gap-5">
             <div className="space-y-2">
-              <select name="event_type" value={formData.event_type} onChange={handleInputChange} className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg border-2 border-slate-200 outline-none">
+              <select name="event_type" value={formData.event_type} onChange={handleInputChange} className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none shadow-sm">
                 <option value="Conference">Conference</option>
                 <option value="Culturals">Culturals</option>
                 <option value="FDP">FDP</option>
@@ -487,64 +422,86 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
                   placeholder="Specify Event Type"
                   value={customEventType}
                   onChange={(e) => setCustomEventType(e.target.value)}
-                  className="w-full bg-white dark:bg-gray-700 text-sm p-3 rounded-lg border border-blueprint-blue outline-none animate-in slide-in-from-top-1 duration-200"
+                  className="w-full bg-white dark:bg-gray-700 text-sm px-5 py-3 rounded-xl border-2 border-blueprint-blue outline-none animate-in slide-in-from-top-1 duration-200"
                   required
                 />
               )}
             </div>
-            <input name="organization_name" required value={formData.organization_name} onChange={handleInputChange} className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg border-2 border-slate-200 outline-none h-fit" placeholder="Organization" />
+            <input name="organization_name" required value={formData.organization_name} onChange={handleInputChange} className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none shadow-sm h-fit" placeholder="Organization" />
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Start Date</label>
+          <div className="grid grid-cols-2 gap-5">
+            <div className="space-y-1.5">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Start Date</label>
               <input 
                 type="date" 
                 name="event_date" 
                 required 
                 value={formData.event_date} 
                 onChange={handleInputChange} 
-                className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg border-2 border-slate-200 outline-none" 
+                className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none shadow-sm" 
               />
             </div>
-            <div className="space-y-1">
-              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">End Date</label>
+            <div className="space-y-1.5">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">End Date</label>
               <input 
                 type="date" 
                 name="event_end_date" 
                 required 
                 value={formData.event_end_date} 
                 onChange={handleInputChange} 
-                className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg border-2 border-slate-200 outline-none" 
+                className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none shadow-sm" 
               />
             </div>
           </div>
-          <input name="organization_location" required value={formData.organization_location} onChange={handleInputChange} className="w-full bg-gray-100 dark:bg-gray-800 text-sm p-3.5 rounded-lg border-2 border-slate-200 outline-none" placeholder="Organization Location (e.g. Chennai)" />
+          <input name="organization_location" required value={formData.organization_location} onChange={handleInputChange} className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none shadow-sm" placeholder="Organization Location (e.g. Chennai)" />
         </div>
 
-        <div className="space-y-4 pt-2 pb-8">
-           <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] font-mono">03 DOCUMENTATION</h2>
-           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-             <label className={`h-24 border-2 border-dashed rounded-xl flex flex-col items-center justify-center cursor-pointer transition-colors duration-200 ${posterFile ? 'border-primary bg-primary/5' : 'border-gray-400 bg-white hover:border-gray-500 hover:bg-gray-50'}`}>
-                <ImageIcon size={20} className={posterFile ? 'text-primary' : 'text-gray-400'} />
-                <span className="text-[8px] font-bold uppercase mt-1 px-2 truncate w-full text-center">{posterFile ? posterFile.name : 'Event Poster'}</span>
+        <div className="space-y-5 pt-2 pb-8">
+           <h2 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] font-mono flex items-center gap-2">
+            <span className="w-8 h-[1px] bg-slate-200"></span> 03 DOCUMENTATION
+          </h2>
+           <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+             <label className={`h-28 border-2 rounded-2xl flex flex-col items-center justify-center cursor-pointer transition-all duration-300 ${posterFile ? 'border-blueprint-blue bg-blue-50/50 shadow-inner' : 'border-dashed border-slate-300 bg-white hover:border-slate-400 hover:bg-slate-50'}`}>
+                <ImageIcon size={28} className={posterFile ? 'text-blueprint-blue' : 'text-slate-300'} />
+                <span className="text-[9px] font-black uppercase mt-2 px-3 truncate w-full text-center tracking-tighter">{posterFile ? posterFile.name : 'Poster (Opt)'}</span>
                 <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileChange(e, setPosterFile)} />
              </label>
-             <label className={`h-24 border-2 border-dashed rounded-xl flex flex-col items-center justify-center cursor-pointer transition-colors duration-200 ${regFile ? 'border-primary bg-primary/5' : 'border-gray-400 bg-white hover:border-gray-500 hover:bg-gray-50'}`}>
-                <FileText size={20} className={regFile ? 'text-primary' : 'text-gray-400'} />
-                <span className="text-[8px] font-bold uppercase mt-1 px-2 truncate w-full text-center">{regFile ? regFile.name : 'Reg Proof'}</span>
+             <label className={`h-28 border-2 rounded-2xl flex flex-col items-center justify-center cursor-pointer transition-all duration-300 ${regFile ? 'border-blueprint-blue bg-blue-50/50 shadow-inner' : 'border-dashed border-slate-300 bg-white hover:border-slate-400 hover:bg-slate-50'}`}>
+                <FileText size={28} className={regFile ? 'text-blueprint-blue' : 'text-slate-300'} />
+                <span className="text-[9px] font-black uppercase mt-2 px-3 truncate w-full text-center tracking-tighter">{regFile ? regFile.name : 'Reg Proof (Opt)'}</span>
                 <input type="file" className="hidden" accept=".pdf,image/*" onChange={(e) => handleFileChange(e, setRegFile)} />
              </label>
-             <label className={`h-24 border-2 border-dashed rounded-xl flex flex-col items-center justify-center cursor-pointer transition-colors duration-200 ${payFile ? 'border-amber-500 bg-amber-50' : 'border-gray-300 bg-white hover:border-gray-400 hover:bg-gray-50'}`}>
-                <CreditCard size={20} className={payFile ? 'text-amber-500' : 'text-gray-400'} />
-                <span className="text-[8px] font-bold uppercase mt-1 px-2 truncate w-full text-center">{payFile ? payFile.name : 'Receipt (Opt)'}</span>
+             <label className={`h-28 border-2 rounded-2xl flex flex-col items-center justify-center cursor-pointer transition-all duration-300 ${payFile ? 'border-indigo-500 bg-indigo-50/50 shadow-inner' : 'border-dashed border-slate-300 bg-white hover:border-slate-400 hover:bg-slate-50'}`}>
+                <CreditCard size={28} className={payFile ? 'text-indigo-500' : 'text-slate-300'} />
+                <span className="text-[9px] font-black uppercase mt-2 px-3 truncate w-full text-center tracking-tighter">{payFile ? payFile.name : 'Receipt (Opt)'}</span>
                 <input type="file" className="hidden" accept=".pdf,image/*" onChange={(e) => handleFileChange(e, setPayFile)} />
              </label>
            </div>
         </div>
 
-        {error && <div className="bg-amber-50 text-amber-700 p-4 rounded-lg border border-amber-200 text-xs font-mono">{error}</div>}
-        <button type="submit" disabled={loading} className="w-full bg-blueprint-blue hover:bg-goldenrod text-white font-black py-5 px-8 rounded-xl shadow-xl shadow-amber-500/10 transition-all disabled:opacity-50 uppercase tracking-widest text-xs">
-          {loading ? <Loader2 className="animate-spin mx-auto" /> : 'Transmit OD Request'}
+        {error && (
+          <div className="bg-red-50 text-red-700 p-5 rounded-2xl border border-red-100 text-xs font-mono flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
+            <AlertCircle size={18} className="shrink-0 mt-0.5" />
+            <p>{error}</p>
+          </div>
+        )}
+        
+        <button 
+          type="submit" 
+          disabled={loading} 
+          className="w-full bg-blueprint-blue hover:bg-blue-900 text-white font-black py-6 px-10 rounded-[1.5rem] shadow-2xl shadow-blue-900/20 transition-all disabled:opacity-50 uppercase tracking-[0.2em] text-xs active:scale-[0.98] flex items-center justify-center gap-3"
+        >
+          {loading ? (
+            <>
+              <Loader2 className="animate-spin" size={20} />
+              <span>Transmitting Data...</span>
+            </>
+          ) : (
+            <>
+              <Upload size={20} />
+              <span>Transmit OD Request</span>
+            </>
+          )}
         </button>
       </form>
     </div>

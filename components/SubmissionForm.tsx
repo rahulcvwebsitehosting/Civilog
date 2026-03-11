@@ -244,7 +244,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
       console.log("Step 3: Inserting into database...");
       console.table(requestDataForPDF);
 
-      const { data: insertedData, error: dbError } = await supabase.from('od_requests').insert([
+      const { error: dbError } = await supabase.from('od_requests').insert([
         {
           ...requestDataForPDF,
           created_at: new Date().toISOString(),
@@ -262,16 +262,15 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
           geotag_photo_url: null,
           certificate_url: null,
         },
-      ]).select(); // Removed .single() for robustness
+      ]); // Removed .select() to prevent hangs
 
       if (dbError) {
         console.error("Database Insert Error Details:", dbError);
-        alert(`❌ Database Error: ${dbError.message}`);
+        alert(`❌ Database Error: ${dbError.message}\nCode: ${dbError.code}`);
         throw new Error(`Database Error: ${dbError.message} (Code: ${dbError.code})`);
       }
 
       alert("✅ Step 3: Database Saved! Finalizing...");
-      console.log("Database response:", insertedData);
 
       // Step 4: SUCCESS UI (IMMEDIATE)
       console.log("Step 4: Database confirmed. Showing success UI.");

@@ -84,6 +84,7 @@ const PrizeDetailsPromptModal: React.FC<PrizeDetailsPromptModalProps> = ({ onClo
 const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
   const [requests, setRequests] = useState<ODRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
 
   if (!profile) return null;
@@ -100,33 +101,30 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
 
 
   const fetchRequests = async () => {
-    console.log("Starting fetchRequests...");
+    if (!profile?.id) return;
+    console.log(`[DASHBOARD] Fetching requests for: ${profile.id}`);
     setLoading(true);
+    setError(null);
     
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      console.log("Fetching requests for user:", session.user.id);
-      
-      // Simplified query: Just fetch the user's own requests first
       const { data, error } = await supabase
         .from('od_requests')
         .select('*')
-        .eq('user_id', session.user.id)
+        .eq('user_id', profile.id)
         .order('created_at', { ascending: false })
-        .limit(20);
+        .limit(50);
       
       if (error) {
-        console.error("Fetch error:", error);
+        console.error("[DASHBOARD] Fetch error:", error);
+        setError('Failed to load OD log. Please try again.');
         return;
       }
 
-      if (data) {
-        setRequests(data as ODRequest[]);
-      }
+      console.log(`[DASHBOARD] Fetched ${data?.length || 0} requests`);
+      setRequests((data as ODRequest[]) || []);
     } catch (err) {
-      console.error("Error in fetchRequests:", err);
+      console.error("[DASHBOARD] Exception:", err);
+      setError('An unexpected error occurred.');
     } finally {
       setLoading(false);
     }
@@ -322,6 +320,14 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
         </div>
         <div className="flex items-center gap-3">
           <NotificationCenter userId={profile.id} />
+          <button 
+            onClick={fetchRequests}
+            disabled={loading}
+            className="p-2.5 text-slate-400 hover:text-blueprint-blue hover:bg-slate-100 rounded-xl transition-all disabled:opacity-50 border border-slate-100"
+            title="Refresh Log"
+          >
+            <Loader2 className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
           <button
             onClick={() => setShowForm(true)}
             className="bg-blueprint-blue text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-goldenrod transition-all shadow-lg shadow-amber-500/10 uppercase text-xs tracking-wider"

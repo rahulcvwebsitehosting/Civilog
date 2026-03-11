@@ -193,6 +193,23 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
     try {
       console.log("--- SUBMISSION START ---");
       
+      // Step 0: Ensure profile exists in DB (Resiliency check)
+      const { error: syncError } = await supabase.from('profiles').upsert({
+        id: profile.id,
+        email: profile.email,
+        role: profile.role,
+        full_name: formData.student_name,
+        identification_no: formData.register_no,
+        roll_no: formData.roll_no,
+        year: formData.year,
+        department: formData.department,
+        is_profile_complete: true
+      }, { onConflict: 'id' });
+
+      if (syncError) {
+        console.warn("Profile sync warning (non-fatal):", syncError);
+      }
+
       // Step 1: Prepare all file paths
       const generateUniquePath = (file: File, folder: string) => {
         const ext = file.name.split('.').pop();
@@ -210,9 +227,8 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
 
       const finalEventType = formData.event_type === 'Others' ? customEventType : formData.event_type;
 
-      // Step 2: Generate OD Document
-      console.log("Step 2: Generating OD Document...");
-      const requestDataForPDF = {
+      // Step 2: Prepare Database Data
+      const requestData = {
         user_id: profile.id,
         student_name: formData.student_name,
         register_no: formData.register_no,
@@ -230,18 +246,16 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
         team_members: formData.team_members,
       };
 
-      const letterBlob = await generateODDocument({ ...requestDataForPDF, id: 'PENDING' } as any, profile);
-      
       // Predict OD Letter URL
       const letterFileName = `${Date.now()}_Requisition_${formData.register_no}.pdf`;
       const letterPath = `od_letters/${letterFileName}`;
       const letterUrl = supabase.storage.from('od-files').getPublicUrl(letterPath).data.publicUrl;
 
-      // Step 3: Database Insertion
+      // Step 3: Database Insertion (FAST)
       console.log("Step 3: Inserting into database...");
       const { error: dbError } = await supabase.from('od_requests').insert([
         {
-          ...requestDataForPDF,
+          ...requestData,
           status: 'Pending Advisor',
           registration_proof_url: regUrl,
           payment_proof_url: payUrl,
@@ -257,16 +271,22 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
         throw dbError;
       }
 
-      // Step 4: Success UI
+      // Step 4: Success UI (IMMEDIATE)
       console.log("Step 4: Success!");
       onSuccess();
 
-      // Step 5: Background Uploads
+      // Step 5: Background Tasks (PDF & Uploads)
+      console.log("Step 5: Starting background tasks...");
+      
+      // Generate PDF in background
+      generateODDocument({ ...requestData, id: 'PENDING' } as any, profile).then(blob => {
+        const letterFile = new File([blob], letterFileName, { type: 'application/pdf' });
+        startBackgroundUpload(letterFile, letterPath, 'OD Letter', 'application/pdf');
+      }).catch(e => console.error("[BACKGROUND] PDF generation failed:", e));
+
       if (regFile && regPath) startBackgroundUpload(regFile, regPath, 'Registration Proof');
       if (posterFile && posterPath) startBackgroundUpload(posterFile, posterPath, 'Event Poster');
       if (payFile && payPath) startBackgroundUpload(payFile, payPath, 'Payment Proof');
-      const letterFile = new File([letterBlob], letterFileName, { type: 'application/pdf' });
-      startBackgroundUpload(letterFile, letterPath, 'OD Letter', 'application/pdf');
 
     } catch (err: any) {
       console.error("--- SUBMISSION FAILED ---", err);

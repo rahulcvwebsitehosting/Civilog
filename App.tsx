@@ -174,14 +174,8 @@ const App: React.FC = () => {
     setLoading(false);
   }, []);
 
-  const fetchProfile = useCallback(async (userId: string, skipLoading = false) => {
-    // Only show full-screen loading if we don't have a profile yet and not skipping
-    if (!skipLoading && !profile) {
-      setLoading(true);
-    }
-    
+  const fetchProfile = useCallback(async (userId: string) => {
     try {
-      console.log(`Fetching profile for user: ${userId}`);
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -190,138 +184,63 @@ const App: React.FC = () => {
       
       if (error) {
         if (error.code === 'PGRST116') {
-          console.log("Profile not found in database, using metadata fallback");
-          // Profile doesn't exist yet, fallback to session user metadata if available
-          if (session?.user) {
-            updateProfileFromUser(session.user);
-          } else {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
-              updateProfileFromUser(user);
-            }
-          }
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) updateProfileFromUser(user);
           return;
         }
         throw error;
       }
       
       if (data) {
-        console.log("Profile fetched successfully from database");
-        const dbProfile = data as Profile;
-        setProfile(prev => {
-          // Only update if data actually changed
-          if (prev && JSON.stringify(prev) === JSON.stringify(dbProfile)) return prev;
-          return dbProfile;
-        });
-        currentUserIdRef.current = userId;
+        setProfile(data as Profile);
       }
     } catch (err) {
-      console.error("Profile synchronization error:", err);
-      // Fallback to metadata on any error
-      if (session?.user) {
-        updateProfileFromUser(session.user);
-      } else {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          updateProfileFromUser(user);
-        }
-      }
+      console.error("[AUTH] Profile fetch error:", err);
     } finally {
-      if (!skipLoading) {
-        setLoading(false);
-      }
+      setLoading(false);
     }
-  }, [session, profile, updateProfileFromUser]);
+  }, [updateProfileFromUser]);
 
   useEffect(() => {
-    // Safety timeout: Ensure loading screen doesn't stay forever
-    const safetyTimeout = setTimeout(() => {
-      if (loadingRef.current) {
-        console.warn("Auth initialization timed out, forcing loading to false");
-        setLoading(false);
-      }
-    }, 10000); // 10 seconds safety margin
+    let mounted = true;
 
-    // Initial session check
-    const initSession = async () => {
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          const errMsg = error.message.toLowerCase();
-          if (errMsg.includes('refresh_token_not_found') || 
-              errMsg.includes('invalid refresh token') || 
-              errMsg.includes('refresh token not found') ||
-              errMsg.includes('session_not_found')) {
-            await supabase.auth.signOut();
-            setSession(null);
-            setProfile(null);
-            currentUserIdRef.current = null;
-          }
-          setLoading(false);
-          return;
-        }
+    const initAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!mounted) return;
 
-        if (session) {
-          console.log("Session found in initSession");
-          setSession(session);
-          sessionRef.current = session;
-          currentUserIdRef.current = session.user.id;
-          // Set initial profile from metadata to avoid stuck loading
-          updateProfileFromUser(session.user);
-          // Then fetch real profile in background
-          await fetchProfile(session.user.id, true);
-        } else {
-          console.log("No session found in initSession");
-          setLoading(false);
-        }
-      } catch (err) {
-        console.error("Initial session check failed:", err);
+      if (session) {
+        setSession(session);
+        updateProfileFromUser(session.user);
+        fetchProfile(session.user.id);
+      } else {
         setLoading(false);
       }
     };
 
-    initSession();
+    initAuth();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log(`Auth Event: ${event}`);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!mounted) return;
       
       if (event === 'SIGNED_OUT') {
         setSession(null);
         setProfile(null);
-        currentUserIdRef.current = null;
-        sessionRef.current = null;
         setLoading(false);
       } else if (session) {
-        const isNewUser = currentUserIdRef.current !== session.user.id;
-        const isNewSession = session.access_token !== sessionRef.current?.access_token;
-        
-        if (isNewSession) {
-          console.log("New session detected in onAuthStateChange");
-          setSession(session);
-          sessionRef.current = session;
-        }
-        
-        if (isNewUser) {
-          console.log(`New user detected: ${session.user.id}`);
+        setSession(session);
+        if (currentUserIdRef.current !== session.user.id) {
           currentUserIdRef.current = session.user.id;
-          // Set initial profile from metadata to avoid stuck loading
           updateProfileFromUser(session.user);
-          // Then fetch real profile in background
-          await fetchProfile(session.user.id, true);
-        } else {
-          setLoading(false);
+          fetchProfile(session.user.id);
         }
-      } else if (event === 'INITIAL_SESSION' && !session) {
-        setLoading(false);
       }
     });
 
     return () => {
+      mounted = false;
       subscription.unsubscribe();
-      clearTimeout(safetyTimeout);
     };
-  }, []);
+  }, [fetchProfile, updateProfileFromUser]);
 
   const handleLogout = async () => {
     setLoading(true);

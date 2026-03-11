@@ -100,13 +100,20 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
 
 
   const fetchRequests = async () => {
+    console.log("Starting fetchRequests...");
     setLoading(true);
     const timeoutId = setTimeout(() => {
       setLoading(false);
       console.warn("Feed synchronization timed out");
-    }, 8000); // 8 second timeout for feed
+    }, 12000); // Increased timeout
 
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        alert("❌ Auth Error: No user session found during fetch.");
+        return;
+      }
+
       console.log("Fetching feed for profile:", profile.id, profile.department);
       // Fetch all requests from the user's department to create a real "Activity Feed"
       let query = supabase
@@ -115,30 +122,29 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
         .order('created_at', { ascending: false });
 
       if (profile.department) {
-        // Use .or() to fetch requests that match the user's ID OR the user's department
-        // We wrap the values in double quotes to handle spaces correctly in PostgREST
         const orFilter = `user_id.eq.${profile.id},department.eq."${profile.department}"`;
         query = query.or(orFilter);
       } else {
-        // Fallback to only user's requests if department is missing
         query = query.eq('user_id', profile.id);
       }
 
       const { data, error } = await query;
+      
       if (error) {
         console.error("Fetch error details:", error);
+        alert(`❌ Fetch Failed: ${error.message}\nCode: ${error.code}`);
         throw error;
       }
+
       if (data) {
         console.log(`Fetched ${data.length} requests for feed`);
+        if (data.length === 0) {
+          console.log("No requests found for this user/department.");
+        }
         setRequests(data as ODRequest[]);
       }
     } catch (err: any) {
       console.error("Error fetching feed:", err);
-      // Show error to user if it's a permission or schema issue
-      if (err.message) {
-        alert(`Feed Sync Error: ${err.message}\n\nThis usually means the database tables are missing or RLS is blocking access.`);
-      }
     } finally {
       clearTimeout(timeoutId);
       setLoading(false);

@@ -247,9 +247,13 @@ const FeedCard: React.FC<FeedCardProps> = ({
           <div className="mb-4">
             <div className="flex items-center gap-2 mb-1 flex-wrap">
               <h2 className="text-lg font-black text-blueprint-blue uppercase tracking-tight italic">{request.event_title}</h2>
-              <span className="px-2 py-0.5 bg-blueprint-blue/10 text-blueprint-blue text-[10px] font-black rounded-full uppercase tracking-widest border border-blueprint-blue/20">
-                {request.event_type}
-              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {request.event_type.split(' ').map((type, i) => (
+                  <span key={i} className="px-2 py-0.5 bg-blueprint-blue/10 text-blueprint-blue text-[10px] font-black rounded-full uppercase tracking-widest border border-blueprint-blue/20">
+                    {type}
+                  </span>
+                ))}
+              </div>
             </div>
             <div className="flex flex-col gap-1 text-sm text-gray-700 leading-snug font-body">
               <div className="flex items-center gap-2 flex-wrap text-[11px]">

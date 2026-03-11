@@ -82,15 +82,20 @@ const FacultyRegistry: React.FC = () => {
         'Student Name': r.student_name,
         'Roll No': r.roll_no,
         'Register No': r.register_no,
+        'Phone': r.phone_number || 'N/A',
         'Year': r.year,
         'Department': r.department || 'ESEC',
+        'Team Members': (Array.isArray(r.team_members) ? r.team_members : (typeof r.team_members === 'string' ? JSON.parse(r.team_members) : [])).map((m: any) => `${m.name} (${m.register_no})`).join('; ') || 'None',
         'Event Title': r.event_title,
         'Organization': r.organization_name,
+        'Location': r.organization_location || 'N/A',
         'Event Type': r.event_type,
         'Event Date': r.event_date,
         'Status': r.status,
         'Achievement': r.achievement_details || 'N/A',
         'Prize Details': (Array.isArray(r.prize_details) ? r.prize_details : []).map(p => `${p.type} (${p.event})`).join('; ') || 'N/A',
+        'Reg Proof': createLink(r.registration_proof_url, "View Reg Proof"),
+        'Pay Proof': createLink(r.payment_proof_url, "View Pay Proof"),
         'Event Poster': createLink(r.event_poster_url, "View Poster"),
         'OD Letter': createLink(r.od_letter_url, "View OD Letter"),
         'Geotagged Photos': formatUrls(r.geotag_photo_urls),
@@ -181,7 +186,7 @@ const FacultyRegistry: React.FC = () => {
               <tr>
                 <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">IDENTIFICATION</th>
                 <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">FIELD ACTIVITY</th>
-                <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">EVENT TYPE</th>
+                <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] min-w-[140px]">EVENT TYPE</th>
                 <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">TIMELINE</th>
                 <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">ACHIEVEMENT / PRIZE DETAILS</th>
                 <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] text-right">STATUS</th>
@@ -219,9 +224,13 @@ const FacultyRegistry: React.FC = () => {
                       <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">{request.organization_name}</p>
                     </td>
                     <td className="px-8 py-6">
-                      <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded-md text-[9px] font-black uppercase tracking-wider border border-slate-200">
-                        {request.event_type}
-                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {request.event_type.split(' ').map((type, i) => (
+                          <span key={i} className="px-2 py-0.5 bg-blueprint-blue/5 text-blueprint-blue rounded-md text-[9px] font-black uppercase tracking-wider border border-blueprint-blue/10">
+                            {type}
+                          </span>
+                        ))}
+                      </div>
                     </td>
                     <td className="px-8 py-6">
                       <div className="flex flex-col gap-0.5">

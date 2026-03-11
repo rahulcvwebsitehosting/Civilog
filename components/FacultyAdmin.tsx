@@ -463,22 +463,33 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
   });
 
   const exportToExcel = () => {
-    const dataToExport = filteredRequests.map(r => ({
-      'Student Name': r.student_name,
-      'Register No': r.register_no,
-      'Roll No': r.roll_no,
-      'Department': r.department,
-      'Year': r.year,
-      'Semester': r.semester,
-      'Event Title': r.event_title,
-      'Organization': r.organization_name,
-      'Event Type': r.event_type,
-      'Start Date': r.event_date,
-      'End Date': r.event_end_date,
-      'Status': r.status,
-      'Advisor Approved': r.advisor_approved_at ? 'Yes' : 'No',
-      'HOD Approved': r.hod_approved_at ? 'Yes' : 'No'
-    }));
+    const dataToExport = filteredRequests.map(r => {
+      const teamMembersRaw = r.team_members;
+      const teamMembers: any[] = Array.isArray(teamMembersRaw) 
+        ? teamMembersRaw 
+        : (typeof teamMembersRaw === 'string' ? JSON.parse(teamMembersRaw) : []);
+      
+      return {
+        'Student Name': r.student_name,
+        'Register No': r.register_no,
+        'Roll No': r.roll_no,
+        'Phone': r.phone_number || 'N/A',
+        'Department': r.department,
+        'Year': r.year,
+        'Semester': r.semester,
+        'Team Members': teamMembers.map(m => `${m.name} (${m.register_no})`).join('; ') || 'None',
+        'Event Title': r.event_title,
+        'Organization': r.organization_name,
+        'Location': r.organization_location || 'N/A',
+        'Event Type': r.event_type,
+        'Start Date': r.event_date,
+        'End Date': r.event_end_date || r.event_date,
+        'Status': r.status,
+        'Achievement': r.achievement_details || 'N/A',
+        'Advisor Approved': r.advisor_approved_at ? 'Yes' : 'No',
+        'HOD Approved': r.hod_approved_at ? 'Yes' : 'No'
+      };
+    });
 
     const ws = XLSX.utils.json_to_sheet(dataToExport);
     const wb = XLSX.utils.book_new();
@@ -747,9 +758,13 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                         <p className="text-[9px] text-slate-500 font-technical mt-1">{dateDisplay}</p>
                       </td>
                       <td className="px-8 py-6">
-                        <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded-md text-[8px] font-black uppercase tracking-wider border border-slate-200">
-                          {request.event_type}
-                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {request.event_type.split(' ').map((type, i) => (
+                            <span key={i} className="px-2 py-0.5 bg-blueprint-blue/5 text-blueprint-blue rounded-md text-[8px] font-black uppercase tracking-wider border border-blueprint-blue/10">
+                              {type}
+                            </span>
+                          ))}
+                        </div>
                       </td>
                       <td className="px-8 py-6">
                         <div className="flex items-center gap-3">

@@ -191,13 +191,11 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
     setError(null);
 
     try {
-      alert("🚀 Step 1: Preparing data and file paths...");
-      console.log("--- SUBMISSION START (DATABASE-FIRST) ---");
+      console.log("--- SUBMISSION START ---");
       
-      // Step 1: Prepare all file paths and predict URLs immediately
+      // Step 1: Prepare all file paths
       const generateUniquePath = (file: File, folder: string) => {
         const ext = file.name.split('.').pop();
-        // Append unique timestamp to prevent 409 conflicts
         const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}_${file.name}`;
         return `${folder}/${fileName}`;
       };
@@ -236,76 +234,42 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
       
       // Predict OD Letter URL
       const letterFileName = `${Date.now()}_Requisition_${formData.register_no}.pdf`;
-      const letterPath = `od_letters/${letterFileName}`; // Strictly od_letters/
+      const letterPath = `od_letters/${letterFileName}`;
       const letterUrl = supabase.storage.from('od-files').getPublicUrl(letterPath).data.publicUrl;
 
-      alert("📄 Step 2: Generating OD Requisition PDF...");
-      // Step 3: DATABASE INSERTION (PRIORITY)
+      // Step 3: Database Insertion
       console.log("Step 3: Inserting into database...");
-      
-      // Create a longer timeout promise (45s)
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("Database operation timed out (45s). The server is taking too long to respond.")), 45000)
-      );
-
-      alert("📡 Step 3: Transmitting to Database (Please wait)...");
-
-      // Prepare clean data object
-      const insertData = {
-        user_id: profile.id,
-        student_name: formData.student_name,
-        register_no: formData.register_no,
-        roll_no: formData.roll_no,
-        phone_number: formData.phone_number,
-        year: formData.year,
-        department: formData.department,
-        semester: formData.semester,
-        event_title: formData.event_title,
-        organization_name: formData.organization_name,
-        organization_location: formData.organization_location,
-        event_type: finalEventType,
-        event_date: formData.event_date,
-        event_end_date: formData.event_end_date || formData.event_date,
-        status: 'Pending Advisor',
-        registration_proof_url: regUrl,
-        payment_proof_url: payUrl,
-        event_poster_url: posterUrl,
-        od_letter_url: letterUrl,
-        team_members: formData.team_members,
-        created_at: new Date().toISOString(),
-        notification_sent: false
-      };
-
-      const insertPromise = supabase.from('od_requests').insert([insertData]);
-
-      // Race the insert against the timeout
-      const { error: dbError } = await Promise.race([insertPromise, timeoutPromise]) as any;
+      const { error: dbError } = await supabase.from('od_requests').insert([
+        {
+          ...requestDataForPDF,
+          status: 'Pending Advisor',
+          registration_proof_url: regUrl,
+          payment_proof_url: payUrl,
+          event_poster_url: posterUrl,
+          od_letter_url: letterUrl,
+          notification_sent: false,
+          created_at: new Date().toISOString(),
+        }
+      ]);
 
       if (dbError) {
-        console.error("Database Insert Error Details:", dbError);
-        alert(`❌ Database Error: ${dbError.message}\nCode: ${dbError.code}`);
-        throw new Error(`Database Error: ${dbError.message} (Code: ${dbError.code})`);
+        console.error("Database Insert Error:", dbError);
+        throw dbError;
       }
 
-      alert("✅ Step 4: Database Saved! Finalizing...");
-
-      // Step 4: SUCCESS UI (IMMEDIATE)
-      console.log("Step 4: Database confirmed. Showing success UI.");
+      // Step 4: Success UI
+      console.log("Step 4: Success!");
       onSuccess();
 
-      // Step 5: BACKGROUND UPLOADS (NON-BLOCKING)
-      console.log("Step 5: Starting background uploads...");
-      
+      // Step 5: Background Uploads
       if (regFile && regPath) startBackgroundUpload(regFile, regPath, 'Registration Proof');
       if (posterFile && posterPath) startBackgroundUpload(posterFile, posterPath, 'Event Poster');
       if (payFile && payPath) startBackgroundUpload(payFile, payPath, 'Payment Proof');
-      
       const letterFile = new File([letterBlob], letterFileName, { type: 'application/pdf' });
       startBackgroundUpload(letterFile, letterPath, 'OD Letter', 'application/pdf');
 
     } catch (err: any) {
-      console.error("--- SUBMISSION FAILED ---");
-      console.error("Error Object:", err);
+      console.error("--- SUBMISSION FAILED ---", err);
       setError(`Error: ${err.message || 'Unknown error'}`);
       setLoading(false);
     }

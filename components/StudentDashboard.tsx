@@ -102,51 +102,32 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
   const fetchRequests = async () => {
     console.log("Starting fetchRequests...");
     setLoading(true);
-    const timeoutId = setTimeout(() => {
-      setLoading(false);
-      console.warn("Feed synchronization timed out");
-    }, 12000); // Increased timeout
-
+    
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        alert("❌ Auth Error: No user session found during fetch.");
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      console.log("Fetching requests for user:", session.user.id);
+      
+      // Simplified query: Just fetch the user's own requests first
+      const { data, error } = await supabase
+        .from('od_requests')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .order('created_at', { ascending: false })
+        .limit(20);
+      
+      if (error) {
+        console.error("Fetch error:", error);
         return;
       }
 
-      console.log("Fetching feed for profile:", profile.id, profile.department);
-      // Fetch all requests from the user's department to create a real "Activity Feed"
-      let query = supabase
-        .from('od_requests')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (profile.department) {
-        const orFilter = `user_id.eq.${profile.id},department.eq."${profile.department}"`;
-        query = query.or(orFilter);
-      } else {
-        query = query.eq('user_id', profile.id);
-      }
-
-      const { data, error } = await query;
-      
-      if (error) {
-        console.error("Fetch error details:", error);
-        alert(`❌ Fetch Failed: ${error.message}\nCode: ${error.code}`);
-        throw error;
-      }
-
       if (data) {
-        console.log(`Fetched ${data.length} requests for feed`);
-        if (data.length === 0) {
-          console.log("No requests found for this user/department.");
-        }
         setRequests(data as ODRequest[]);
       }
-    } catch (err: any) {
-      console.error("Error fetching feed:", err);
+    } catch (err) {
+      console.error("Error in fetchRequests:", err);
     } finally {
-      clearTimeout(timeoutId);
       setLoading(false);
     }
   };

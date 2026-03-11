@@ -242,27 +242,44 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
       alert("📄 Step 2: Generating OD Requisition PDF...");
       // Step 3: DATABASE INSERTION (PRIORITY)
       console.log("Step 3: Inserting into database...");
-      console.table(requestDataForPDF);
+      
+      // Create a longer timeout promise (45s)
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("Database operation timed out (45s). The server is taking too long to respond.")), 45000)
+      );
 
-      const { error: dbError } = await supabase.from('od_requests').insert([
-        {
-          ...requestDataForPDF,
-          created_at: new Date().toISOString(),
-          status: 'Pending Advisor',
-          registration_proof_url: regUrl,
-          payment_proof_url: payUrl,
-          event_poster_url: posterUrl,
-          od_letter_url: letterUrl,
-          notification_sent: false,
-          geotag_photo_urls: [],
-          certificate_urls: [],
-          prize_details: [],
-          achievement_details: null,
-          remarks: null,
-          geotag_photo_url: null,
-          certificate_url: null,
-        },
-      ]); // Removed .select() to prevent hangs
+      alert("📡 Step 3: Transmitting to Database (Please wait)...");
+
+      // Prepare clean data object
+      const insertData = {
+        user_id: profile.id,
+        student_name: formData.student_name,
+        register_no: formData.register_no,
+        roll_no: formData.roll_no,
+        phone_number: formData.phone_number,
+        year: formData.year,
+        department: formData.department,
+        semester: formData.semester,
+        event_title: formData.event_title,
+        organization_name: formData.organization_name,
+        organization_location: formData.organization_location,
+        event_type: finalEventType,
+        event_date: formData.event_date,
+        event_end_date: formData.event_end_date || formData.event_date,
+        status: 'Pending Advisor',
+        registration_proof_url: regUrl,
+        payment_proof_url: payUrl,
+        event_poster_url: posterUrl,
+        od_letter_url: letterUrl,
+        team_members: formData.team_members,
+        created_at: new Date().toISOString(),
+        notification_sent: false
+      };
+
+      const insertPromise = supabase.from('od_requests').insert([insertData]);
+
+      // Race the insert against the timeout
+      const { error: dbError } = await Promise.race([insertPromise, timeoutPromise]) as any;
 
       if (dbError) {
         console.error("Database Insert Error Details:", dbError);
@@ -270,7 +287,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
         throw new Error(`Database Error: ${dbError.message} (Code: ${dbError.code})`);
       }
 
-      alert("✅ Step 3: Database Saved! Finalizing...");
+      alert("✅ Step 4: Database Saved! Finalizing...");
 
       // Step 4: SUCCESS UI (IMMEDIATE)
       console.log("Step 4: Database confirmed. Showing success UI.");
@@ -336,6 +353,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
                   
                   // 3. Check key format
                   const anonKey = (supabase as any).supabaseKey || '';
+                  const url = (supabase as any).supabaseUrl || '';
                   const isStandardKey = anonKey.startsWith('eyJ');
                   const isManagementKey = anonKey.startsWith('sb_publishable_');
                   
@@ -343,6 +361,8 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
                   msg += `⏱️ Response time: ${duration}ms\n`;
                   msg += `📂 Tables: Found 'profiles' and 'od_requests'\n`;
                   msg += `📦 Storage: 'od-files' bucket is ${hasBucket ? 'ACTIVE' : 'MISSING'}\n\n`;
+                  msg += `🔗 Using URL: ${url.substring(0, 15)}...\n`;
+                  msg += `🔑 Using Key: ${anonKey.substring(0, 8)}...\n\n`;
                   
                   if (!hasBucket) {
                     msg += `❌ CRITICAL: 'od-files' bucket not found in Storage. Please create it.\n\n`;

@@ -5,10 +5,19 @@ const loadImage = (url: string): Promise<HTMLImageElement | null> => {
   if (!url) return Promise.resolve(null);
   return new Promise((resolve) => {
     const img = new Image();
+    const timeout = setTimeout(() => {
+      console.warn(`[PDF] Image load timed out for: ${url}`);
+      resolve(null);
+    }, 8000); // 8 second timeout for images
+
     img.crossOrigin = 'anonymous';
-    img.onload = () => resolve(img);
+    img.onload = () => {
+      clearTimeout(timeout);
+      resolve(img);
+    };
     img.onerror = () => {
-      console.error(`Failed to load image at ${url}`);
+      clearTimeout(timeout);
+      console.error(`[PDF] Failed to load image at ${url}`);
       resolve(null);
     };
     img.src = url;

@@ -156,10 +156,13 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
     // Create a promise that rejects after 15 seconds
     const uploadPromise = supabase.storage
       .from('od-files')
-      .upload(fullPath, file);
+      .upload(fullPath, file, {
+        cacheControl: '3600',
+        upsert: false
+      });
       
     const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error(`Upload to ${path} timed out after 15s`)), 15000)
+      setTimeout(() => reject(new Error(`Upload to ${path} timed out after 30s. Please check your internet connection or Supabase Storage policies.`)), 30000)
     );
 
     const result = await Promise.race([uploadPromise, timeoutPromise]) as any;
@@ -281,13 +284,19 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
       const letterPath = `od_requisitions/${letterFileName}`;
 
       console.log("Step 3: Uploading OD Letter to storage...");
-      // Add timeout to this upload too
+      // Convert Blob to File for better compatibility and explicit MIME type
+      const letterFile = new File([letterBlob], letterFileName, { type: 'application/pdf' });
+      
       const letterUploadPromise = supabase.storage
         .from('od-files')
-        .upload(letterPath, letterBlob);
+        .upload(letterPath, letterFile, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: 'application/pdf'
+        });
         
       const letterTimeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("OD Letter upload timed out after 15s")), 15000)
+        setTimeout(() => reject(new Error("OD Letter upload timed out after 30s. This can happen due to slow network or incorrect Supabase Storage bucket permissions.")), 30000)
       );
 
       const letterResult = await Promise.race([letterUploadPromise, letterTimeoutPromise]) as any;

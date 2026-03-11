@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { HashRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import { LogOut, Search as SearchIcon, LayoutDashboard, Settings, User, Home, Terminal, Database } from 'lucide-react';
-import { supabase } from './supabaseClient';
+import { supabase, configError } from './supabaseClient';
 import Auth from './components/Auth';
 import StudentDashboard from './components/StudentDashboard';
 import FacultyAdmin from './components/FacultyAdmin';
@@ -327,6 +327,37 @@ const App: React.FC = () => {
     setLoading(true);
     await supabase.auth.signOut();
   };
+
+  if (configError) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-red-50 p-10 text-center">
+        <div className="w-20 h-20 bg-red-100 text-red-600 rounded-3xl flex items-center justify-center mb-8 shadow-xl">
+          <Database size={40} />
+        </div>
+        <h1 className="text-3xl font-black text-red-900 uppercase italic mb-4 tracking-tighter">Configuration Error</h1>
+        <div className="max-w-md bg-white p-8 rounded-[2.5rem] shadow-2xl border-2 border-red-100 space-y-4">
+          <p className="text-red-700 font-bold text-sm leading-relaxed">
+            {configError}
+          </p>
+          <div className="pt-4 border-t border-red-50">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">How to fix this:</p>
+            <ol className="text-left text-[11px] text-slate-600 space-y-3 font-medium">
+              <li className="flex gap-3"><span className="w-5 h-5 bg-slate-100 rounded-full flex items-center justify-center shrink-0 font-bold">1</span> Go to your Supabase Dashboard</li>
+              <li className="flex gap-3"><span className="w-5 h-5 bg-slate-100 rounded-full flex items-center justify-center shrink-0 font-bold">2</span> Settings &gt; API</li>
+              <li className="flex gap-3"><span className="w-5 h-5 bg-slate-100 rounded-full flex items-center justify-center shrink-0 font-bold">3</span> Copy the <strong className="text-red-600">anon public key</strong> (starts with 'eyJ')</li>
+              <li className="flex gap-3"><span className="w-5 h-5 bg-slate-100 rounded-full flex items-center justify-center shrink-0 font-bold">4</span> Update VITE_SUPABASE_ANON_KEY in your environment settings</li>
+            </ol>
+          </div>
+          <button 
+            onClick={() => window.location.reload()}
+            className="w-full py-4 bg-red-600 text-white font-black uppercase text-xs rounded-xl shadow-lg shadow-red-200 hover:bg-red-700 transition-all"
+          >
+            I've updated the key, reload system
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

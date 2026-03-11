@@ -146,45 +146,6 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
     }
   };
 
-  const uploadFile = async (file: File, path: string) => {
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-    const fullPath = `${path}/${fileName}`;
-
-    console.log(`[STORAGE] Starting upload to ${fullPath}...`);
-    
-    // Create a promise that rejects after 15 seconds
-    const uploadPromise = supabase.storage
-      .from('od-files')
-      .upload(fullPath, file, {
-        cacheControl: '3600',
-        upsert: false
-      });
-      
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error(`Upload to ${path} timed out after 30s. Please check your internet connection or Supabase Storage policies.`)), 30000)
-    );
-
-    const result = await Promise.race([uploadPromise, timeoutPromise]) as any;
-    
-    if (result instanceof Error) throw result;
-    const { error: uploadError } = result;
-
-    if (uploadError) {
-      console.error(`[STORAGE] Upload error for ${path}:`, uploadError);
-      throw uploadError;
-    }
-
-    const { data } = supabase.storage
-      .from('od-files')
-      .getPublicUrl(fullPath);
-    
-    const publicUrl = data.publicUrl;
-
-    console.log(`[STORAGE] Upload complete: ${publicUrl}`);
-    return publicUrl;
-  };
-
   const addTeamMember = () => {
     if (teamMemberInput.name && teamMemberInput.register_no && teamMemberInput.roll_no && teamMemberInput.department) {
       setFormData(prev => ({ 
@@ -207,47 +168,53 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
     setFormData(prev => ({ ...prev, team_members: prev.team_members.filter((_, i) => i !== index) }));
   };
 
+  const startBackgroundUpload = (file: File, path: string, label: string, contentType?: string) => {
+    console.log(`[BACKGROUND] Starting ${label} upload to ${path}...`);
+    supabase.storage
+      .from('od-files')
+      .upload(path, file, { 
+        cacheControl: '3600', 
+        upsert: false,
+        contentType: contentType || file.type
+      })
+      .then(({ error: err }) => {
+        if (err) console.error(`[BACKGROUND] ${label} upload failed:`, err);
+        else console.log(`[BACKGROUND] ${label} upload successful: ${path}`);
+      })
+      .catch(e => console.error(`[BACKGROUND] ${label} exception:`, e));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     setLoading(true);
     setError(null);
 
-    // Add a safety timeout
-    const timeoutId = setTimeout(() => {
-      setLoading(false);
-      setError('Transmission timed out (25s). This usually happens if the Supabase URL/Key is incorrect or the network is blocked. Check your browser console (F12) for more details.');
-      console.error("SUBMISSION TIMEOUT: The request took too long. Check network tab.");
-    }, 25000);
-
     try {
-      console.log("--- SUBMISSION START ---");
-      console.log("Profile ID:", profile.id);
-      console.log("Step 1: Starting file uploads...");
+      console.log("--- SUBMISSION START (DATABASE-FIRST) ---");
       
-      let regUrl = null;
-      if (regFile) {
-        console.log("Uploading registration proof...");
-        regUrl = await uploadFile(regFile, 'registration_proofs');
-      }
-      
-      let posterUrl = null;
-      if (posterFile) {
-        console.log("Uploading event poster...");
-        posterUrl = await uploadFile(posterFile, 'event_posters');
-      }
-      
-      let payUrl = null;
-      if (payFile) {
-        console.log("Uploading payment proof...");
-        payUrl = await uploadFile(payFile, 'payment_proofs');
-      }
+      // Step 1: Prepare all file paths and predict URLs immediately
+      const generateUniquePath = (file: File, folder: string) => {
+        const ext = file.name.split('.').pop();
+        // Append unique timestamp to prevent 409 conflicts
+        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}_${file.name}`;
+        return `${folder}/${fileName}`;
+      };
+
+      const regPath = regFile ? generateUniquePath(regFile, 'registration_proofs') : null;
+      const posterPath = posterFile ? generateUniquePath(posterFile, 'event_posters') : null;
+      const payPath = payFile ? generateUniquePath(payFile, 'payment_proofs') : null;
+
+      const regUrl = regPath ? supabase.storage.from('od-files').getPublicUrl(regPath).data.publicUrl : null;
+      const posterUrl = posterPath ? supabase.storage.from('od-files').getPublicUrl(posterPath).data.publicUrl : null;
+      const payUrl = payPath ? supabase.storage.from('od-files').getPublicUrl(payPath).data.publicUrl : null;
 
       const finalEventType = formData.event_type === 'Others' ? customEventType : formData.event_type;
 
-      const requestData = {
+      // Step 2: Generate OD Document
+      console.log("Step 2: Generating OD Document...");
+      const requestDataForPDF = {
         user_id: profile.id,
-        created_at: new Date().toISOString(),
         student_name: formData.student_name,
         register_no: formData.register_no,
         roll_no: formData.roll_no,
@@ -262,91 +229,60 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
         event_date: formData.event_date,
         event_end_date: formData.event_end_date || formData.event_date,
         team_members: formData.team_members,
-        status: 'Pending Advisor' as const,
-        registration_proof_url: regUrl,
-        payment_proof_url: payUrl,
-        event_poster_url: posterUrl,
-        od_letter_url: null,
-        geotag_photo_urls: [],
-        certificate_urls: [],
-        prize_details: [],
-        achievement_details: null,
-        remarks: null,
-        geotag_photo_url: null,
-        certificate_url: null,
       };
 
-      console.log("Step 2: Generating OD Document...");
-      const letterBlob = await generateODDocument({ ...requestData, id: 'PENDING' } as ODRequest, profile);
-      console.log("OD Document generated, size:", (letterBlob.size / 1024).toFixed(2), "KB");
-
-      const letterFileName = `Requisition_${formData.register_no}_${Date.now()}.pdf`;
-      const letterPath = `od_requisitions/${letterFileName}`;
-
-      console.log("Step 3: Uploading OD Letter to storage...");
-      // Convert Blob to File for better compatibility and explicit MIME type
-      const letterFile = new File([letterBlob], letterFileName, { type: 'application/pdf' });
+      const letterBlob = await generateODDocument({ ...requestDataForPDF, id: 'PENDING' } as any, profile);
       
-      const letterUploadPromise = supabase.storage
-        .from('od-files')
-        .upload(letterPath, letterFile, {
-          cacheControl: '3600',
-          upsert: false,
-          contentType: 'application/pdf'
-        });
-        
-      const letterTimeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("OD Letter upload timed out after 30s. This can happen due to slow network or incorrect Supabase Storage bucket permissions.")), 30000)
-      );
+      // Predict OD Letter URL
+      const letterFileName = `${Date.now()}_Requisition_${formData.register_no}.pdf`;
+      const letterPath = `od_letters/${letterFileName}`; // Strictly od_letters/
+      const letterUrl = supabase.storage.from('od-files').getPublicUrl(letterPath).data.publicUrl;
 
-      const letterResult = await Promise.race([letterUploadPromise, letterTimeoutPromise]) as any;
-      if (letterResult instanceof Error) throw letterResult;
-      const { error: letterUploadError } = letterResult;
-
-      if (letterUploadError) {
-        console.error("OD Letter Upload Error:", letterUploadError);
-        throw letterUploadError;
-      }
-
-      const { data: letterData } = supabase.storage
-        .from('od-files')
-        .getPublicUrl(letterPath);
-      
-      const letterUrl = letterData.publicUrl;
-      console.log("OD Letter uploaded:", letterUrl);
-
-      console.log("Step 4: Inserting into database...");
-      // Add timeout to database insert
-      const dbInsertPromise = supabase.from('od_requests').insert([
+      // Step 3: DATABASE INSERTION (PRIORITY)
+      console.log("Step 3: Inserting into database...");
+      const { data: insertedData, error: dbError } = await supabase.from('od_requests').insert([
         {
-          ...requestData,
+          ...requestDataForPDF,
+          created_at: new Date().toISOString(),
+          status: 'Pending Advisor',
+          registration_proof_url: regUrl,
+          payment_proof_url: payUrl,
+          event_poster_url: posterUrl,
           od_letter_url: letterUrl,
-          notification_sent: false
+          notification_sent: false,
+          geotag_photo_urls: [],
+          certificate_urls: [],
+          prize_details: [],
+          achievement_details: null,
+          remarks: null,
+          geotag_photo_url: null,
+          certificate_url: null,
         },
       ]).select().single();
-
-      const dbTimeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("Database insertion timed out after 15s")), 15000)
-      );
-
-      const dbResult = await Promise.race([dbInsertPromise, dbTimeoutPromise]) as any;
-      if (dbResult instanceof Error) throw dbResult;
-      const { data: insertedData, error: dbError } = dbResult;
 
       if (dbError) {
         console.error("Database Insert Error:", dbError);
         throw dbError;
       }
 
-      console.log("Step 5: Submission successful! ID:", insertedData?.id);
-      clearTimeout(timeoutId);
+      // Step 4: SUCCESS UI (IMMEDIATE)
+      console.log("Step 4: Database confirmed. Showing success UI.");
       onSuccess();
+
+      // Step 5: BACKGROUND UPLOADS (NON-BLOCKING)
+      console.log("Step 5: Starting background uploads...");
+      
+      if (regFile && regPath) startBackgroundUpload(regFile, regPath, 'Registration Proof');
+      if (posterFile && posterPath) startBackgroundUpload(posterFile, posterPath, 'Event Poster');
+      if (payFile && payPath) startBackgroundUpload(payFile, payPath, 'Payment Proof');
+      
+      const letterFile = new File([letterBlob], letterFileName, { type: 'application/pdf' });
+      startBackgroundUpload(letterFile, letterPath, 'OD Letter', 'application/pdf');
+
     } catch (err: any) {
-      clearTimeout(timeoutId);
       console.error("--- SUBMISSION FAILED ---");
       console.error("Error Object:", err);
-      setError(`Error: ${err.message || 'Unknown error'}. Check console for details.`);
-    } finally {
+      setError(`Error: ${err.message || 'Unknown error'}`);
       setLoading(false);
     }
   };
@@ -377,13 +313,32 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
                 const start = Date.now();
                 console.log("--- SYSTEM CHECK START ---");
                 try {
+                  // 1. Check connection
                   const { data, error } = await supabase.from('profiles').select('count').limit(1);
                   const duration = Date.now() - start;
+                  
+                  // 2. Check key format
+                  const anonKey = (supabase as any).supabaseKey || '';
+                  const isStandardKey = anonKey.startsWith('eyJ');
+                  const isManagementKey = anonKey.startsWith('sb_publishable_');
+                  
                   if (error) throw error;
-                  alert(`System Check: SUCCESS!\nResponse time: ${duration}ms\nConnection to Supabase is active.`);
+                  
+                  let msg = `System Check: SUCCESS!\n`;
+                  msg += `Response time: ${duration}ms\n`;
+                  msg += `Connection to Supabase is active.\n\n`;
+                  
+                  if (isManagementKey) {
+                    msg += `❌ CRITICAL ERROR: You are using a 'Management API' key (starts with sb_publishable_). This key CANNOT be used to access the database.\n\n`;
+                    msg += `FIX: Go to Supabase Dashboard > Project Settings > API and copy the 'anon' public key (starts with 'eyJ').`;
+                  } else if (!isStandardKey) {
+                    msg += `⚠️ WARNING: Your Supabase Anon Key format looks unusual (doesn't start with 'eyJ'). This might cause issues with some database operations.`;
+                  }
+                  
+                  alert(msg);
                 } catch (err: any) {
                   console.error("System Check Failed:", err);
-                  alert(`System Check: FAILED!\nError: ${err.message}\nCheck console for full details.`);
+                  alert(`System Check: FAILED!\nError: ${err.message}\n\nPossible causes:\n1. Incorrect Supabase URL/Key\n2. Database is paused\n3. Network is blocking the request\n4. RLS policies are too restrictive`);
                 }
               }}
               className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-900 shadow-lg shadow-slate-500/20 transition-all active:scale-95"
@@ -535,9 +490,91 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
           <input name="organization_location" required value={formData.organization_location} onChange={handleInputChange} className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none shadow-sm" placeholder="Organization Location (e.g. Chennai)" />
         </div>
 
+        <div className="space-y-5 pt-2">
+          <h2 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] font-mono flex items-center gap-2">
+            <span className="w-8 h-[1px] bg-slate-200"></span> 03 TEAM COMPOSITION
+          </h2>
+          
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-[2rem] border border-slate-100 dark:border-gray-700 shadow-sm space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <input 
+                placeholder="Member Name" 
+                value={teamMemberInput.name} 
+                onChange={e => setTeamMemberInput({...teamMemberInput, name: e.target.value})}
+                className="w-full bg-slate-50 dark:bg-gray-700 text-sm px-5 py-3 rounded-xl border border-slate-100 outline-none focus:border-blueprint-blue transition-colors"
+              />
+              <input 
+                placeholder="Register No" 
+                value={teamMemberInput.register_no} 
+                onChange={e => setTeamMemberInput({...teamMemberInput, register_no: e.target.value})}
+                className="w-full bg-slate-50 dark:bg-gray-700 text-sm px-5 py-3 rounded-xl border border-slate-100 outline-none focus:border-blueprint-blue transition-colors font-mono"
+              />
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <input 
+                placeholder="Roll No" 
+                value={teamMemberInput.roll_no} 
+                onChange={e => setTeamMemberInput({...teamMemberInput, roll_no: e.target.value})}
+                className="w-full bg-slate-50 dark:bg-gray-700 text-sm px-5 py-3 rounded-xl border border-slate-100 outline-none focus:border-blueprint-blue transition-colors font-mono"
+              />
+              <select 
+                value={teamMemberInput.year} 
+                onChange={e => setTeamMemberInput({...teamMemberInput, year: e.target.value})}
+                className="w-full bg-slate-50 dark:bg-gray-700 text-sm px-4 py-3 rounded-xl border border-slate-100 outline-none"
+              >
+                <option value="1">1st Year</option>
+                <option value="2">2nd Year</option>
+                <option value="3">3rd Year</option>
+                <option value="4">4th Year</option>
+              </select>
+              <select 
+                value={teamMemberInput.department} 
+                onChange={e => setTeamMemberInput({...teamMemberInput, department: e.target.value})}
+                className="w-full bg-slate-50 dark:bg-gray-700 text-sm px-4 py-3 rounded-xl border border-slate-100 outline-none col-span-2"
+              >
+                {DEPARTMENTS.map(dept => (
+                  <option key={dept} value={dept}>{dept}</option>
+                ))}
+              </select>
+            </div>
+            <button 
+              type="button" 
+              onClick={addTeamMember}
+              className="w-full py-3 bg-slate-100 dark:bg-gray-700 hover:bg-blueprint-blue hover:text-white text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+            >
+              <UserPlus size={14} /> Add Member to Squad
+            </button>
+          </div>
+
+          {formData.team_members.length > 0 && (
+            <div className="space-y-3 animate-in fade-in slide-in-from-top-4 duration-500">
+              {formData.team_members.map((member, idx) => (
+                <div key={idx} className="flex items-center justify-between p-4 bg-white dark:bg-gray-800 rounded-2xl border border-slate-100 dark:border-gray-700 shadow-sm group">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-slate-50 dark:bg-gray-700 flex items-center justify-center text-blueprint-blue font-black text-xs">
+                      {idx + 1}
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-slate-900 dark:text-gray-100">{member.name}</p>
+                      <p className="text-[10px] text-slate-400 font-mono uppercase">{member.register_no} • {member.roll_no}</p>
+                    </div>
+                  </div>
+                  <button 
+                    type="button"
+                    onClick={() => removeTeamMember(idx)}
+                    className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         <div className="space-y-5 pt-2 pb-8">
            <h2 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] font-mono flex items-center gap-2">
-            <span className="w-8 h-[1px] bg-slate-200"></span> 03 DOCUMENTATION
+            <span className="w-8 h-[1px] bg-slate-200"></span> 04 DOCUMENTATION
           </h2>
            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
              <label className={`h-28 border-2 rounded-2xl flex flex-col items-center justify-center cursor-pointer transition-all duration-300 ${posterFile ? 'border-blueprint-blue bg-blue-50/50 shadow-inner' : 'border-dashed border-slate-300 bg-white hover:border-slate-400 hover:bg-slate-50'}`}>

@@ -19,11 +19,16 @@ const getEnv = (key: string, fallback: string): string => {
 };
 
 const supabaseUrl = getEnv('SUPABASE_URL', 'https://kjbqmczcmzuqtqmltoml.supabase.co');
-const supabaseAnonKey = getEnv('SUPABASE_ANON_KEY', 'sb_publishable_3sO9BGar1mN32EZ9k1ER7A_JreG-8IN');
+const supabaseAnonKey = getEnv('SUPABASE_ANON_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtqYnFtY3pjbXp1cXRxbWx0b21sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEwNDU3MDIsImV4cCI6MjA4NjYyMTcwMn0.klXrOu4tB_5l8L9X9wz4eMMx-YEz55cFjAzh9qhl2AA');
 
-console.log("[SUPABASE] Initializing with URL:", supabaseUrl);
-if (supabaseAnonKey.startsWith('sb_publishable_')) {
-  console.warn("[SUPABASE] Warning: The Anon Key starts with 'sb_publishable_'. This is unusual for Supabase (standard keys start with 'eyJ'). Please verify your VITE_SUPABASE_ANON_KEY.");
+export let configError: string | null = null;
+
+if (!supabaseAnonKey) {
+  configError = "VITE_SUPABASE_ANON_KEY is missing. Database operations will fail.";
+  console.error(`[SUPABASE] ERROR: ${configError}`);
+} else if (supabaseAnonKey.startsWith('sb_publishable_')) {
+  configError = "You are using a 'Management API' key (starts with sb_publishable_) instead of an 'Anon' key. Go to Project Settings > API in Supabase and copy the 'anon' public key (which starts with 'eyJ').";
+  console.error(`[SUPABASE] CRITICAL ERROR: ${configError}`);
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey || 'MISSING_KEY');

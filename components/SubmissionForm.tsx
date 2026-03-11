@@ -191,6 +191,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
     setError(null);
 
     try {
+      alert("🚀 Step 1: Preparing data and file paths...");
       console.log("--- SUBMISSION START (DATABASE-FIRST) ---");
       
       // Step 1: Prepare all file paths and predict URLs immediately
@@ -238,8 +239,11 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
       const letterPath = `od_letters/${letterFileName}`; // Strictly od_letters/
       const letterUrl = supabase.storage.from('od-files').getPublicUrl(letterPath).data.publicUrl;
 
+      alert("📄 Step 2: Generating OD Requisition PDF...");
       // Step 3: DATABASE INSERTION (PRIORITY)
       console.log("Step 3: Inserting into database...");
+      console.table(requestDataForPDF);
+
       const { data: insertedData, error: dbError } = await supabase.from('od_requests').insert([
         {
           ...requestDataForPDF,
@@ -258,12 +262,16 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
           geotag_photo_url: null,
           certificate_url: null,
         },
-      ]).select().single();
+      ]).select(); // Removed .single() for robustness
 
       if (dbError) {
-        console.error("Database Insert Error:", dbError);
-        throw dbError;
+        console.error("Database Insert Error Details:", dbError);
+        alert(`❌ Database Error: ${dbError.message}`);
+        throw new Error(`Database Error: ${dbError.message} (Code: ${dbError.code})`);
       }
+
+      alert("✅ Step 3: Database Saved! Finalizing...");
+      console.log("Database response:", insertedData);
 
       // Step 4: SUCCESS UI (IMMEDIATE)
       console.log("Step 4: Database confirmed. Showing success UI.");
@@ -313,32 +321,42 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
                 const start = Date.now();
                 console.log("--- SYSTEM CHECK START ---");
                 try {
-                  // 1. Check connection
-                  const { data, error } = await supabase.from('profiles').select('count').limit(1);
+                  // 1. Check connection & Table existence
+                  const { data: profileCheck, error: profileError } = await supabase.from('profiles').select('id').limit(1);
+                  if (profileError) throw new Error(`Profiles table check failed: ${profileError.message}`);
+                  
+                  const { data: odCheck, error: odError } = await supabase.from('od_requests').select('id').limit(1);
+                  if (odError) throw new Error(`OD Requests table check failed: ${odError.message}`);
+
+                  // 2. Check Storage Bucket
+                  const { data: buckets, error: bucketError } = await supabase.storage.listBuckets();
+                  if (bucketError) throw new Error(`Storage check failed: ${bucketError.message}`);
+                  const hasBucket = buckets.some(b => b.name === 'od-files');
+                  
                   const duration = Date.now() - start;
                   
-                  // 2. Check key format
+                  // 3. Check key format
                   const anonKey = (supabase as any).supabaseKey || '';
                   const isStandardKey = anonKey.startsWith('eyJ');
                   const isManagementKey = anonKey.startsWith('sb_publishable_');
                   
-                  if (error) throw error;
+                  let msg = `✅ System Check: SUCCESS!\n`;
+                  msg += `⏱️ Response time: ${duration}ms\n`;
+                  msg += `📂 Tables: Found 'profiles' and 'od_requests'\n`;
+                  msg += `📦 Storage: 'od-files' bucket is ${hasBucket ? 'ACTIVE' : 'MISSING'}\n\n`;
                   
-                  let msg = `System Check: SUCCESS!\n`;
-                  msg += `Response time: ${duration}ms\n`;
-                  msg += `Connection to Supabase is active.\n\n`;
-                  
+                  if (!hasBucket) {
+                    msg += `❌ CRITICAL: 'od-files' bucket not found in Storage. Please create it.\n\n`;
+                  }
+
                   if (isManagementKey) {
-                    msg += `❌ CRITICAL ERROR: You are using a 'Management API' key (starts with sb_publishable_). This key CANNOT be used to access the database.\n\n`;
-                    msg += `FIX: Go to Supabase Dashboard > Project Settings > API and copy the 'anon' public key (starts with 'eyJ').`;
-                  } else if (!isStandardKey) {
-                    msg += `⚠️ WARNING: Your Supabase Anon Key format looks unusual (doesn't start with 'eyJ'). This might cause issues with some database operations.`;
+                    msg += `❌ KEY ERROR: You are using a 'Management API' key. This will NOT work for database operations.\n`;
                   }
                   
                   alert(msg);
                 } catch (err: any) {
                   console.error("System Check Failed:", err);
-                  alert(`System Check: FAILED!\nError: ${err.message}\n\nPossible causes:\n1. Incorrect Supabase URL/Key\n2. Database is paused\n3. Network is blocking the request\n4. RLS policies are too restrictive`);
+                  alert(`❌ System Check: FAILED!\n\nError: ${err.message}\n\nCommon Fixes:\n1. Run the SQL schema I gave you.\n2. Create the 'od-files' bucket.\n3. Ensure your Anon Key starts with 'eyJ'.`);
                 }
               }}
               className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-900 shadow-lg shadow-slate-500/20 transition-all active:scale-95"

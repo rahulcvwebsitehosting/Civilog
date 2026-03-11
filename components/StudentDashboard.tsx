@@ -125,13 +125,20 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
       }
 
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        console.error("Fetch error details:", error);
+        throw error;
+      }
       if (data) {
         console.log(`Fetched ${data.length} requests for feed`);
         setRequests(data as ODRequest[]);
       }
     } catch (err: any) {
       console.error("Error fetching feed:", err);
+      // Show error to user if it's a permission or schema issue
+      if (err.message) {
+        alert(`Feed Sync Error: ${err.message}\n\nThis usually means the database tables are missing or RLS is blocking access.`);
+      }
     } finally {
       clearTimeout(timeoutId);
       setLoading(false);

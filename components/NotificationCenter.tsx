@@ -76,7 +76,7 @@ const NotificationCenter: React.FC<{ userId: string }> = ({ userId }) => {
       </button>
 
       {showDropdown && (
-        <div className="absolute right-0 mt-3 w-80 bg-white rounded-2xl border shadow-2xl z-[120] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="absolute right-0 mt-3 w-[calc(100vw-2rem)] sm:w-80 bg-white rounded-2xl border shadow-2xl z-[200] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 origin-top-right">
           <div className="p-4 border-b bg-slate-50 flex justify-between items-center">
             <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">System Alerts</h3>
             <button onClick={() => setShowDropdown(false)} className="text-slate-400 hover:text-slate-600"><X size={16}/></button>

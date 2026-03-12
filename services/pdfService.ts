@@ -175,12 +175,63 @@ export const generateODDocument = async (request: ODRequest, studentProfile: Pro
   currentY += (splitBody.length * 7) + 15;
 
   doc.text('Thanking You,', MARGIN, currentY); currentY += 10;
-  doc.text('Yours faithfully,', MARGIN, currentY); currentY += 20;
+  doc.text('Yours faithfully,', MARGIN, currentY); currentY += 5;
+
+  // --- 4. Signatures Section ---
+  const sigWidth = 35;
+  const sigHeight = 15;
+  const sigsPerRow = 3;
+  const sigSpacingX = 45;
+  const sigSpacingY = 25;
+  
+  let sigX = MARGIN;
+  let sigY = currentY;
+
+  // Lead Student Signature
+  if (studentProfile.signature_url) {
+    const studentSig = await loadImage(studentProfile.signature_url);
+    if (studentSig) {
+      doc.addImage(studentSig, 'PNG', sigX, sigY, sigWidth, sigHeight);
+    }
+  }
+  doc.setFontSize(9);
+  doc.text(request.student_name, sigX, sigY + sigHeight + 4);
+  doc.setFontSize(12);
+
+  // Team Member Signatures
+  for (let i = 0; i < teamMembers.length; i++) {
+    const member = teamMembers[i];
+    const col = (i + 1) % sigsPerRow;
+    const row = Math.floor((i + 1) / sigsPerRow);
+    
+    const mX = MARGIN + (col * sigSpacingX);
+    const mY = currentY + (row * sigSpacingY);
+
+    if (member.signature_url) {
+      const memberSig = await loadImage(member.signature_url);
+      if (memberSig) {
+        doc.addImage(memberSig, 'PNG', mX, mY, sigWidth, sigHeight);
+      }
+    }
+    doc.setFontSize(9);
+    doc.text(member.name, mX, mY + sigHeight + 4);
+    doc.setFontSize(12);
+  }
+
+  // Adjust currentY for faculty section
+  const totalRows = Math.ceil((teamMembers.length + 1) / sigsPerRow);
+  currentY += (totalRows * sigSpacingY) + 10;
 
   // --- Footer Signature Section (Strictly single-page) ---
   const signatureX = PAGE_WIDTH - MARGIN - 60;
 
   if (facultyProfile) {
+    if (facultyProfile.signature_url) {
+      const facultySig = await loadImage(facultyProfile.signature_url);
+      if (facultySig) {
+        doc.addImage(facultySig, 'PNG', signatureX, currentY - 5, sigWidth, sigHeight);
+      }
+    }
     currentY += 20;
     doc.setFont('times', 'bold');
     doc.text(`${facultyProfile.full_name}`, signatureX, currentY);

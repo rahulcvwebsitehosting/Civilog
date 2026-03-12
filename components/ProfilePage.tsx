@@ -47,8 +47,50 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ profile, onUpdate }) => {
     semester: profile?.semester || '1',
     designation: profile?.designation || '',
     department: profile?.department || 'Computer Science and Engineering',
-    is_hod: profile?.is_hod || false
+    is_hod: profile?.is_hod || false,
+    signature_url: profile?.signature_url || null
   });
+
+  const handleSignatureUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${profile.id}_signature.${fileExt}`;
+      const filePath = `signatures/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('od-files')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('od-files')
+        .getPublicUrl(filePath);
+
+      setFormData(prev => ({ ...prev, signature_url: publicUrl }));
+      
+      // Update profile immediately in DB
+      const { error: dbError } = await supabase
+        .from('profiles')
+        .update({ signature_url: publicUrl })
+        .eq('id', profile.id);
+
+      if (dbError) throw dbError;
+
+      setSuccess(true);
+      onUpdate();
+    } catch (err: any) {
+      setError(err.message || 'Signature upload failed.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (!profile) return null;
 
@@ -101,6 +143,30 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ profile, onUpdate }) => {
             <div className="w-24 h-24 bg-blueprint-blue text-white rounded-[1.5rem] flex items-center justify-center mx-auto mb-6 text-4xl font-black">{profile.full_name?.charAt(0) || '?'}</div>
             <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">{profile.full_name || 'User'}</h3>
             <p className="text-[10px] text-slate-500 font-mono mt-1">{profile.email}</p>
+          </div>
+
+          <div className="bg-white rounded-[2rem] border p-8 shadow-sm">
+            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+              <PenTool size={14} /> Official Signature
+            </h4>
+            {formData.signature_url ? (
+              <div className="relative group">
+                <div className="bg-slate-50 rounded-xl p-4 border border-dashed border-slate-200">
+                  <img src={formData.signature_url} alt="Signature" className="max-h-20 mx-auto" referrerPolicy="no-referrer" />
+                </div>
+                <label className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl cursor-pointer">
+                  <Upload className="text-white" size={24} />
+                  <input type="file" className="hidden" accept="image/*" onChange={handleSignatureUpload} />
+                </label>
+              </div>
+            ) : (
+              <label className="flex flex-col items-center justify-center py-8 bg-slate-50 rounded-xl border border-dashed border-slate-300 cursor-pointer hover:bg-slate-100 transition-colors">
+                <Upload className="text-slate-400 mb-2" size={24} />
+                <span className="text-[10px] font-bold text-slate-500 uppercase">Upload Signature</span>
+                <input type="file" className="hidden" accept="image/*" onChange={handleSignatureUpload} />
+              </label>
+            )}
+            <p className="text-[9px] text-slate-400 mt-3 italic">Used for generating official OD letters.</p>
           </div>
         </div>
 

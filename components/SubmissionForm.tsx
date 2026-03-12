@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { supabase } from '../supabaseClient';
-import { Loader2, UserPlus, Trash2, Phone, Tag, MapPin, AlertCircle, Upload, Info, CheckCircle2, Calendar, Beaker, Image as ImageIcon, FileText, CreditCard, X, User, Database } from 'lucide-react';
+import { Loader2, UserPlus, Trash2, Phone, Tag, MapPin, AlertCircle, Upload, Info, CheckCircle2, Calendar, Beaker, Image as ImageIcon, FileText, CreditCard, X, User, Database, PenTool } from 'lucide-react';
 import { SubmissionFormData, Profile, TeamMember, ODRequest } from '../types';
 import { generateODDocument } from '../services/pdfService';
 
@@ -44,8 +44,11 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
     register_no: '',
     roll_no: '',
     year: '2',
-    department: profile?.department || 'Computer Science and Engineering'
+    department: profile?.department || 'Computer Science and Engineering',
+    signature_url: null
   });
+
+  const [teamMemberSignature, setTeamMemberSignature] = useState<File | null>(null);
 
   if (!profile) return null;
 
@@ -146,19 +149,45 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
     }
   };
 
-  const addTeamMember = () => {
+  const addTeamMember = async () => {
     if (teamMemberInput.name && teamMemberInput.register_no && teamMemberInput.roll_no && teamMemberInput.department) {
+      let signatureUrl = null;
+      
+      if (teamMemberSignature) {
+        setLoading(true);
+        try {
+          const ext = teamMemberSignature.name.split('.').pop();
+          const fileName = `${Date.now()}_${teamMemberInput.register_no}_sig.${ext}`;
+          const filePath = `signatures/${fileName}`;
+          
+          const { error: uploadError } = await supabase.storage
+            .from('od-files')
+            .upload(filePath, teamMemberSignature);
+            
+          if (uploadError) throw uploadError;
+          
+          signatureUrl = supabase.storage.from('od-files').getPublicUrl(filePath).data.publicUrl;
+        } catch (err: any) {
+          setError(`Member signature upload failed: ${err.message}`);
+          setLoading(false);
+          return;
+        }
+      }
+
       setFormData(prev => ({ 
         ...prev, 
-        team_members: [...prev.team_members, { ...teamMemberInput }] 
+        team_members: [...prev.team_members, { ...teamMemberInput, signature_url: signatureUrl }] 
       }));
       setTeamMemberInput({ 
         name: '', 
         register_no: '', 
         roll_no: '', 
         year: '2', 
-        department: profile.department || 'Computer Science and Engineering' 
+        department: profile.department || 'Computer Science and Engineering',
+        signature_url: null
       });
+      setTeamMemberSignature(null);
+      setLoading(false);
     } else {
       setError('Please fill all member fields.');
     }
@@ -558,12 +587,42 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
                 ))}
               </select>
             </div>
+            
+            <div className="flex items-center gap-4">
+              <label className={`flex-1 h-12 border-2 rounded-xl flex items-center justify-center cursor-pointer transition-all ${teamMemberSignature ? 'border-blueprint-blue bg-blue-50/50' : 'border-dashed border-slate-200 bg-slate-50 hover:border-slate-300'}`}>
+                <PenTool size={16} className={teamMemberSignature ? 'text-blueprint-blue mr-2' : 'text-slate-400 mr-2'} />
+                <span className="text-[10px] font-bold text-slate-500 uppercase truncate px-2">
+                  {teamMemberSignature ? teamMemberSignature.name : 'Upload Member Signature'}
+                </span>
+                <input 
+                  type="file" 
+                  className="hidden" 
+                  accept="image/*" 
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) setTeamMemberSignature(file);
+                  }} 
+                />
+              </label>
+              {teamMemberSignature && (
+                <button 
+                  type="button" 
+                  onClick={() => setTeamMemberSignature(null)}
+                  className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+
             <button 
               type="button" 
               onClick={addTeamMember}
-              className="w-full py-3 bg-slate-100 dark:bg-gray-700 hover:bg-blueprint-blue hover:text-white text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+              disabled={loading}
+              className="w-full py-3 bg-slate-100 dark:bg-gray-700 hover:bg-blueprint-blue hover:text-white text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 disabled:opacity-50"
             >
-              <UserPlus size={14} /> Add Member to Squad
+              {loading ? <Loader2 className="animate-spin" size={14} /> : <UserPlus size={14} />}
+              Add Member to Squad
             </button>
           </div>
 

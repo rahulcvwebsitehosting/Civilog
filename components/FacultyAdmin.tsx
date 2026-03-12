@@ -171,6 +171,17 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
   }, [activeStatus, role, requestId]);
 
   const handleAction = async (request: ODRequest, approve: boolean, confirmed: boolean = false) => {
+    // Permission check
+    const canPerformAction = 
+      role === 'admin' || 
+      (role === 'advisor' && request.status === 'Pending Advisor') ||
+      (role === 'hod' && request.status === 'Pending HOD');
+
+    if (!canPerformAction) {
+      alert(`As ${role.toUpperCase()}, you are not authorized to ${approve ? 'approve' : 'reject'} requests in '${request.status}' state.`);
+      return;
+    }
+
     if (approve && !confirmed) {
       setConfirmApprovalRequest(request);
       return;
@@ -188,7 +199,15 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
 
         if (role === 'hod' || (role === 'admin' && request.status === 'Pending HOD')) {
           // HOD Approval Logic (Final Sanction)
-          const studentProfile: Profile = {
+          
+          // Fetch real student profile to get signature_url
+          const { data: studentProfileData } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', request.user_id)
+            .single();
+
+          const studentProfile: Profile = studentProfileData || {
             id: request.user_id,
             email: '',
             role: 'student',
@@ -266,6 +285,17 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
               type: 'success',
               read: false
             });
+            
+            // Also notify the advisor that their recommendation was finalized
+            if (request.advisor_id) {
+              await supabase.from('notifications').insert({
+                user_id: request.advisor_id,
+                message: `The OD request for ${request.student_name} you recommended has been officially sanctioned by HOD.`,
+                type: 'info',
+                read: false
+              });
+            }
+
             await supabase.from('od_requests').update({ notification_sent: true }).eq('id', request.id);
           } catch (notificationErr) {
             console.error("Failed to process notifications:", notificationErr);
@@ -329,6 +359,14 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
               }
               await supabase.from('od_requests').update({ notification_sent: true }).eq('id', request.id);
             }
+
+            // Notify Student about Advisor Approval
+            await supabase.from('notifications').insert({
+              user_id: request.user_id,
+              message: `Your OD request for ${request.event_title} has been approved by your Advisor and is now pending HOD authorization.`,
+              type: 'info',
+              read: false
+            });
           } catch (notifyErr) {
             console.error("HOD notification failed:", notifyErr);
           }
@@ -496,6 +534,13 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
     XLSX.writeFile(wb, `ESEC_OD_Registry_${activeStatus}_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
+  const canApprove = (request: ODRequest) => {
+    if (role === 'admin') return true;
+    if (role === 'advisor' && request.status === 'Pending Advisor') return true;
+    if (role === 'hod' && request.status === 'Pending HOD') return true;
+    return false;
+  };
+
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-20 relative">
       {/* Approval Confirmation Modal */}
@@ -570,7 +615,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         </div>
       )}
 
-      <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-center gap-4 relative z-50">
         <div>
           <h2 className="text-3xl font-black text-slate-900 tracking-tight italic uppercase">
             {role === 'admin' ? 'MASTER TERMINAL' : role === 'hod' ? 'HOD TERMINAL' : 'ADVISOR TERMINAL'}
@@ -879,8 +924,8 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                   request={request}
                   isFaculty={true}
                   isProcessing={processingId === request.id}
-                  onApprove={(req) => handleAction(req, true)}
-                  onReject={(req) => handleAction(req, false)}
+                  onApprove={canApprove(request) ? (req) => handleAction(req, true) : undefined}
+                  onReject={canApprove(request) ? (req) => handleAction(req, false) : undefined}
                 />
                 
                 <div className="absolute top-4 right-16 flex gap-2">

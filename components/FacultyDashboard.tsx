@@ -80,8 +80,13 @@ const FacultyDashboard: React.FC = () => {
       if (approve) {
         // Fix: generateODLetter requires studentProfile and optionally facultyProfile.
         // We fetch the lead student's metadata to retrieve their digital signature for the PDF.
-        const { data: userData } = await supabase.auth.admin.getUserById(request.user_id);
-        const studentProfile: Profile = {
+        const { data: studentProfileData } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', request.user_id)
+          .single();
+
+        const studentProfile: Profile = studentProfileData || {
           id: request.user_id,
           email: '',
           role: 'student',
@@ -103,10 +108,22 @@ const FacultyDashboard: React.FC = () => {
 
         const { error: dbError } = await supabase
           .from('od_requests')
-          .update({ status: 'Approved', od_letter_url: publicUrl })
+          .update({ status: 'Approved', od_letter_url: publicUrl, notification_sent: true })
           .eq('id', request.id);
           
         if (dbError) throw dbError;
+
+        // Notify Student about Approval
+        try {
+          await supabase.from('notifications').insert({
+            user_id: request.user_id,
+            message: `Your OD request for ${request.event_title} has been approved. You can now download your OD letter.`,
+            type: 'success',
+            read: false
+          });
+        } catch (notifyErr) {
+          console.error("Notification failed:", notifyErr);
+        }
       } else {
         const { error: dbError } = await supabase
           .from('od_requests')
@@ -167,7 +184,7 @@ const FacultyDashboard: React.FC = () => {
         )}
       </AnimatePresence>
 
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center relative z-50">
         <div>
           <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Faculty Dashboard</h2>
           <p className="text-slate-500 mt-1">Review and manage pending On-Duty requests.</p>

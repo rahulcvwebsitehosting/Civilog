@@ -134,6 +134,42 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
     fetchRequests();
   }, [profile.id]);
 
+  // Sync notifications for earlier approvals that might have been missed
+  useEffect(() => {
+    const syncNotifications = async () => {
+      if (!profile.id || requests.length === 0) return;
+
+      const unsentApprovals = requests.filter(r => 
+        (r.status === 'Approved' || r.status === 'Completed') && 
+        r.notification_sent === false
+      );
+
+      if (unsentApprovals.length === 0) return;
+
+      for (const req of unsentApprovals) {
+        try {
+          // Create notification
+          await supabase.from('notifications').insert({
+            user_id: profile.id,
+            message: `Your OD request for ${req.event_title} has been officially sanctioned. You can now download your OD letter.`,
+            type: 'success',
+            read: false
+          });
+
+          // Mark as sent
+          await supabase.from('od_requests').update({ notification_sent: true }).eq('id', req.id);
+        } catch (err) {
+          console.error("Failed to sync notification for request:", req.id, err);
+        }
+      }
+      
+      // Refresh requests to reflect notification_sent: true
+      fetchRequests();
+    };
+
+    syncNotifications();
+  }, [requests.length, profile.id]); // Use requests.length to avoid infinite loop if fetchRequests is called inside
+
   const handleDelete = async (request: ODRequest) => {
     if (request.status === 'Approved' || request.status === 'Completed' || request.status === 'Pending HOD') {
       alert("System Violation: Authorized or partially authorized logs cannot be deleted.");
@@ -313,12 +349,12 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
 
   return (
     <div className="max-w-2xl mx-auto pb-24 relative">
-      <div className="mb-8 flex justify-between items-end bg-white/50 backdrop-blur-sm p-6 rounded-2xl border border-blueprint-blue/10">
+      <div className="mb-8 flex justify-between items-end bg-white/50 backdrop-blur-sm p-6 rounded-2xl border border-blueprint-blue/10 relative z-50">
         <div>
           <h2 className="text-3xl font-black text-blueprint-blue tracking-tighter uppercase italic">ACTIVITY FEED</h2>
           <p className="text-[10px] text-pencil-gray font-technical uppercase tracking-[0.2em] font-bold">Activity Log • {profile.department || 'ESEC'}</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <NotificationCenter userId={profile.id} />
           <button 
             onClick={fetchRequests}

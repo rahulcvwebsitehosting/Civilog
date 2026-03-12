@@ -3,7 +3,7 @@ import React from 'react';
 import { Terminal, Github, Linkedin, MessageCircle, MapPin, GraduationCap, Cpu, Globe, Rocket, ShieldCheck, ExternalLink, ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
-const CTOProfile: React.FC<{ signature?: string | null }> = ({ signature }) => {
+const CTOProfile: React.FC = () => {
   const techRadar = [
     { category: 'Web Dev', skills: ['Next.js', 'React', 'Tailwind CSS', 'TypeScript', 'Node.js'] },
     { category: 'AI & Intelligence', skills: ['Gemini API', 'LLM Integration', 'Multi-modal LLMs', 'AI Agents'] },
@@ -198,11 +198,7 @@ const CTOProfile: React.FC<{ signature?: string | null }> = ({ signature }) => {
             <div className="flex flex-col items-center justify-center space-y-4 text-center">
               <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.4em] mb-2">ENGINEERING APPROVED</p>
               <div className="w-full h-24 flex items-center justify-center bg-slate-50 rounded-2xl border border-slate-200">
-                {signature ? (
-                   <img src={signature} alt="Digital Signature" className="max-w-full max-h-full object-contain grayscale opacity-60" />
-                ) : (
-                   <div className="text-[10px] font-mono text-slate-300 italic">Signature Not Staged</div>
-                )}
+                 <div className="text-[10px] font-mono text-slate-300 italic">System Authenticated</div>
               </div>
               <p className="text-[8px] font-mono text-slate-400 uppercase">Electronically Authenticated Submittal</p>
             </div>

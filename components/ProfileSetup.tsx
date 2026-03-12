@@ -20,7 +20,9 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ profile, onComplete }) => {
     full_name: profile?.full_name || '',
     identification_no: profile?.identification_no || '',
     roll_no: profile?.roll_no || '',
+    phone_number: profile?.phone_number || '',
     year: profile?.year || '1',
+    semester: profile?.semester || '1',
     designation: profile?.designation || '',
     department: profile?.department || 'Computer Science and Engineering',
     is_hod: profile?.is_hod || false
@@ -47,18 +49,8 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ profile, onComplete }) => {
     setError(null);
 
     try {
-      let signatureUrl = null;
-      if (profile.role === 'faculty' && selectedFile) {
-        const fileExt = selectedFile.name.split('.').pop();
-        const fileName = `sig_${profile.id}_${Date.now()}.${fileExt}`;
-        const { error: uploadError } = await supabase.storage.from('od-files').upload(`signatures/${fileName}`, selectedFile);
-        if (uploadError) throw uploadError;
-        const { data: { publicUrl } } = supabase.storage.from('od-files').getPublicUrl(`signatures/${fileName}`);
-        signatureUrl = publicUrl;
-      }
-
       const { error: updateError } = await supabase.auth.updateUser({
-        data: { ...formData, signature_url: signatureUrl, is_profile_complete: true }
+        data: { ...formData, is_profile_complete: true }
       });
 
       if (updateError) throw updateError;
@@ -69,7 +61,6 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ profile, onComplete }) => {
         email: profile.email,
         role: profile.role,
         ...formData,
-        signature_url: signatureUrl,
         is_profile_complete: true
       });
 
@@ -112,30 +103,64 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ profile, onComplete }) => {
               />
 
               {profile.role === 'student' ? (
-                <div className="grid grid-cols-2 gap-4">
-                  <input
-                    name="roll_no"
-                    required
-                    value={formData.roll_no}
-                    onChange={handleInputChange}
-                    className="w-full px-5 py-4 rounded-2xl bg-slate-50 border border-slate-200 font-mono text-sm outline-none"
-                    placeholder="Roll No"
-                  />
-                  <select
-                    name="year"
-                    value={formData.year}
-                    onChange={handleInputChange}
-                    className="w-full px-5 py-4 rounded-2xl bg-slate-50 border border-slate-200 text-sm outline-none"
-                  >
-                    <option value="1">1st Year</option>
-                    <option value="2">2nd Year</option>
-                    <option value="3">3rd Year</option>
-                    <option value="4">4th Year</option>
-                    {formData.department === 'M.Tech. CSE (5-Years)' && (
-                      <option value="5">5th Year (M.Tech)</option>
-                    )}
-                  </select>
-                </div>
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <input
+                      name="roll_no"
+                      required
+                      value={formData.roll_no}
+                      onChange={handleInputChange}
+                      className="w-full px-5 py-4 rounded-2xl bg-slate-50 border border-slate-200 font-mono text-sm outline-none"
+                      placeholder="Roll No"
+                    />
+                    <input
+                      name="phone_number"
+                      required
+                      type="tel"
+                      value={formData.phone_number}
+                      onChange={handleInputChange}
+                      className="w-full px-5 py-4 rounded-2xl bg-slate-50 border border-slate-200 text-sm outline-none"
+                      placeholder="Phone Number"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <select
+                      name="year"
+                      value={formData.year}
+                      onChange={handleInputChange}
+                      className="w-full px-5 py-4 rounded-2xl bg-slate-50 border border-slate-200 text-sm outline-none"
+                    >
+                      <option value="1">1st Year</option>
+                      <option value="2">2nd Year</option>
+                      <option value="3">3rd Year</option>
+                      <option value="4">4th Year</option>
+                      {formData.department === 'M.Tech. CSE (5-Years)' && (
+                        <option value="5">5th Year (M.Tech)</option>
+                      )}
+                    </select>
+                    <select
+                      name="semester"
+                      value={formData.semester}
+                      onChange={handleInputChange}
+                      className="w-full px-5 py-4 rounded-2xl bg-slate-50 border border-slate-200 text-sm outline-none"
+                    >
+                      <option value="1">1st Sem</option>
+                      <option value="2">2nd Sem</option>
+                      <option value="3">3rd Sem</option>
+                      <option value="4">4th Sem</option>
+                      <option value="5">5th Sem</option>
+                      <option value="6">6th Sem</option>
+                      <option value="7">7th Sem</option>
+                      <option value="8">8th Sem</option>
+                      {formData.department === 'M.Tech. CSE (5-Years)' && (
+                        <>
+                          <option value="9">9th Sem</option>
+                          <option value="10">10th Sem</option>
+                        </>
+                      )}
+                    </select>
+                  </div>
+                </>
               ) : (
                 <input
                   name="designation"
@@ -172,17 +197,6 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ profile, onComplete }) => {
                 ))}
               </select>
             </div>
-
-            {profile.role === 'faculty' && (
-              <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase text-slate-500 ml-1">Faculty Digital Signature</label>
-                <label className="w-full h-24 bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:bg-amber-50 transition-all">
-                  <Upload size={20} className="text-slate-400 mb-1" />
-                  <span className="text-[10px] font-bold uppercase">{selectedFile ? selectedFile.name : 'Upload Image'}</span>
-                  <input type="file" className="sr-only" accept="image/*" onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} />
-                </label>
-              </div>
-            )}
 
             {error && <div className="text-amber-700 text-[10px] font-bold uppercase">{error}</div>}
 

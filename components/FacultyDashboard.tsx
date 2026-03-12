@@ -2,8 +2,9 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { ODRequest, Profile } from '../types';
-import { CheckCircle, XCircle, ExternalLink, Loader2, RefreshCw, Paperclip, CreditCard } from 'lucide-react';
+import { CheckCircle, XCircle, ExternalLink, Loader2, RefreshCw, Paperclip, CreditCard, AlertCircle, Check, X } from 'lucide-react';
 import { generateODLetter } from '../services/pdfService';
+import { motion, AnimatePresence } from 'motion/react';
 
 // Utility function to format date as "01st October, 2026"
 const formatFancyDate = (dateString: string | null): string => {
@@ -29,6 +30,7 @@ const FacultyDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [facultyProfile, setFacultyProfile] = useState<Profile | null>(null);
+  const [confirmApprovalRequest, setConfirmApprovalRequest] = useState<ODRequest | null>(null);
 
   const fetchRequests = async () => {
     setLoading(true);
@@ -41,7 +43,6 @@ const FacultyDashboard: React.FC = () => {
         email: user.email || '',
         role: user.user_metadata?.role || 'faculty',
         full_name: user.user_metadata?.full_name || '',
-        signature_url: user.user_metadata?.signature_url || null,
       });
     }
 
@@ -67,8 +68,14 @@ const FacultyDashboard: React.FC = () => {
     fetchRequests();
   }, []);
 
-  const handleApproval = async (request: ODRequest, approve: boolean) => {
+  const handleApproval = async (request: ODRequest, approve: boolean, confirmed: boolean = false) => {
+    if (approve && !confirmed) {
+      setConfirmApprovalRequest(request);
+      return;
+    }
+
     setProcessingId(request.id);
+    setConfirmApprovalRequest(null);
     try {
       if (approve) {
         // Fix: generateODLetter requires studentProfile and optionally facultyProfile.
@@ -79,7 +86,6 @@ const FacultyDashboard: React.FC = () => {
           email: '',
           role: 'student',
           full_name: request.student_name,
-          signature_url: userData?.user?.user_metadata?.signature_url || null
         };
 
         const pdfBlob = await generateODLetter(request, studentProfile, facultyProfile || undefined);
@@ -119,7 +125,48 @@ const FacultyDashboard: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative">
+      {/* Approval Confirmation Modal */}
+      <AnimatePresence>
+        {confirmApprovalRequest && (
+          <div className="fixed inset-0 z-[150] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-[2rem] p-8 max-w-md w-full shadow-2xl border border-slate-200"
+            >
+              <div className="flex flex-col items-center text-center space-y-4">
+                <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center">
+                  <AlertCircle size={32} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900 uppercase tracking-tight">Confirm Approval</h3>
+                  <p className="text-sm text-slate-500 mt-2">
+                    Are you sure you want to approve the OD request for <span className="font-bold text-blue-600">{confirmApprovalRequest.student_name}</span>? 
+                    This will generate the official OD letter.
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-4 w-full pt-4">
+                  <button 
+                    onClick={() => setConfirmApprovalRequest(null)}
+                    className="px-6 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold uppercase text-xs tracking-widest hover:bg-slate-200 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={() => handleApproval(confirmApprovalRequest, true, true)}
+                    className="px-6 py-3 bg-blue-600 text-white rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Check size={14} /> Confirm
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Faculty Dashboard</h2>

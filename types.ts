@@ -18,11 +18,12 @@ export interface Profile {
   full_name?: string;
   identification_no?: string;
   roll_no?: string;
+  phone_number?: string;
   year?: string;
+  semester?: string;
   department?: string;
   designation?: string;
   is_hod?: boolean;
-  signature_url?: string | null;
   is_profile_complete?: boolean;
 }
 

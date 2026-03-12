@@ -37,14 +37,14 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ profile, onUpdate }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [selectedSignatureFile, setSelectedSignatureFile] = useState<File | null>(null);
-  const [signaturePreview, setSignaturePreview] = useState<string | null>(profile?.signature_url || null);
   
   const [formData, setFormData] = useState({
     full_name: profile?.full_name || '',
     identification_no: profile?.identification_no || '',
     roll_no: profile?.roll_no || '',
+    phone_number: profile?.phone_number || '',
     year: profile?.year || '1',
+    semester: profile?.semester || '1',
     designation: profile?.designation || '',
     department: profile?.department || 'Computer Science and Engineering',
     is_hod: profile?.is_hod || false
@@ -66,36 +66,14 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ profile, onUpdate }) => {
     setSuccess(false);
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 2 * 1024 * 1024) { setError('File too large.'); return; }
-      setSelectedSignatureFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => setSignaturePreview(reader.result as string);
-      reader.readAsDataURL(file);
-      setSuccess(false);
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
     try {
-      let signatureUrl = profile.signature_url;
-      if (profile.role === 'faculty' && selectedSignatureFile) {
-        const fileExt = selectedSignatureFile.name.split('.').pop();
-        const fileName = `sig_${profile.id}_${Date.now()}.${fileExt}`;
-        const { error: uploadError } = await supabase.storage.from('od-files').upload(`signatures/${fileName}`, selectedSignatureFile);
-        if (uploadError) throw uploadError;
-        const { data: { publicUrl } } = supabase.storage.from('od-files').getPublicUrl(`signatures/${fileName}`);
-        signatureUrl = publicUrl;
-      }
-
       const { error: updateError } = await supabase.auth.updateUser({
-        data: { ...formData, signature_url: signatureUrl }
+        data: { ...formData }
       });
 
       if (updateError) throw updateError;
@@ -135,6 +113,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ profile, onUpdate }) => {
                 {profile.role === 'student' ? (
                   <>
                     <input name="roll_no" required value={formData.roll_no} onChange={handleInputChange} className="w-full px-5 py-3.5 rounded-xl bg-slate-50 border outline-none font-mono text-sm" placeholder="Roll No" />
+                    <input name="phone_number" required type="tel" value={formData.phone_number} onChange={handleInputChange} className="w-full px-5 py-3.5 rounded-xl bg-slate-50 border outline-none text-sm" placeholder="Phone Number" />
                     <select name="year" value={formData.year} onChange={handleInputChange} className="w-full px-5 py-3.5 rounded-xl bg-slate-50 border outline-none text-sm">
                       <option value="1">1st Year</option>
                       <option value="2">2nd Year</option>
@@ -142,6 +121,22 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ profile, onUpdate }) => {
                       <option value="4">4th Year</option>
                       {formData.department === 'M.Tech. CSE (5-Years)' && (
                         <option value="5">5th Year (M.Tech)</option>
+                      )}
+                    </select>
+                    <select name="semester" value={formData.semester} onChange={handleInputChange} className="w-full px-5 py-3.5 rounded-xl bg-slate-50 border outline-none text-sm">
+                      <option value="1">1st Sem</option>
+                      <option value="2">2nd Sem</option>
+                      <option value="3">3rd Sem</option>
+                      <option value="4">4th Sem</option>
+                      <option value="5">5th Sem</option>
+                      <option value="6">6th Sem</option>
+                      <option value="7">7th Sem</option>
+                      <option value="8">8th Sem</option>
+                      {formData.department === 'M.Tech. CSE (5-Years)' && (
+                        <>
+                          <option value="9">9th Sem</option>
+                          <option value="10">10th Sem</option>
+                        </>
                       )}
                     </select>
                   </>
@@ -167,23 +162,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ profile, onUpdate }) => {
                   </div>
                 )}
               </div>
-
-              {profile.role === 'faculty' && (
-                <div className="space-y-4">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Faculty Digital Signature</label>
-                  <label className="w-full h-40 bg-slate-50 border-2 border-dashed rounded-[2rem] flex flex-col items-center justify-center cursor-pointer hover:bg-amber-50 transition-all">
-                    {signaturePreview ? (
-                      <img src={signaturePreview} className="max-w-full max-h-full object-contain p-4" alt="Preview" />
-                    ) : (
-                      <div className="text-slate-400 uppercase text-[10px] font-black flex flex-col items-center gap-2">
-                        <Upload size={24} />
-                        Upload Signature
-                      </div>
-                    )}
-                    <input type="file" className="sr-only" accept="image/*" onChange={handleFileChange} />
-                  </label>
-                </div>
-              )}
 
               {error && <div className="text-amber-700 text-[10px] font-black uppercase">{error}</div>}
               {success && <div className="text-amber-600 text-[10px] font-black uppercase">Profile Updated</div>}

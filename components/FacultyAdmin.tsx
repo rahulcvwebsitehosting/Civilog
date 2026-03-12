@@ -53,8 +53,9 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
   // Admin Filters
   const [selectedDept, setSelectedDept] = useState<string>('');
   const [selectedYear, setSelectedYear] = useState<string>('');
-  const [showSignatureModal, setShowSignatureModal] = useState(false);
-  const [signatureModalMessage, setSignatureModalMessage] = useState('');
+
+  // Approval Confirmation
+  const [confirmApprovalRequest, setConfirmApprovalRequest] = useState<ODRequest | null>(null);
 
   // Auth for Delete
   const [deleteCandidateId, setDeleteCandidateId] = useState<string | null>(null);
@@ -85,7 +86,6 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         email: user.email || '',
         role: user.user_metadata?.role || 'faculty',
         full_name: user.user_metadata?.full_name || '',
-        signature_url: user.user_metadata?.signature_url || null,
         department: user.user_metadata?.department || null,
         is_hod: user.user_metadata?.is_hod || false,
       };
@@ -170,15 +170,14 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
     fetchRequests();
   }, [activeStatus, role, requestId]);
 
-  const handleAction = async (request: ODRequest, approve: boolean) => {
-    // Admins are exempt from signature requirements
-    if (approve && role !== 'admin' && !facultyProfile?.signature_url) {
-      setSignatureModalMessage(role === 'advisor' ? "Advisor E-Signature is required for approval." : "HOD E-Signature is required for approval.");
-      setShowSignatureModal(true);
+  const handleAction = async (request: ODRequest, approve: boolean, confirmed: boolean = false) => {
+    if (approve && !confirmed) {
+      setConfirmApprovalRequest(request);
       return;
     }
 
     setProcessingId(request.id);
+    setConfirmApprovalRequest(null);
     try {
       if (approve) {
         // For admins, we might not have a full facultyProfile if they haven't set it up
@@ -499,36 +498,41 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-20 relative">
-      {/* Signature Blocking Modal */}
+      {/* Approval Confirmation Modal */}
       <AnimatePresence>
-        {showSignatureModal && (
-          <div className="fixed inset-0 z-[200] bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-4">
+        {confirmApprovalRequest && (
+          <div className="fixed inset-0 z-[150] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
             <motion.div 
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-[2.5rem] p-10 max-w-md w-full shadow-2xl border-4 border-amber-100 text-center"
+              className="bg-white rounded-[2.5rem] p-8 max-w-md w-full shadow-2xl border border-slate-200"
             >
-              <div className="w-20 h-20 bg-amber-100 text-amber-600 rounded-3xl flex items-center justify-center mx-auto mb-6">
-                <UserCheck size={40} />
-              </div>
-              <h3 className="text-2xl font-black text-slate-900 uppercase italic mb-2 tracking-tight">Signature Required</h3>
-              <p className="text-slate-500 text-sm mb-8 leading-relaxed">
-                {signatureModalMessage} You must upload your digital signature in your profile settings before authorizing any requests.
-              </p>
-              <div className="flex flex-col gap-3">
-                <Link 
-                  to="/profile" 
-                  className="w-full bg-blueprint-blue text-white font-black uppercase text-xs py-4 rounded-xl shadow-lg shadow-amber-500/20 hover:bg-goldenrod transition-all"
-                >
-                  Go to Profile Settings
-                </Link>
-                <button 
-                  onClick={() => setShowSignatureModal(false)}
-                  className="w-full py-4 text-slate-400 font-black uppercase text-[10px] tracking-widest hover:text-slate-600 transition-colors"
-                >
-                  Maybe Later
-                </button>
+              <div className="flex flex-col items-center text-center space-y-4">
+                <div className="w-16 h-16 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center">
+                  <AlertCircle size={32} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-slate-900 uppercase italic tracking-tight">Confirm Approval</h3>
+                  <p className="text-xs text-slate-500 font-medium mt-2">
+                    Are you sure you want to approve the OD request for <span className="font-black text-blueprint-blue">{confirmApprovalRequest.student_name}</span>? 
+                    This action will generate the official OD letter and notify the student.
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-4 w-full pt-4">
+                  <button 
+                    onClick={() => setConfirmApprovalRequest(null)}
+                    className="px-6 py-3.5 bg-slate-50 text-slate-400 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-100 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={() => handleAction(confirmApprovalRequest, true, true)}
+                    className="px-6 py-3.5 bg-blueprint-blue text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-amber-500/20 hover:bg-goldenrod transition-all flex items-center justify-center gap-2"
+                  >
+                    <Check size={14} /> Confirm
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>

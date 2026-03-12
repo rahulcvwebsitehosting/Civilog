@@ -159,10 +159,11 @@ const App: React.FC = () => {
       full_name: user.user_metadata?.full_name || '',
       identification_no: user.user_metadata?.identification_no || '',
       roll_no: user.user_metadata?.roll_no || '',
+      phone_number: user.user_metadata?.phone_number || '',
       year: user.user_metadata?.year || '',
+      semester: user.user_metadata?.semester || '',
       designation: user.user_metadata?.designation || '',
       department: user.user_metadata?.department || '',
-      signature_url: user.user_metadata?.signature_url || null,
       is_profile_complete: !!user.user_metadata?.is_profile_complete
     };
 
@@ -379,7 +380,7 @@ const App: React.FC = () => {
             } />
 
             <Route path="/profile/rahul-shyam" element={
-              <CTOProfile signature={profile?.signature_url} />
+              <CTOProfile />
             } />
 
             <Route path="/student-dashboard" element={

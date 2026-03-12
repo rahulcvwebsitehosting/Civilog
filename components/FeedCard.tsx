@@ -294,23 +294,32 @@ const FeedCard: React.FC<FeedCardProps> = ({
             )}
             
             {request.status === 'Approved' && !isFaculty && (
-              <div className="mt-4 p-4 bg-amber-50 border-2 border-amber-200 rounded-2xl animate-pulse">
-                <div className="flex items-center justify-between gap-4">
+              <div className="mt-4 p-4 bg-amber-50 border-2 border-amber-200 rounded-2xl">
+                <div className="flex flex-col gap-4">
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-amber-100 text-amber-600 rounded-xl">
                       <Award size={20} />
                     </div>
                     <div>
-                      <p className="text-[10px] font-black text-amber-800 uppercase tracking-widest">Action Required</p>
-                      <p className="text-xs font-bold text-amber-700">Upload your event certificate to complete the OD cycle.</p>
+                      <p className="text-[10px] font-black text-amber-800 uppercase tracking-widest">Post-Event Verification</p>
+                      <p className="text-xs font-bold text-amber-700">Submit your evidence to close the OD cycle.</p>
                     </div>
                   </div>
-                  <button 
-                    onClick={() => onUploadEvidence?.('certificate', 0)}
-                    className="px-4 py-2 bg-amber-500 text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition-all flex items-center gap-2 whitespace-nowrap"
-                  >
-                    <Upload size={14} /> Upload Now
-                  </button>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button 
+                      onClick={() => onUploadEvidence?.('certificate', 0)}
+                      className="px-4 py-3 bg-amber-500 text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition-all flex items-center justify-center gap-2"
+                    >
+                      <Upload size={14} /> Post Certificate
+                    </button>
+                    <button 
+                      onClick={() => onUploadEvidence?.('photo', 0)}
+                      className="px-4 py-3 bg-white text-amber-600 border-2 border-amber-200 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-amber-50 transition-all flex items-center justify-center gap-2"
+                    >
+                      <MapPin size={14} /> Add Geotag Photo
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

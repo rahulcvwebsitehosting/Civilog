@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { ODRequest, ODStatus, Profile } from '../types';
-import { Plus, XCircle, Loader2, GraduationCap, Terminal, Trophy } from 'lucide-react';
+import { Plus, XCircle, Loader2, GraduationCap, Terminal, Trophy, RefreshCw, Trash2, AlertCircle, X } from 'lucide-react';
 import SubmissionForm from './SubmissionForm';
 import FeedCard from './FeedCard';
 import NotificationCenter from './NotificationCenter';
@@ -81,11 +81,120 @@ const PrizeDetailsPromptModal: React.FC<PrizeDetailsPromptModalProps> = ({ onClo
 };
 
 
+interface DeleteConfirmationModalProps {
+  onClose: () => void;
+  onConfirm: () => void;
+  request: ODRequest;
+}
+
+const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({ onClose, onConfirm, request }) => {
+  const [confirmText, setConfirmText] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (confirmText !== 'DELETE') {
+      setError('Please type DELETE to confirm');
+      return;
+    }
+    onConfirm();
+  };
+
+  return (
+    <div className="fixed inset-0 z-[120] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+      <div className="bg-white rounded-[2.5rem] shadow-2xl p-8 max-w-md w-full relative border-4 border-red-50 animate-in zoom-in-95 duration-300">
+        <button onClick={onClose} className="absolute top-6 right-6 text-slate-400 hover:text-red-500 transition-colors">
+          <X size={24} />
+        </button>
+        
+        <div className="text-center mb-8">
+          <div className="w-20 h-20 bg-red-50 text-red-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-red-500/10">
+            <Trash2 size={40} />
+          </div>
+          <h3 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter">Confirm Deletion</h3>
+          <p className="text-sm text-slate-500 mt-3 px-4">
+            You are about to permanently remove the OD request for <span className="font-bold text-red-600">"{request.event_title}"</span>. This action cannot be undone.
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-2">
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Type <span className="text-red-600">DELETE</span> to confirm</label>
+            <input
+              type="text"
+              value={confirmText}
+              onChange={(e) => {
+                setConfirmText(e.target.value);
+                setError(null);
+              }}
+              placeholder="DELETE"
+              className="w-full px-6 py-4 rounded-2xl bg-slate-50 border-2 border-slate-100 focus:border-red-500 focus:bg-white outline-none text-center font-black tracking-widest transition-all"
+              autoFocus
+            />
+          </div>
+          
+          {error && (
+            <div className="flex items-center gap-2 text-red-600 text-[10px] font-black uppercase justify-center animate-bounce">
+              <AlertCircle size={14} /> {error}
+            </div>
+          )}
+
+          <div className="flex gap-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-4 rounded-2xl font-black text-xs uppercase tracking-widest text-slate-400 hover:bg-slate-50 transition-all"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="flex-1 bg-red-600 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-red-500/20 hover:bg-red-700 active:scale-95 transition-all"
+            >
+              Delete Log
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+const PrizeQuestionModal: React.FC<{ onAnswer: (won: boolean) => void; onClose: () => void }> = ({ onAnswer, onClose }) => (
+  <div className="fixed inset-0 z-[130] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+    <div className="bg-white rounded-[2.5rem] p-8 max-w-sm w-full text-center shadow-2xl border-4 border-amber-50 animate-in zoom-in-95 duration-300">
+      <div className="w-20 h-20 bg-amber-50 text-amber-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-amber-500/10">
+        <Trophy size={40} />
+      </div>
+      <h3 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter">Achievement Check</h3>
+      <p className="text-sm text-slate-500 mt-3 px-4">Did you win any prizes or merit awards in this event?</p>
+      <div className="grid grid-cols-2 gap-4 mt-8">
+        <button 
+          onClick={() => onAnswer(false)} 
+          className="py-4 rounded-2xl bg-slate-100 text-slate-600 font-black uppercase text-[10px] tracking-widest hover:bg-slate-200 transition-all"
+        >
+          No, just participated
+        </button>
+        <button 
+          onClick={() => onAnswer(true)} 
+          className="py-4 rounded-2xl bg-blueprint-blue text-white font-black uppercase text-[10px] tracking-widest shadow-xl shadow-amber-500/20 hover:bg-goldenrod transition-all"
+        >
+          Yes, I won!
+        </button>
+      </div>
+      <button onClick={onClose} className="mt-6 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors">Maybe Later</button>
+    </div>
+  </div>
+);
+
 const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
   const [requests, setRequests] = useState<ODRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [deleteRequest, setDeleteRequest] = useState<ODRequest | null>(null);
+  const [showPrizeQuestionModal, setShowPrizeQuestionModal] = useState(false);
+  const [pendingRequestForCert, setPendingRequestForCert] = useState<ODRequest | null>(null);
 
   if (!profile) return null;
   const [uploadState, setUploadState] = useState<{ id: string | null; type: string | null; index: number | null }>({
@@ -175,17 +284,26 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
       alert("System Violation: Authorized or partially authorized logs cannot be deleted.");
       return;
     }
+    setDeleteRequest(request);
+  };
 
-    const { error } = await supabase
-      .from('od_requests')
-      .delete()
-      .eq('id', request.id)
-      .eq('user_id', profile.id);
+  const confirmDelete = async () => {
+    if (!deleteRequest) return;
 
-    if (error) {
-      alert('System failure during deletion: ' + error.message);
-    } else {
-      setRequests(prev => prev.filter(r => r.id !== request.id));
+    try {
+      const { error } = await supabase
+        .from('od_requests')
+        .delete()
+        .eq('id', deleteRequest.id)
+        .eq('user_id', profile.id);
+
+      if (error) {
+        alert('System failure during deletion: ' + error.message);
+      } else {
+        setRequests(prev => prev.filter(r => r.id !== deleteRequest.id));
+      }
+    } finally {
+      setDeleteRequest(null);
     }
   };
 
@@ -281,6 +399,13 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
 
   // General evidence upload (photos, non-prize certificates)
   const handleEvidenceUpload = async (request: ODRequest, type: 'photo' | 'certificate' | 'prize', index: number = 0) => {
+    if (type === 'certificate') {
+      // Before certificate posted, ask if they won any prizes
+      setPendingRequestForCert(request);
+      setShowPrizeQuestionModal(true);
+      return;
+    }
+
     if (type === 'prize') {
       initiatePrizeFileUpload(request, index); // Call the specific prize file upload handler
       return;
@@ -323,7 +448,7 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
         } 
         
         // Auto-complete logic: Mark as Completed if a certificate is uploaded
-        const hasCert = (type === 'certificate' && updates.certificate_urls?.[index]) || (currentCerts.filter(Boolean).length > 0) || (currentPrizeDetails.filter(p => p.url && p.url.trim() !== '').length > 0);
+        const hasCert = (currentCerts.filter(Boolean).length > 0) || (currentPrizeDetails.filter(p => p.url && p.url.trim() !== '').length > 0);
         
         if (hasCert) {
           updates.status = 'Completed';
@@ -347,6 +472,56 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
     input.click();
   };
 
+  const proceedWithCertificateUpload = (request: ODRequest) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '*/*';
+    
+    input.onchange = async (e: any) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      setUploadState({ id: request.id, type: 'certificate', index: 0 });
+      try {
+        const fileName = `${Date.now()}_certificate_idx0_${profile.id}.${file.name.split('.').pop()}`;
+        const { error: uploadError } = await supabase.storage
+          .from('od-files')
+          .upload(`evidence/${fileName}`, file);
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('od-files')
+          .getPublicUrl(`evidence/${fileName}`);
+
+        const updates: any = {};
+        const currentCerts = Array.isArray(request.certificate_urls) ? request.certificate_urls : [];
+
+        const nextCerts = [...currentCerts];
+        nextCerts[0] = publicUrl;
+        updates.certificate_urls = nextCerts;
+        
+        // Auto-complete logic: Mark as Completed if a certificate is uploaded
+        updates.status = 'Completed';
+
+        const { error: dbError } = await supabase
+          .from('od_requests')
+          .update(updates)
+          .eq('id', request.id)
+          .eq('user_id', profile.id);
+
+        if (dbError) throw dbError;
+        await fetchRequests();
+      } catch (err: any) {
+        alert(err.message || 'Error uploading certificate');
+      } finally {
+        setUploadState({ id: null, type: null, index: null });
+      }
+    };
+    
+    input.click();
+  };
+
   return (
     <div className="max-w-2xl mx-auto pb-24 relative">
       <div className="mb-8 flex justify-between items-end bg-white/50 backdrop-blur-sm p-6 rounded-2xl border border-blueprint-blue/10 relative z-50">
@@ -359,10 +534,11 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
           <button 
             onClick={fetchRequests}
             disabled={loading}
-            className="p-2.5 text-slate-400 hover:text-blueprint-blue hover:bg-slate-100 rounded-xl transition-all disabled:opacity-50 border border-slate-100"
+            className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-gray-800 text-slate-600 dark:text-gray-300 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-gray-700 border border-slate-200 dark:border-gray-700 shadow-sm transition-all active:scale-95 disabled:opacity-50"
             title="Refresh Log"
           >
-            <Loader2 className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">Refresh</span>
           </button>
           <button
             onClick={() => setShowForm(true)}
@@ -395,6 +571,33 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
           }}
           onConfirm={handlePrizeDetailsConfirmed}
           isLoading={isPrizeDetailsSubmitting}
+        />
+      )}
+
+      {deleteRequest && (
+        <DeleteConfirmationModal
+          request={deleteRequest}
+          onClose={() => setDeleteRequest(null)}
+          onConfirm={confirmDelete}
+        />
+      )}
+
+      {showPrizeQuestionModal && pendingRequestForCert && (
+        <PrizeQuestionModal
+          onClose={() => {
+            setShowPrizeQuestionModal(false);
+            setPendingRequestForCert(null);
+          }}
+          onAnswer={(won) => {
+            const req = pendingRequestForCert;
+            setShowPrizeQuestionModal(false);
+            setPendingRequestForCert(null);
+            if (won) {
+              initiatePrizeFileUpload(req, 0);
+            } else {
+              proceedWithCertificateUpload(req);
+            }
+          }}
         />
       )}
 

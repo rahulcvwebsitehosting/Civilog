@@ -1,7 +1,7 @@
 
 import express from "express";
 import { createServer as createViteServer } from "vite";
-import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 
 async function startServer() {
   const app = express();
@@ -9,10 +9,17 @@ async function startServer() {
 
   app.use(express.json());
 
-  // Resend API Setup
-  // Use environment variable as requested
-  const RESEND_API_KEY = process.env.RESEND_API_KEY;
-  const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
+  // Email Configuration (Gmail SMTP)
+  const EMAIL_USER = process.env.EMAIL_USER; // Your Gmail address
+  const EMAIL_PASS = process.env.EMAIL_PASS; // Your Gmail App Password
+
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: EMAIL_USER,
+      pass: EMAIL_PASS,
+    },
+  });
 
   // API routes
   app.post("/api/send-email", async (req, res) => {
@@ -22,28 +29,27 @@ async function startServer() {
       return res.status(400).json({ success: false, error: "Missing required fields (to, subject, message)" });
     }
 
-    if (!resend) {
-      console.error("RESEND_API_KEY is not configured");
-      return res.status(500).json({ success: false, error: "Email service not configured. Please set RESEND_API_KEY." });
+    if (!EMAIL_USER || !EMAIL_PASS) {
+      console.error("Email credentials are not configured");
+      return res.status(500).json({ success: false, error: "Email service not configured. Please set EMAIL_USER and EMAIL_PASS." });
     }
 
     try {
       console.log(`Attempting to send email to: ${to} | Subject: ${subject}`);
-      const { data, error } = await resend.emails.send({
-        from: 'ESEC OD Portal <onboarding@resend.dev>',
-        to: [to],
+      
+      const mailOptions = {
+        from: `"ESEC OD Portal" <${EMAIL_USER}>`,
+        to: to,
         subject: subject,
-        html: message, // Message is already HTML from the frontend
-      });
+        html: message,
+      };
 
-      if (error) {
-        console.error("Resend Error:", error);
-        return res.status(400).json({ success: false, error });
-      }
-
-      res.json({ success: true, data });
+      const info = await transporter.sendMail(mailOptions);
+      console.log("Email sent successfully:", info.messageId);
+      
+      res.json({ success: true, data: info });
     } catch (err: any) {
-      console.error("Server Error:", err);
+      console.error("Nodemailer Error:", err);
       res.status(500).json({ success: false, error: err.message });
     }
   });

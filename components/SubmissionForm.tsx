@@ -282,7 +282,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
 
       // Step 3: Database Insertion (FAST)
       console.log("Step 3: Inserting into database...");
-      const { error: dbError } = await supabase.from('od_requests').insert([
+      const { data: insertedData, error: dbError } = await supabase.from('od_requests').insert([
         {
           ...requestData,
           status: 'Pending Advisor',
@@ -293,7 +293,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
           notification_sent: false,
           created_at: new Date().toISOString(),
         }
-      ]);
+      ]).select().single();
 
       if (dbError) {
         console.error("Database Insert Error:", dbError);
@@ -304,11 +304,11 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
       console.log("Step 4: Success!");
       onSuccess();
 
-      // Step 5: Background Tasks (PDF & Uploads)
+      // Step 5: Background Tasks (PDF, Uploads & Notifications)
       console.log("Step 5: Starting background tasks...");
       
       // Generate PDF in background
-      generateODDocument({ ...requestData, id: 'PENDING' } as any, profile).then(blob => {
+      generateODDocument({ ...requestData, id: insertedData?.id || 'PENDING' } as any, profile).then(blob => {
         const letterFile = new File([blob], letterFileName, { type: 'application/pdf' });
         startBackgroundUpload(letterFile, letterPath, 'OD Letter', 'application/pdf');
       }).catch(e => console.error("[BACKGROUND] PDF generation failed:", e));
@@ -316,6 +316,52 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
       if (regFile && regPath) startBackgroundUpload(regFile, regPath, 'Registration Proof');
       if (posterFile && posterPath) startBackgroundUpload(posterFile, posterPath, 'Event Poster');
       if (payFile && payPath) startBackgroundUpload(payFile, payPath, 'Payment Proof');
+
+      // Step 6: Notify Advisor (Background)
+      if (insertedData) {
+        try {
+          const { data: advisors } = await supabase
+            .from('profiles')
+            .select('id, email, full_name')
+            .eq('role', 'advisor')
+            .eq('department', formData.department);
+
+          if (advisors && advisors.length > 0) {
+            const dashboardUrl = `${window.location.origin}/advisor-dashboard?request_id=${insertedData.id}`;
+            const emailMessage = `
+              <div style="font-family: sans-serif; line-height: 1.6; color: #333;">
+                <h2 style="color: #003366;">New OD Request Submitted</h2>
+                <p>A new On-Duty request has been submitted by <strong>${formData.student_name}</strong> (${formData.register_no}) and is pending your recommendation.</p>
+                <p><strong>Event:</strong> ${formData.event_title}</p>
+                <p><strong>Organization:</strong> ${formData.organization_name}</p>
+                <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
+                <p>Please log in to your dashboard to review and recommend this request.</p>
+                <a href="${dashboardUrl}" style="display: inline-block; padding: 12px 24px; background-color: #003366; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold;">View Advisor Dashboard</a>
+                <p style="font-size: 12px; color: #666; margin-top: 30px;">Ref: OD-REQ-${insertedData.id.substring(0, 8)}</p>
+              </div>
+            `;
+
+            for (const advisor of advisors) {
+              if (advisor.email) {
+                await fetch('/api/send-email', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    to: advisor.email,
+                    subject: `New OD Request: ${formData.event_title}`,
+                    message: emailMessage
+                  })
+                });
+              }
+            }
+            
+            // Mark notification as sent
+            await supabase.from('od_requests').update({ notification_sent: true }).eq('id', insertedData.id);
+          }
+        } catch (notifyErr) {
+          console.error("Advisor notification failed:", notifyErr);
+        }
+      }
 
     } catch (err: any) {
       console.error("--- SUBMISSION FAILED ---", err);

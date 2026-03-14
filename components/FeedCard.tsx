@@ -97,7 +97,7 @@ const FeedCard: React.FC<FeedCardProps> = ({
 
   const getStatusColor = (status: ODStatus) => {
     switch (status) {
-      case 'Approved': return 'text-amber-700 bg-amber-400';
+      case 'Approved': return 'text-emerald-700 bg-emerald-400';
       case 'Pending Advisor': return 'text-amber-600 bg-amber-100 border border-amber-200';
       case 'Pending HOD': return 'text-amber-700 bg-amber-200 border border-amber-300';
       case 'Pending': return 'text-amber-600 bg-amber-200';
@@ -372,7 +372,7 @@ const FeedCard: React.FC<FeedCardProps> = ({
               )}
               {request.od_letter_url && (
                 <button 
-                  onClick={() => handlePreviewClick(request.od_letter_url!, 'OD Requisition')}
+                  onClick={() => handlePreviewClick(request.od_letter_url!, request.status === 'Approved' || request.status === 'Completed' ? 'Sanctioned OD' : 'OD Request')}
                   className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-500 hover:text-white text-emerald-600 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all border border-emerald-100"
                 >
                   <FileCheck size={12} /> OD Letter
@@ -531,9 +531,9 @@ const FeedCard: React.FC<FeedCardProps> = ({
             {request.od_letter_url && (
               <button 
                 onClick={() => window.open(request.od_letter_url!, '_blank')} 
-                className={`flex items-center gap-1.5 font-black uppercase text-[10px] tracking-widest hover:scale-105 transition-transform border-b-2 border-transparent ${request.status === 'Approved' ? 'text-amber-600 hover:border-amber-600' : 'text-blueprint-blue hover:border-blueprint-blue'}`}
+                className={`flex items-center gap-1.5 font-black uppercase text-[10px] tracking-widest hover:scale-105 transition-transform border-b-2 border-transparent ${request.status === 'Approved' || request.status === 'Completed' ? 'text-emerald-600 hover:border-emerald-600' : 'text-blueprint-blue hover:border-blueprint-blue'}`}
               >
-                <Download size={16} /> {request.status === 'Approved' ? 'Official OD' : 'Requisition'}
+                <Download size={16} /> {request.status === 'Approved' || request.status === 'Completed' ? 'SANCTIONED LETTER' : 'OD REQUEST'}
               </button>
             )}
             {request.registration_proof_url && (
@@ -579,9 +579,9 @@ const FeedCard: React.FC<FeedCardProps> = ({
                 )}
               </div>
             ) : (
-              <div className="flex items-center gap-2 ml-auto">
-                <span className={`w-2.5 h-2.5 rounded-full ring-4 ring-offset-2 ${(getStatusColor(request.status).split(' ')[1] || 'bg-slate-400').replace('bg-', 'ring-')}/20 ${getStatusColor(request.status).split(' ')[1] || 'bg-slate-400'}`}></span>
-                <span className={`text-[11px] font-black uppercase tracking-[0.2em] italic ${getStatusColor(request.status).split(' ')[0] || 'text-slate-400'}`}>
+              <div className={`flex items-center gap-2 ml-auto px-3 py-1 rounded-full border ${getStatusColor(request.status).includes('border') ? getStatusColor(request.status) : `${getStatusColor(request.status)} border-transparent`}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${getStatusColor(request.status).split(' ')[0].replace('text-', 'bg-')}`}></span>
+                <span className="text-[10px] font-black uppercase tracking-widest italic">
                   {request.status}
                 </span>
               </div>

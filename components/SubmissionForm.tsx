@@ -44,11 +44,8 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
     register_no: '',
     roll_no: '',
     year: '2',
-    department: profile?.department || 'Computer Science and Engineering',
-    signature_url: null
+    department: profile?.department || 'Computer Science and Engineering'
   });
-
-  const [teamMemberSignature, setTeamMemberSignature] = useState<File | null>(null);
 
   if (!profile) return null;
 
@@ -151,42 +148,17 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
 
   const addTeamMember = async () => {
     if (teamMemberInput.name && teamMemberInput.register_no && teamMemberInput.roll_no && teamMemberInput.department) {
-      let signatureUrl = null;
-      
-      if (teamMemberSignature) {
-        setLoading(true);
-        try {
-          const ext = teamMemberSignature.name.split('.').pop();
-          const fileName = `${Date.now()}_${teamMemberInput.register_no}_sig.${ext}`;
-          const filePath = `signatures/${fileName}`;
-          
-          const { error: uploadError } = await supabase.storage
-            .from('od-files')
-            .upload(filePath, teamMemberSignature);
-            
-          if (uploadError) throw uploadError;
-          
-          signatureUrl = supabase.storage.from('od-files').getPublicUrl(filePath).data.publicUrl;
-        } catch (err: any) {
-          setError(`Member signature upload failed: ${err.message}`);
-          setLoading(false);
-          return;
-        }
-      }
-
       setFormData(prev => ({ 
         ...prev, 
-        team_members: [...prev.team_members, { ...teamMemberInput, signature_url: signatureUrl }] 
+        team_members: [...prev.team_members, { ...teamMemberInput }] 
       }));
       setTeamMemberInput({ 
         name: '', 
         register_no: '', 
         roll_no: '', 
         year: '2', 
-        department: profile.department || 'Computer Science and Engineering',
-        signature_url: null
+        department: profile.department || 'Computer Science and Engineering'
       });
-      setTeamMemberSignature(null);
       setLoading(false);
     } else {
       setError('Please fill all member fields.');
@@ -665,33 +637,6 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
                   <option key={dept} value={dept}>{dept}</option>
                 ))}
               </select>
-            </div>
-            
-            <div className="flex items-center gap-4">
-              <label className={`flex-1 h-12 border-2 rounded-xl flex items-center justify-center cursor-pointer transition-all ${teamMemberSignature ? 'border-blueprint-blue bg-blue-50/50' : 'border-dashed border-slate-200 bg-slate-50 hover:border-slate-300'}`}>
-                <PenTool size={16} className={teamMemberSignature ? 'text-blueprint-blue mr-2' : 'text-slate-400 mr-2'} />
-                <span className="text-[10px] font-bold text-slate-500 uppercase truncate px-2">
-                  {teamMemberSignature ? teamMemberSignature.name : 'Upload Member Signature'}
-                </span>
-                <input 
-                  type="file" 
-                  className="hidden" 
-                  accept="image/*" 
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) setTeamMemberSignature(file);
-                  }} 
-                />
-              </label>
-              {teamMemberSignature && (
-                <button 
-                  type="button" 
-                  onClick={() => setTeamMemberSignature(null)}
-                  className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
-                >
-                  <X size={16} />
-                </button>
-              )}
             </div>
 
             <button 

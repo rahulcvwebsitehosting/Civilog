@@ -25,7 +25,6 @@ export interface Profile {
   designation?: string;
   is_hod?: boolean;
   is_profile_complete?: boolean;
-  signature_url?: string | null;
 }
 
 export interface TeamMember {
@@ -34,7 +33,6 @@ export interface TeamMember {
   roll_no: string;
   year: string;
   department: string;
-  signature_url?: string | null;
 }
 
 export interface ODRequest {

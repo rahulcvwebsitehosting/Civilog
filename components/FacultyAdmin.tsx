@@ -389,6 +389,18 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
       } else {
         await supabase.from('od_requests').update({ status: 'Rejected' }).eq('id', request.id);
         
+        // Notify Student about Rejection
+        try {
+          await supabase.from('notifications').insert({
+            user_id: request.user_id,
+            message: `Your OD request for ${request.event_title} has been rejected by ${role.toUpperCase()}.`,
+            type: 'error',
+            read: false
+          });
+        } catch (notifyErr) {
+          console.error("Rejection notification failed:", notifyErr);
+        }
+
         // Log Audit
         await logAudit('REJECT_OD', 'od_request', request.id, {
           student_name: request.student_name,

@@ -131,6 +131,18 @@ const FacultyDashboard: React.FC = () => {
           .eq('id', request.id);
           
         if (dbError) throw dbError;
+
+        // Notify Student about Rejection
+        try {
+          await supabase.from('notifications').insert({
+            user_id: request.user_id,
+            message: `Your OD request for ${request.event_title} has been rejected.`,
+            type: 'error',
+            read: false
+          });
+        } catch (notifyErr) {
+          console.error("Rejection notification failed:", notifyErr);
+        }
       }
       setRequests(prev => prev.filter(r => r.id !== request.id));
     } catch (err) {

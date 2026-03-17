@@ -21,10 +21,11 @@ const TrackingView: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
+      // Search by register_no, roll_no, or inside team_members JSONB array
       const { data, error: fetchError } = await supabase
         .from('od_requests')
         .select('*')
-        .eq('register_no', registerNo)
+        .or(`register_no.eq.${registerNo},roll_no.eq.${registerNo},team_members.cs.[{"roll_no":"${registerNo}"}],team_members.cs.[{"register_no":"${registerNo}"}]`)
         .order('created_at', { ascending: false });
 
       if (fetchError) throw fetchError;

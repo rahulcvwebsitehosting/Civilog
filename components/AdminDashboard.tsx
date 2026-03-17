@@ -56,10 +56,26 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
+  const deptCounts = requests.reduce((acc: Record<string, number>, r) => {
+    if (r.department) {
+      acc[r.department] = (acc[r.department] || 0) + 1;
+    }
+    return acc;
+  }, {});
+
+  const availableDepts = Object.keys(deptCounts).sort();
+
   const filteredRequests = requests.filter(r => {
     const matchesDept = deptFilter === 'all' || r.department === deptFilter;
-    const matchesSearch = r.student_name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                         r.event_title.toLowerCase().includes(searchQuery.toLowerCase());
+    const query = searchQuery.toLowerCase();
+    const matchesSearch = (r.student_name || '').toLowerCase().includes(query) || 
+                         (r.event_title || '').toLowerCase().includes(query) ||
+                         (r.register_no || '').toLowerCase().includes(query) ||
+                         (r.roll_no || '').toLowerCase().includes(query) ||
+                         (r.team_members && r.team_members.some(m => 
+                           (m.roll_no || '').toLowerCase().includes(query) || 
+                           (m.register_no || '').toLowerCase().includes(query)
+                         ));
     return matchesDept && matchesSearch;
   });
 
@@ -163,9 +179,9 @@ const AdminDashboard: React.FC = () => {
                 onChange={(e) => setDeptFilter(e.target.value)}
                 className="px-5 py-4 bg-white border rounded-2xl outline-none shadow-sm text-sm font-bold uppercase tracking-tight min-w-[140px]"
               >
-                <option value="all">All Departments</option>
-                {['CSE', 'ECE', 'EEE', 'MECH', 'CIVIL', 'IT', 'AI&DS'].map(d => (
-                  <option key={d} value={d}>{d}</option>
+                <option value="all">All Departments ({requests.length})</option>
+                {availableDepts.map(d => (
+                  <option key={d} value={d}>{d} ({deptCounts[d]})</option>
                 ))}
               </select>
             ) : null}

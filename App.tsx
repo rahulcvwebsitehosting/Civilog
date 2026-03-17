@@ -5,6 +5,7 @@ import { supabase, configError } from './supabaseClient';
 import Auth from './components/Auth';
 import StudentDashboard from './components/StudentDashboard';
 import FacultyAdmin from './components/FacultyAdmin';
+import DebugProfiles from './components/DebugProfiles';
 import FacultyRegistry from './components/FacultyRegistry';
 import TrackingView from './components/TrackingView';
 import ProfileSetup from './components/ProfileSetup';
@@ -149,7 +150,7 @@ const App: React.FC = () => {
     return () => clearTimeout(timer);
   }, [loading]);
 
-  const updateProfileFromUser = useCallback((user: any) => {
+  const updateProfileFromUser = useCallback((user: any, shouldSetLoading = true) => {
     if (!user) return;
     console.log("Updating profile from user metadata fallback");
     const metadataProfile: Profile = {
@@ -172,7 +173,7 @@ const App: React.FC = () => {
       if (prev && JSON.stringify(prev) === JSON.stringify(metadataProfile)) return prev;
       return metadataProfile;
     });
-    setLoading(false);
+    if (shouldSetLoading) setLoading(false);
   }, []);
 
   const fetchProfile = useCallback(async (userId: string) => {
@@ -186,7 +187,7 @@ const App: React.FC = () => {
       if (error) {
         if (error.code === 'PGRST116') {
           const { data: { user } } = await supabase.auth.getUser();
-          if (user) updateProfileFromUser(user);
+          if (user) updateProfileFromUser(user, true);
           return;
         }
         throw error;
@@ -211,7 +212,9 @@ const App: React.FC = () => {
 
       if (session) {
         setSession(session);
-        updateProfileFromUser(session.user);
+        // Load from metadata first but DON'T stop loading yet
+        updateProfileFromUser(session.user, false);
+        // Then fetch the source of truth from DB
         fetchProfile(session.user.id);
       } else {
         setLoading(false);
@@ -231,7 +234,7 @@ const App: React.FC = () => {
         setSession(session);
         if (currentUserIdRef.current !== session.user.id) {
           currentUserIdRef.current = session.user.id;
-          updateProfileFromUser(session.user);
+          updateProfileFromUser(session.user, false);
           fetchProfile(session.user.id);
         }
       }
@@ -394,6 +397,14 @@ const App: React.FC = () => {
             <Route path="/advisor-dashboard" element={
               session && profile?.role === 'advisor' && profile?.is_profile_complete ? (
                 <FacultyAdmin role="advisor" />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            } />
+
+            <Route path="/debug-profiles" element={
+              session && profile?.role === 'admin' ? (
+                <DebugProfiles />
               ) : (
                 <Navigate to="/" replace />
               )

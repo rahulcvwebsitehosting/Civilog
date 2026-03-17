@@ -320,46 +320,63 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
       // Step 6: Notify Advisor (Background)
       if (insertedData) {
         try {
-          const { data: advisors } = await supabase
+          console.log(`[DEBUG] Searching for advisors/HODs in department: "${formData.department}"`);
+          const { data: recipients, error: recipientError } = await supabase
             .from('profiles')
-            .select('id, email, full_name')
-            .eq('role', 'advisor')
+            .select('id, email, full_name, role')
+            .in('role', ['advisor', 'hod'])
             .eq('department', formData.department);
 
-          if (advisors && advisors.length > 0) {
-            const dashboardUrl = `${window.location.origin}/advisor-dashboard?request_id=${insertedData.id}`;
-            const emailMessage = `
-              <div style="font-family: sans-serif; line-height: 1.6; color: #333;">
-                <h2 style="color: #003366;">New OD Request Submitted</h2>
-                <p>A new On-Duty request has been submitted by <strong>${formData.student_name}</strong> (${formData.register_no}) and is pending your recommendation.</p>
-                <p><strong>Event:</strong> ${formData.event_title}</p>
-                <p><strong>Organization:</strong> ${formData.organization_name}</p>
-                <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
-                <p>Please log in to your dashboard to review and recommend this request.</p>
-                <a href="${dashboardUrl}" style="display: inline-block; padding: 12px 24px; background-color: #003366; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold;">View Advisor Dashboard</a>
-                <p style="font-size: 12px; color: #666; margin-top: 30px;">Ref: OD-REQ-${insertedData.id.substring(0, 8)}</p>
-              </div>
-            `;
+          if (recipientError) {
+            console.error("[DEBUG] Recipient fetch error:", recipientError);
+          }
 
-            for (const advisor of advisors) {
-              if (advisor.email) {
-                await fetch('/api/send-email', {
+          console.log(`[DEBUG] Found ${recipients?.length || 0} potential recipients (Advisors/HODs)`);
+
+          if (recipients && recipients.length > 0) {
+            const dashboardUrl = `${window.location.origin}/advisor-dashboard?request_id=${insertedData.id}`;
+            // Also handle HOD dashboard link if needed
+            
+            for (const recipient of recipients) {
+              if (recipient.email) {
+                const targetDashboard = recipient.role === 'hod' ? 'hod-dashboard' : 'advisor-dashboard';
+                const finalUrl = `${window.location.origin}/${targetDashboard}?request_id=${insertedData.id}`;
+                
+                console.log(`[DEBUG] Sending email to ${recipient.role}: ${recipient.email}`);
+                const emailMessage = `
+                  <div style="font-family: sans-serif; line-height: 1.6; color: #333;">
+                    <h2 style="color: #003366;">New OD Request Submitted</h2>
+                    <p>A new On-Duty request has been submitted by <strong>${formData.student_name}</strong> (${formData.register_no}) and is pending review.</p>
+                    <p><strong>Event:</strong> ${formData.event_title}</p>
+                    <p><strong>Organization:</strong> ${formData.organization_name}</p>
+                    <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
+                    <p>Please log in to your dashboard to review this request.</p>
+                    <a href="${finalUrl}" style="display: inline-block; padding: 12px 24px; background-color: #003366; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold;">View Dashboard</a>
+                    <p style="font-size: 12px; color: #666; margin-top: 30px;">Ref: OD-REQ-${insertedData.id.substring(0, 8)}</p>
+                  </div>
+                `;
+
+                const emailRes = await fetch('/api/send-email', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
-                    to: advisor.email,
+                    to: recipient.email,
                     subject: `New OD Request: ${formData.event_title}`,
                     message: emailMessage
                   })
                 });
+                const emailResult = await emailRes.json();
+                console.log(`[DEBUG] Email result for ${recipient.email}:`, emailResult);
               }
             }
             
             // Mark notification as sent
             await supabase.from('od_requests').update({ notification_sent: true }).eq('id', insertedData.id);
+          } else {
+            console.warn(`[DEBUG] No advisors found for department: ${formData.department}`);
           }
         } catch (notifyErr) {
-          console.error("Advisor notification failed:", notifyErr);
+          console.error("[DEBUG] Advisor notification failed:", notifyErr);
         }
       }
 
@@ -403,6 +420,19 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
                   const { data: odCheck, error: odError } = await supabase.from('od_requests').select('id').limit(1);
                   if (odError) throw new Error(`OD Requests table check failed: ${odError.message}`);
 
+                  // 1.5 Check Advisor/HOD counts for current department
+                  const { count: advisorCount } = await supabase
+                    .from('profiles')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('role', 'advisor')
+                    .eq('department', formData.department);
+                  
+                  const { count: hodCount } = await supabase
+                    .from('profiles')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('role', 'hod')
+                    .eq('department', formData.department);
+
                   // 2. Check Storage Bucket
                   const { data: buckets, error: bucketError } = await supabase.storage.listBuckets();
                   if (bucketError) throw new Error(`Storage check failed: ${bucketError.message}`);
@@ -419,6 +449,9 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
                   let msg = `✅ System Check: SUCCESS!\n`;
                   msg += `⏱️ Response time: ${duration}ms\n`;
                   msg += `📂 Tables: Found 'profiles' and 'od_requests'\n`;
+                  msg += `👥 Dept Context: ${formData.department}\n`;
+                  msg += `👨‍🏫 Advisors in Dept: ${advisorCount || 0}\n`;
+                  msg += `🎓 HODs in Dept: ${hodCount || 0}\n`;
                   msg += `📦 Storage: 'od-files' bucket is ${hasBucket ? 'ACTIVE' : 'MISSING'}\n\n`;
                   msg += `🔗 Using URL: ${url.substring(0, 15)}...\n`;
                   msg += `🔑 Using Key: ${anonKey.substring(0, 8)}...\n\n`;

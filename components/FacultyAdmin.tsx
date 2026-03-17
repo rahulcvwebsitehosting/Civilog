@@ -441,14 +441,22 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
       let message = '';
 
       if (request.status === 'Pending Advisor') {
-        const { data: advisors } = await supabase.from('profiles').select('email').eq('role', 'advisor').eq('department', request.department);
-        if (advisors && advisors.length > 0) {
-          targetEmail = advisors[0].email;
+        const { data: recipients } = await supabase
+          .from('profiles')
+          .select('email')
+          .in('role', ['advisor', 'hod'])
+          .eq('department', request.department);
+        if (recipients && recipients.length > 0) {
+          targetEmail = recipients[0].email;
           subject = `New OD: ${request.event_title}`;
           message = `<h2>New OD Request</h2><p>Student: ${request.student_name}</p><p>Event: ${request.event_title}</p><p>Please review in Advisor Dashboard.</p>`;
         }
       } else if (request.status === 'Pending HOD') {
-        const { data: hods } = await supabase.from('profiles').select('email').eq('role', 'hod').eq('department', request.department);
+        const { data: hods } = await supabase
+          .from('profiles')
+          .select('email')
+          .eq('role', 'hod')
+          .eq('department', request.department);
         if (hods && hods.length > 0) {
           targetEmail = hods[0].email;
           subject = `Advisor Approved: ${request.event_title}`;

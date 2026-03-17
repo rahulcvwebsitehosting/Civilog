@@ -58,22 +58,32 @@ const Auth: React.FC = () => {
         if (data.user) {
           const role = getRoleFromPassword(password);
           
+          // Check if profile already exists and is complete
+          const { data: existingProfile } = await supabase
+            .from('profiles')
+            .select('is_profile_complete, role, full_name')
+            .eq('id', data.user.id)
+            .single();
+
           // Always ensure metadata is synced with the password-derived role
+          // But only if it's different to avoid unnecessary updates
           if (data.user.user_metadata?.role !== role) {
             await supabase.auth.updateUser({
               data: { role: role }
             });
           }
           
-          // Upsert the profile to ensure it exists and has the correct role
+          // Upsert the profile but preserve is_profile_complete if it's already true in DB
+          const isComplete = existingProfile?.is_profile_complete || !!data.user.user_metadata?.is_profile_complete;
+          
           const { error: upsertError } = await supabase
             .from('profiles')
             .upsert({ 
               id: data.user.id, 
               email: data.user.email,
               role: role,
-              full_name: data.user.user_metadata?.full_name || '',
-              is_profile_complete: !!data.user.user_metadata?.is_profile_complete
+              full_name: existingProfile?.full_name || data.user.user_metadata?.full_name || '',
+              is_profile_complete: isComplete
             }, { onConflict: 'id' });
             
           if (upsertError) {

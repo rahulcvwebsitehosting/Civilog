@@ -3,35 +3,12 @@ import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { Profile } from '../types';
 import { Loader2, User, Fingerprint, Briefcase, GraduationCap, Building2, CheckCircle2, AlertCircle, Save, PenTool, Upload, FileImage, Trash2, Info } from 'lucide-react';
+import { DEPARTMENTS } from '../constants';
 
 interface ProfilePageProps {
   profile: Profile;
   onUpdate: () => void;
 }
-
-const DEPARTMENTS = [
-  'Civil Engineering',
-  'Agriculture Engineering',
-  'Biomedical Engineering',
-  'Computer Science and Engineering',
-  'Electrical and Electronics Engineering',
-  'Electronics and Communication Engineering',
-  'Electronics and Instrumentation Engineering',
-  'Mechanical Engineering',
-  'Robotics and Automation',
-  'CSE (Cyber Security)',
-  'CSE (AI & ML)',
-  'CSE (IoT)',
-  'Chemical Engineering',
-  'Information Technology',
-  'Artificial Intelligence and Data Science',
-  'Computer Science and Design',
-  'M.Tech. CSE (5-Years)',
-  'MBA',
-  'MCA',
-  'Food Technology',
-  'S&H'
-];
 
 const ProfilePage: React.FC<ProfilePageProps> = ({ profile, onUpdate }) => {
   const [loading, setLoading] = useState(false);
@@ -119,6 +96,15 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ profile, onUpdate }) => {
       });
 
       if (updateError) throw updateError;
+
+      // Also update the profiles table
+      const { error: dbError } = await supabase
+        .from('profiles')
+        .update({ ...formData })
+        .eq('id', profile.id);
+
+      if (dbError) throw dbError;
+
       setSuccess(true);
       onUpdate();
     } catch (err: any) {

@@ -13,12 +13,34 @@ async function startServer() {
   const EMAIL_USER = process.env.EMAIL_USER; // Your Gmail address
   const EMAIL_PASS = process.env.EMAIL_PASS; // Your Gmail App Password
 
+  console.log(`[SMTP] EMAIL_USER is ${EMAIL_USER ? 'DEFINED' : 'UNDEFINED'}`);
+  console.log(`[SMTP] EMAIL_PASS is ${EMAIL_PASS ? 'DEFINED' : 'UNDEFINED'}`);
+
   const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
       user: EMAIL_USER,
       pass: EMAIL_PASS,
     },
+  });
+
+  // Test route for email
+  app.get("/api/test-email", async (req, res) => {
+    const testTo = req.query.to as string;
+    if (!testTo) return res.status(400).send("Provide 'to' query param");
+
+    try {
+      const mailOptions = {
+        from: `"ESEC Test" <${EMAIL_USER}>`,
+        to: testTo,
+        subject: "Test Email from ESEC Portal",
+        html: "<h1>It works!</h1><p>This is a test email to verify the SMTP configuration.</p>",
+      };
+      const info = await transporter.sendMail(mailOptions);
+      res.json({ success: true, info });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
   });
 
   // API routes

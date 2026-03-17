@@ -11,6 +11,7 @@ import TrackingView from './components/TrackingView';
 import ProfileSetup from './components/ProfileSetup';
 import ProfilePage from './components/ProfilePage';
 import CTOProfile from './components/CTOProfile';
+import AdminDashboard from './components/AdminDashboard';
 import { Profile } from './types';
 
 const NavLink: React.FC<{ to: string; children: React.ReactNode; icon: React.ReactNode }> = ({ to, children, icon }) => {
@@ -420,7 +421,7 @@ const App: React.FC = () => {
 
             <Route path="/admin-panel" element={
               session && profile?.role === 'admin' && profile?.is_profile_complete ? (
-                <FacultyAdmin role="admin" />
+                <AdminDashboard />
               ) : (
                 <Navigate to="/" replace />
               )

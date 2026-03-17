@@ -60,14 +60,24 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ profile, onUpdate }) => {
     setError(null);
 
     try {
-      // 1. Update Auth Metadata (for session persistence)
+      // 1. Verify Session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error("No active session found. Please log in again.");
+      }
+
+      // 2. Update Auth Metadata (for session persistence)
       const { error: authError } = await supabase.auth.updateUser({
         data: { ...formData }
       });
 
-      if (authError) throw authError;
+      if (authError) {
+        console.error("Auth Metadata Update Error:", authError);
+        throw new Error(`Auth Error: ${authError.message}`);
+      }
 
-      // 2. Update/Upsert the profiles table (source of truth)
+      // 3. Update/Upsert the profiles table (source of truth)
+      // Note: We use 'profiles' table, NOT 'users' table.
       const { error: dbError } = await supabase
         .from('profiles')
         .upsert({ 
@@ -78,12 +88,18 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ profile, onUpdate }) => {
           is_profile_complete: true
         }, { onConflict: 'id' });
 
-      if (dbError) throw dbError;
+      if (dbError) {
+        console.error("Database Profile Update Error:", dbError);
+        if (dbError.message.includes('permission denied')) {
+          throw new Error("System Permission Denied: The database rejected the update. Please run the SQL fix provided in the chat to reset permissions.");
+        }
+        throw dbError;
+      }
 
       setSuccess(true);
       onUpdate();
     } catch (err: any) {
-      console.error("Profile Update Error:", err);
+      console.error("Profile Update Exception:", err);
       setError(err.message || 'Update failed. Check your connection or system permissions.');
     } finally {
       setLoading(false);

@@ -60,25 +60,38 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ profile, onComplete }) => {
     setError(null);
 
     try {
+      // 1. Update Auth Metadata (for session persistence)
       const { error: updateError } = await supabase.auth.updateUser({
         data: { ...formData, is_profile_complete: true }
       });
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error("Auth Metadata Update Error:", updateError);
+        throw new Error(`Auth Error: ${updateError.message}`);
+      }
 
-      // Also upsert the profiles table to keep it in sync
+      // 2. Update/Upsert the profiles table (source of truth)
+      // Note: We use 'profiles' table, NOT 'users' table.
       const { error: dbError } = await supabase.from('profiles').upsert({
         id: profile.id,
         email: profile.email,
         role: profile.role,
         ...formData,
         is_profile_complete: true
-      });
+      }, { onConflict: 'id' });
 
-      if (dbError) throw dbError;
+      if (dbError) {
+        console.error("Database Profile Update Error:", dbError);
+        if (dbError.message.includes('permission denied')) {
+          throw new Error("System Permission Denied: Please ensure the 'profiles' table RLS policies are applied in Supabase.");
+        }
+        throw dbError;
+      }
+
       onComplete();
     } catch (err: any) {
-      setError(err.message || 'Profile synchronization failed.');
+      console.error("Profile Setup Exception:", err);
+      setError(err.message || 'Setup failed. Check your connection or system permissions.');
     } finally {
       setLoading(false);
     }

@@ -8,12 +8,12 @@ import {
   CheckCircle2, XCircle, Trash2, Info,
   GraduationCap, Briefcase, Building2,
   ArrowUpDown, Download, LayoutDashboard,
-  ArrowUp, ArrowDown, RefreshCw
+  ArrowUp, ArrowDown, RefreshCw, Mail
 } from 'lucide-react';
 import FeedCard from './FeedCard';
 
 const AdminDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'audit' | 'users' | 'requests' | 'feed'>('feed');
+  const [activeTab, setActiveTab] = useState<'audit' | 'users' | 'requests' | 'feed' | 'system'>('feed');
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [requests, setRequests] = useState<ODRequest[]>([]);
@@ -22,10 +22,69 @@ const AdminDashboard: React.FC = () => {
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [deptFilter, setDeptFilter] = useState<string>('all');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  
+  // SMTP Test State
+  const [testEmail, setTestEmail] = useState('');
+  const [testLoading, setTestLoading] = useState(false);
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [testResult, setTestResult] = useState<{success: boolean, message: string} | null>(null);
+  const [systemStatus, setSystemStatus] = useState<any>(null);
 
   useEffect(() => {
     fetchData();
+    if (activeTab === 'system') {
+      checkSystemStatus();
+    }
   }, [activeTab, sortOrder]);
+
+  const checkSystemStatus = async () => {
+    try {
+      const res = await fetch('/api/health');
+      const data = await res.json();
+      setSystemStatus(data);
+    } catch (err) {
+      console.error("Health Check Error:", err);
+    }
+  };
+
+  const handleVerifySMTP = async () => {
+    setVerifyLoading(true);
+    setTestResult(null);
+    try {
+      const res = await fetch('/api/verify-smtp');
+      const data = await res.json();
+      if (data.success) {
+        setTestResult({ success: true, message: "SMTP Connection Verified! Transporter is ready." });
+      } else {
+        setTestResult({ success: false, message: `Verification Failed: ${data.error}` });
+      }
+    } catch (err: any) {
+      setTestResult({ success: false, message: `Error: ${err.message}` });
+    } finally {
+      setVerifyLoading(false);
+    }
+  };
+
+  const handleTestEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!testEmail) return;
+    
+    setTestLoading(true);
+    setTestResult(null);
+    try {
+      const res = await fetch(`/api/test-email?to=${encodeURIComponent(testEmail)}`);
+      const data = await res.json();
+      if (data.success) {
+        setTestResult({ success: true, message: "Test email sent successfully! Check your inbox." });
+      } else {
+        setTestResult({ success: false, message: `Failed: ${data.error}` });
+      }
+    } catch (err: any) {
+      setTestResult({ success: false, message: `Error: ${err.message}` });
+    } finally {
+      setTestLoading(false);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -141,6 +200,12 @@ const AdminDashboard: React.FC = () => {
               className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'requests' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
             >
               <Search size={14} className="inline mr-2" /> All Requests
+            </button>
+            <button 
+              onClick={() => setActiveTab('system')}
+              className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'system' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              <Shield size={14} className="inline mr-2" /> System
             </button>
           </div>
         </div>
@@ -395,6 +460,105 @@ const AdminDashboard: React.FC = () => {
                     ))}
                   </tbody>
                 </table>
+              )}
+              {activeTab === 'system' && (
+                <div className="p-8 space-y-8">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    {/* SMTP Status */}
+                    <div className="bg-slate-50 rounded-3xl p-8 border border-slate-200">
+                      <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-6 flex items-center gap-2">
+                        <Mail size={18} className="text-blueprint-blue" /> SMTP Configuration
+                      </h3>
+                      
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center p-4 bg-white rounded-2xl border">
+                          <span className="text-[10px] font-black text-slate-400 uppercase">EMAIL_USER</span>
+                          <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase ${systemStatus?.smtp?.user === 'Configured' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
+                            {systemStatus?.smtp?.user || 'Checking...'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center p-4 bg-white rounded-2xl border">
+                          <span className="text-[10px] font-black text-slate-400 uppercase">EMAIL_PASS</span>
+                          <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase ${systemStatus?.smtp?.pass === 'Configured' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
+                            {systemStatus?.smtp?.pass || 'Checking...'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="mt-8 space-y-4">
+                        <button 
+                          onClick={handleVerifySMTP}
+                          disabled={verifyLoading}
+                          className="w-full py-3 bg-white border-2 border-slate-200 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                          {verifyLoading ? <RefreshCw size={14} className="animate-spin" /> : <Shield size={14} />}
+                          {verifyLoading ? 'Verifying...' : 'Verify SMTP Connection'}
+                        </button>
+
+                        <p className="text-[10px] text-slate-500 italic">
+                          * Ensure you use a Gmail App Password if 2FA is enabled.
+                        </p>
+                        <form onSubmit={handleTestEmail} className="space-y-4">
+                          <input 
+                            type="email"
+                            placeholder="Recipient Email Address"
+                            value={testEmail}
+                            onChange={(e) => setTestEmail(e.target.value)}
+                            className="w-full px-4 py-3 bg-white border rounded-xl outline-none focus:border-blueprint-blue text-sm"
+                            required
+                          />
+                          <button 
+                            type="submit"
+                            disabled={testLoading}
+                            className="w-full py-3 bg-blueprint-blue text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg hover:bg-blue-700 transition-all disabled:opacity-50"
+                          >
+                            {testLoading ? 'Sending...' : 'Send Test Email'}
+                          </button>
+                        </form>
+                        
+                        {testResult && (
+                          <div className={`mt-4 p-4 rounded-xl text-[10px] font-bold ${testResult.success ? 'bg-green-50 text-green-700 border border-green-100' : 'bg-red-50 text-red-700 border border-red-100'}`}>
+                            {testResult.message}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* System Info */}
+                    <div className="bg-slate-50 rounded-3xl p-8 border border-slate-200">
+                      <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-6 flex items-center gap-2">
+                        <Info size={18} className="text-blueprint-blue" /> System Diagnostics
+                      </h3>
+                      
+                      <div className="space-y-4">
+                        <div className="p-4 bg-white rounded-2xl border">
+                          <p className="text-[10px] font-black text-slate-400 uppercase mb-2">API Endpoint</p>
+                          <p className="text-xs font-mono text-slate-700">/api/send-email</p>
+                        </div>
+                        <div className="p-4 bg-white rounded-2xl border">
+                          <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Server Status</p>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                              <span className="text-xs font-bold text-slate-700 uppercase">Operational</span>
+                            </div>
+                            <button 
+                              onClick={checkSystemStatus}
+                              className="p-1.5 hover:bg-slate-50 rounded-lg transition-colors"
+                              title="Refresh Status"
+                            >
+                              <RefreshCw size={14} className="text-slate-400" />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="p-4 bg-white rounded-2xl border">
+                          <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Environment</p>
+                          <p className="text-xs font-bold text-slate-700 uppercase">{(import.meta as any).env?.MODE || 'development'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
           )}

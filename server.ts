@@ -2,6 +2,29 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import nodemailer from 'nodemailer';
+import 'dotenv/config';
+
+let transporter: nodemailer.Transporter | null = null;
+
+function getTransporter() {
+  const EMAIL_USER = process.env.EMAIL_USER;
+  const EMAIL_PASS = process.env.EMAIL_PASS;
+
+  if (!EMAIL_USER || !EMAIL_PASS) {
+    throw new Error("Email credentials are not configured (EMAIL_USER/EMAIL_PASS)");
+  }
+
+  if (!transporter) {
+    transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: EMAIL_USER,
+        pass: EMAIL_PASS,
+      },
+    });
+  }
+  return { transporter, EMAIL_USER };
+}
 
 async function startServer() {
   const app = express();
@@ -9,20 +32,9 @@ async function startServer() {
 
   app.use(express.json());
 
-  // Email Configuration (Gmail SMTP)
-  const EMAIL_USER = process.env.EMAIL_USER; // Your Gmail address
-  const EMAIL_PASS = process.env.EMAIL_PASS; // Your Gmail App Password
-
-  console.log(`[SMTP] EMAIL_USER is ${EMAIL_USER ? 'DEFINED' : 'UNDEFINED'}`);
-  console.log(`[SMTP] EMAIL_PASS is ${EMAIL_PASS ? 'DEFINED' : 'UNDEFINED'}`);
-
-  const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: EMAIL_USER,
-      pass: EMAIL_PASS,
-    },
-  });
+  // Log SMTP status on startup
+  console.log(`[SMTP] EMAIL_USER is ${process.env.EMAIL_USER ? 'DEFINED' : 'UNDEFINED'}`);
+  console.log(`[SMTP] EMAIL_PASS is ${process.env.EMAIL_PASS ? 'DEFINED' : 'UNDEFINED'}`);
 
   // Test route for email
   app.get("/api/test-email", async (req, res) => {
@@ -30,6 +42,7 @@ async function startServer() {
     if (!testTo) return res.status(400).send("Provide 'to' query param");
 
     try {
+      const { transporter, EMAIL_USER } = getTransporter();
       const mailOptions = {
         from: `"ESEC Test" <${EMAIL_USER}>`,
         to: testTo,
@@ -39,25 +52,35 @@ async function startServer() {
       const info = await transporter.sendMail(mailOptions);
       res.json({ success: true, info });
     } catch (err: any) {
+      console.error("[SMTP Test Error]", err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Verify SMTP connection
+  app.get("/api/verify-smtp", async (req, res) => {
+    try {
+      const { transporter } = getTransporter();
+      await transporter.verify();
+      res.json({ success: true, message: "SMTP connection verified successfully" });
+    } catch (err: any) {
+      console.error("[SMTP Verify Error]", err);
       res.status(500).json({ success: false, error: err.message });
     }
   });
 
   // API routes
-  app.post("/api/send-email", async (req, res) => {
+  app.post('/api/send-email', async (req, res) => {
     const { to, subject, message } = req.body;
 
     if (!to || !subject || !message) {
       return res.status(400).json({ success: false, error: "Missing required fields (to, subject, message)" });
     }
 
-    if (!EMAIL_USER || !EMAIL_PASS) {
-      console.error("Email credentials are not configured");
-      return res.status(500).json({ success: false, error: "Email service not configured. Please set EMAIL_USER and EMAIL_PASS." });
-    }
-
     try {
-      console.log(`Attempting to send email to: ${to} | Subject: ${subject}`);
+      const { transporter, EMAIL_USER } = getTransporter();
+      console.log(`[SMTP] Attempting to send email to: ${to}`);
+      console.log(`[SMTP] Subject: ${subject}`);
       
       const mailOptions = {
         from: `"ESEC OD Portal" <${EMAIL_USER}>`,
@@ -67,11 +90,13 @@ async function startServer() {
       };
 
       const info = await transporter.sendMail(mailOptions);
-      console.log("Email sent successfully:", info.messageId);
+      console.log("[SMTP] Email sent successfully!");
+      console.log("[SMTP] Message ID:", info.messageId);
+      console.log("[SMTP] Response:", info.response);
       
       res.json({ success: true, data: info });
     } catch (err: any) {
-      console.error("Nodemailer Error:", err);
+      console.error("[SMTP Error]", err);
       res.status(500).json({ success: false, error: err.message });
     }
   });

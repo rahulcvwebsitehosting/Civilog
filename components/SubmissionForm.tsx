@@ -4,6 +4,7 @@ import { supabase } from '../supabaseClient';
 import { Loader2, UserPlus, Trash2, Phone, Tag, MapPin, AlertCircle, Upload, Info, CheckCircle2, Calendar, Beaker, Image as ImageIcon, FileText, CreditCard, X, User, Database, PenTool } from 'lucide-react';
 import { SubmissionFormData, Profile, TeamMember, ODRequest } from '../types';
 import { generateODDocument } from '../services/pdfService';
+import { logAudit } from '../services/auditService';
 
 interface SubmissionFormProps {
   onSuccess: () => void;
@@ -287,6 +288,13 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
       // Step 4: Success UI (IMMEDIATE)
       console.log("Step 4: Success!");
       onSuccess();
+
+      // Log Audit
+      await logAudit('CREATE_OD', 'od_request', insertedData?.id || null, {
+        student_name: formData.student_name,
+        event_title: formData.event_title,
+        department: formData.department
+      });
 
       // Step 5: Background Tasks (PDF, Uploads & Notifications)
       console.log("Step 5: Starting background tasks...");

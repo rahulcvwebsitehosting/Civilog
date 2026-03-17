@@ -2,12 +2,14 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { ODRequest } from '../types';
-import { Loader2, Download, Search, RefreshCw, Award, Edit3, Save, X, ExternalLink, Trophy, Image as ImageIcon } from 'lucide-react';
+import { Loader2, Download, Search, RefreshCw, Award, Edit3, Save, X, ExternalLink, Trophy, Image as ImageIcon, History } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { logAudit } from '../services/auditService';
 
 const FacultyRegistry: React.FC = () => {
   const [requests, setRequests] = useState<ODRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [eventTypeFilter, setEventTypeFilter] = useState<string>('All');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -25,6 +27,9 @@ const FacultyRegistry: React.FC = () => {
       .eq('id', user.id)
       .single();
     
+    const role = profile?.role || user.user_metadata?.role;
+    setUserRole(role);
+
     let query = supabase
       .from('od_requests')
       .select('*')
@@ -32,7 +37,6 @@ const FacultyRegistry: React.FC = () => {
       .order('created_at', { ascending: false });
 
     const dept = profile?.department || user.user_metadata?.department;
-    const role = profile?.role || user.user_metadata?.role;
 
     if (role !== 'admin' && dept) {
       query = query.eq('department', dept);
@@ -119,6 +123,10 @@ const FacultyRegistry: React.FC = () => {
     if (error) {
       alert('Failed to update achievement details: ' + error.message);
     } else {
+      // Log Audit
+      await logAudit('UPDATE_ACHIEVEMENT', 'od_request', id, {
+        new_value: editValue
+      });
       setEditingId(null);
       fetchRegistry();
     }
@@ -259,16 +267,18 @@ const FacultyRegistry: React.FC = () => {
                             <p className={`text-[10px] font-bold uppercase ${request.achievement_details ? 'text-slate-700' : 'text-slate-300 italic'}`}>
                               {request.achievement_details || 'No general achievement notes.'}
                             </p>
-                            <button 
-                              onClick={() => {
-                                setEditingId(request.id);
-                                setEditValue(request.achievement_details || '');
-                              }}
-                              className="opacity-0 group-hover:opacity-100 p-1.5 bg-slate-100 text-slate-500 rounded-lg hover:text-blueprint-blue transition-all"
-                              title="Edit Achievement Notes"
-                            >
-                              <Edit3 size={12} />
-                            </button>
+                            {userRole !== 'admin' && (
+                              <button 
+                                onClick={() => {
+                                  setEditingId(request.id);
+                                  setEditValue(request.achievement_details || '');
+                                }}
+                                className="opacity-0 group-hover:opacity-100 p-1.5 bg-slate-100 text-slate-500 rounded-lg hover:text-blueprint-blue transition-all"
+                                title="Edit Achievement Notes"
+                              >
+                                <Edit3 size={12} />
+                              </button>
+                            )}
                           </div>
                         )}
                         {(Array.isArray(request.prize_details) && request.prize_details.length > 0) && (

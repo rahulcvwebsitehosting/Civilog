@@ -5,6 +5,7 @@ import { ODRequest, Profile, ODStatus } from '../types';
 import { Loader2, RefreshCw, Search, BarChart3, Clock, CheckCircle2, LayoutList, BookOpen, AlertCircle, ChevronLeft, Terminal, FileText, Download, ExternalLink, Database, Trash2, Archive, RefreshCcw, Lock, X, Folder, Bell, Filter, FileSpreadsheet, UserCheck, GraduationCap, Mail, Check } from 'lucide-react';
 import { generateODDocument } from '../services/pdfService';
 import { Link, useSearchParams } from 'react-router-dom';
+import { logAudit } from '../services/auditService';
 import FeedCard from './FeedCard';
 import NotificationCenter from './NotificationCenter';
 import NestedFolderView from './NestedFolderView';
@@ -233,6 +234,13 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
 
           if (dbError) throw dbError;
 
+          // Log Audit
+          await logAudit('APPROVE_HOD', 'od_request', request.id, {
+            student_name: request.student_name,
+            event_title: request.event_title,
+            department: request.department
+          });
+
           // Trigger Email & In-App Notification (Client-side fallback)
           try {
             const { data: studentProfileData } = await supabase
@@ -311,6 +319,13 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
 
           if (dbError) throw dbError;
 
+          // Log Audit
+          await logAudit('APPROVE_ADVISOR', 'od_request', request.id, {
+            student_name: request.student_name,
+            event_title: request.event_title,
+            department: request.department
+          });
+
           // Trigger HOD Notification (Client-side fallback)
           try {
             const { data: hodProfiles } = await supabase
@@ -373,6 +388,13 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         }
       } else {
         await supabase.from('od_requests').update({ status: 'Rejected' }).eq('id', request.id);
+        
+        // Log Audit
+        await logAudit('REJECT_OD', 'od_request', request.id, {
+          student_name: request.student_name,
+          event_title: request.event_title,
+          department: request.department
+        });
       }
       fetchRequests();
     } catch (err: any) {
@@ -389,6 +411,10 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
     try {
       const { error } = await supabase.from('od_requests').update({ status: 'Archived' }).eq('id', id);
       if (error) throw error;
+
+      // Log Audit
+      await logAudit('ARCHIVE_OD', 'od_request', id);
+
       fetchRequests();
     } catch (err: any) {
       alert("Error archiving: " + err.message);
@@ -400,6 +426,10 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
     try {
       const { error } = await supabase.from('od_requests').update({ status: 'Pending Advisor' }).eq('id', id);
       if (error) throw error;
+
+      // Log Audit
+      await logAudit('RESTORE_OD', 'od_request', id);
+
       fetchRequests();
     } catch (err: any) {
       alert("Error restoring: " + err.message);
@@ -425,6 +455,10 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
     try {
       const { error } = await supabase.from('od_requests').delete().eq('id', deleteCandidateId);
       if (error) throw error;
+
+      // Log Audit
+      await logAudit('DELETE_OD', 'od_request', deleteCandidateId);
+
       setDeleteCandidateId(null);
       fetchRequests();
     } catch (err: any) {

@@ -16,6 +16,7 @@ interface FeedCardProps {
   currentUserRegNo?: string;
   isFaculty?: boolean;
   isProcessing?: boolean;
+  isAdminView?: boolean;
 }
 
 const ImagePreviewModal: React.FC<{ url: string; onClose: () => void; label: string }> = ({ url, onClose, label }) => {
@@ -90,7 +91,8 @@ const FeedCard: React.FC<FeedCardProps> = ({
   currentUserId,
   currentUserRegNo,
   isFaculty,
-  isProcessing
+  isProcessing,
+  isAdminView = false
 }) => {
   const [previewImage, setPreviewImage] = useState<{ url: string, label: string } | null>(null);
   const [showEvidenceSlots, setShowEvidenceSlots] = useState(false);
@@ -229,7 +231,7 @@ const FeedCard: React.FC<FeedCardProps> = ({
             </div>
             <div className="flex items-center gap-3">
               <span className="text-[10px] text-gray-400 font-technical uppercase shrink-0 font-bold">{timeAgo(request.created_at)}</span>
-              {canDelete && onDelete && (
+              {!isAdminView && canDelete && onDelete && (
                 <button 
                   onClick={(e) => {
                     e.stopPropagation();
@@ -555,7 +557,7 @@ const FeedCard: React.FC<FeedCardProps> = ({
           </div>
 
           <div className="flex items-center gap-4 shrink-0 w-full sm:w-auto justify-between sm:justify-end">
-            {isFaculty && (request.status === 'Pending Advisor' || request.status === 'Pending HOD') && onApprove && onReject ? (
+            {!isAdminView && isFaculty && (request.status === 'Pending Advisor' || request.status === 'Pending HOD') && onApprove && onReject ? (
               <div className="flex items-center gap-2">
                 {isProcessing ? (
                   <div className="flex items-center gap-2 text-blueprint-blue text-[10px] font-black uppercase tracking-widest">

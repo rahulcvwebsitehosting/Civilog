@@ -7,21 +7,25 @@ import {
   ChevronRight, Calendar, Clock, User, 
   CheckCircle2, XCircle, Trash2, Info,
   GraduationCap, Briefcase, Building2,
-  ArrowUpDown, Download
+  ArrowUpDown, Download, LayoutDashboard,
+  ArrowUp, ArrowDown, RefreshCw
 } from 'lucide-react';
+import FeedCard from './FeedCard';
 
 const AdminDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'audit' | 'users' | 'requests'>('audit');
+  const [activeTab, setActiveTab] = useState<'audit' | 'users' | 'requests' | 'feed'>('feed');
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [requests, setRequests] = useState<ODRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [deptFilter, setDeptFilter] = useState<string>('all');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   useEffect(() => {
     fetchData();
-  }, [activeTab]);
+  }, [activeTab, sortOrder]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -30,19 +34,19 @@ const AdminDashboard: React.FC = () => {
         const { data } = await supabase
           .from('audit_logs')
           .select('*')
-          .order('created_at', { ascending: false });
+          .order('created_at', { ascending: sortOrder === 'asc' });
         setAuditLogs(data || []);
       } else if (activeTab === 'users') {
         const { data } = await supabase
           .from('profiles')
           .select('*')
-          .order('role', { ascending: true });
+          .order('role', { ascending: sortOrder === 'asc' });
         setProfiles(data || []);
-      } else if (activeTab === 'requests') {
+      } else if (activeTab === 'requests' || activeTab === 'feed') {
         const { data } = await supabase
           .from('od_requests')
           .select('*')
-          .order('created_at', { ascending: false });
+          .order('created_at', { ascending: sortOrder === 'asc' });
         setRequests(data || []);
       }
     } catch (err) {
@@ -51,6 +55,13 @@ const AdminDashboard: React.FC = () => {
       setLoading(false);
     }
   };
+
+  const filteredRequests = requests.filter(r => {
+    const matchesDept = deptFilter === 'all' || r.department === deptFilter;
+    const matchesSearch = r.student_name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                         r.event_title.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesDept && matchesSearch;
+  });
 
   const filteredProfiles = profiles.filter(p => {
     const matchesSearch = (p.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -90,22 +101,28 @@ const AdminDashboard: React.FC = () => {
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mt-1">System Audit & Registry • Read-Only Access</p>
           </div>
           
-          <div className="flex bg-white p-1 rounded-2xl border shadow-sm">
+          <div className="flex bg-white p-1 rounded-2xl border shadow-sm overflow-x-auto">
+            <button 
+              onClick={() => setActiveTab('feed')}
+              className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'feed' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              <LayoutDashboard size={14} className="inline mr-2" /> Global Feed
+            </button>
             <button 
               onClick={() => setActiveTab('audit')}
-              className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'audit' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+              className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'audit' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
             >
               <History size={14} className="inline mr-2" /> Audit Log
             </button>
             <button 
               onClick={() => setActiveTab('users')}
-              className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'users' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+              className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'users' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
             >
-              <Users size={14} className="inline mr-2" /> User Registry
+              <Users size={14} className="inline mr-2" /> Registry
             </button>
             <button 
               onClick={() => setActiveTab('requests')}
-              className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'requests' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+              className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'requests' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
             >
               <Search size={14} className="inline mr-2" /> All Requests
             </button>
@@ -113,31 +130,62 @@ const AdminDashboard: React.FC = () => {
         </div>
 
         {/* Search & Filters */}
-        {activeTab === 'users' && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="relative col-span-2">
+        <div className="flex flex-col md:flex-row gap-4 items-center">
+          {(activeTab === 'users' || activeTab === 'feed' || activeTab === 'requests') && (
+            <div className="relative flex-1 w-full">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input 
                 type="text"
-                placeholder="Search by Name, Email, or Reg No..."
+                placeholder={activeTab === 'users' ? "Search by Name, Email, or Reg No..." : "Search by Student or Event..."}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-12 pr-4 py-4 bg-white border rounded-2xl outline-none focus:border-blueprint-blue shadow-sm text-sm"
               />
             </div>
-            <select 
-              value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value)}
-              className="px-5 py-4 bg-white border rounded-2xl outline-none shadow-sm text-sm font-bold uppercase tracking-tight"
+          )}
+          
+          <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
+            {activeTab === 'users' ? (
+              <select 
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value)}
+                className="px-5 py-4 bg-white border rounded-2xl outline-none shadow-sm text-sm font-bold uppercase tracking-tight min-w-[140px]"
+              >
+                <option value="all">All Roles</option>
+                <option value="student">Students</option>
+                <option value="advisor">Advisors</option>
+                <option value="hod">HODs</option>
+                <option value="admin">Admins</option>
+              </select>
+            ) : (activeTab === 'feed' || activeTab === 'requests') ? (
+              <select 
+                value={deptFilter}
+                onChange={(e) => setDeptFilter(e.target.value)}
+                className="px-5 py-4 bg-white border rounded-2xl outline-none shadow-sm text-sm font-bold uppercase tracking-tight min-w-[140px]"
+              >
+                <option value="all">All Departments</option>
+                {['CSE', 'ECE', 'EEE', 'MECH', 'CIVIL', 'IT', 'AI&DS'].map(d => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+            ) : null}
+
+            <button 
+              onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+              className="px-5 py-4 bg-white border rounded-2xl outline-none shadow-sm text-sm font-bold uppercase tracking-tight flex items-center gap-2 hover:bg-slate-50 transition-all"
             >
-              <option value="all">All Roles</option>
-              <option value="student">Students</option>
-              <option value="advisor">Advisors</option>
-              <option value="hod">HODs</option>
-              <option value="admin">Admins</option>
-            </select>
+              {sortOrder === 'asc' ? <ArrowUp size={16} /> : <ArrowDown size={16} />}
+              {sortOrder === 'asc' ? 'Oldest' : 'Newest'}
+            </button>
+
+            <button 
+              onClick={fetchData}
+              className="p-4 bg-white border rounded-2xl outline-none shadow-sm hover:bg-slate-50 transition-all"
+            >
+              <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
+            </button>
           </div>
-        )}
+        </div>
 
         {/* Content Area */}
         <div className="bg-white rounded-[2.5rem] border shadow-2xl overflow-hidden min-h-[600px]">
@@ -148,6 +196,26 @@ const AdminDashboard: React.FC = () => {
             </div>
           ) : (
             <div className="overflow-x-auto">
+              {activeTab === 'feed' && (
+                <div className="p-8 space-y-8 bg-slate-50/30">
+                  {filteredRequests.length === 0 ? (
+                    <div className="text-center py-20">
+                      <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">No Activity Found</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-8">
+                      {filteredRequests.map((r) => (
+                        <FeedCard 
+                          key={r.id} 
+                          request={r} 
+                          isAdminView={true}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {activeTab === 'audit' && (
                 <table className="w-full text-left border-collapse">
                   <thead>

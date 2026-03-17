@@ -200,7 +200,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         if (role === 'hod' || (role === 'admin' && request.status === 'Pending HOD')) {
           // HOD Approval Logic (Final Sanction)
           
-          // Fetch real student profile to get signature_url
+          // Fetch real student profile
           const { data: studentProfileData } = await supabase
             .from('profiles')
             .select('*')
@@ -327,7 +327,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                   <p>An OD request for <strong>${request.student_name}</strong> (${request.register_no}) has been <strong>Approved by Advisor</strong> and now requires your final authorization.</p>
                   <p><strong>Event:</strong> ${request.event_title}</p>
                   <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
-                  <p>Please log in to your dashboard to provide the final signature.</p>
+                  <p>Please log in to your dashboard to provide the final authorization.</p>
                   <a href="${dashboardUrl}" style="display: inline-block; padding: 12px 24px; background-color: #003366; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold;">View HOD Dashboard</a>
                   <p style="font-size: 12px; color: #666; margin-top: 30px;">Ref: OD-AUTH-${request.id.substring(0, 8)}</p>
                 </div>

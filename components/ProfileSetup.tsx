@@ -16,13 +16,19 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ profile, onComplete }) => {
   const [error, setError] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   
+  const initialYear = profile?.year || '1';
+  const getInitialSemester = (year: string) => {
+    const y = parseInt(year);
+    return (2 * y - 1).toString();
+  };
+
   const [formData, setFormData] = useState({
     full_name: profile?.full_name || '',
     identification_no: profile?.identification_no || '',
     roll_no: profile?.roll_no || '',
     phone_number: profile?.phone_number || '',
-    year: profile?.year || '1',
-    semester: profile?.semester || '1',
+    year: initialYear,
+    semester: profile?.semester || getInitialSemester(initialYear),
     designation: profile?.designation || '',
     department: profile?.department || 'Computer Science and Engineering',
     is_hod: profile?.is_hod || false
@@ -38,6 +44,11 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ profile, onComplete }) => {
       // Reset year if department changes and year 5 is no longer valid
       if (name === 'department' && value !== 'M.Tech. CSE (5-Years)' && prev.year === '5') {
         next.year = '4';
+      }
+      // Sync semester with year
+      if (name === 'year') {
+        const year = parseInt(value);
+        next.semester = (2 * year - 1).toString();
       }
       return next;
     });
@@ -144,20 +155,9 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ profile, onComplete }) => {
                       onChange={handleInputChange}
                       className="w-full px-5 py-4 rounded-2xl bg-slate-50 border border-slate-200 text-sm outline-none"
                     >
-                      <option value="1">1st Sem</option>
-                      <option value="2">2nd Sem</option>
-                      <option value="3">3rd Sem</option>
-                      <option value="4">4th Sem</option>
-                      <option value="5">5th Sem</option>
-                      <option value="6">6th Sem</option>
-                      <option value="7">7th Sem</option>
-                      <option value="8">8th Sem</option>
-                      {formData.department === 'M.Tech. CSE (5-Years)' && (
-                        <>
-                          <option value="9">9th Sem</option>
-                          <option value="10">10th Sem</option>
-                        </>
-                      )}
+                      {[2 * parseInt(formData.year) - 1, 2 * parseInt(formData.year)].map(sem => (
+                        <option key={sem} value={sem.toString()}>{sem}{sem === 1 ? 'st' : sem === 2 ? 'nd' : sem === 3 ? 'rd' : 'th'} Sem</option>
+                      ))}
                     </select>
                   </div>
                 </>

@@ -1,29 +1,6 @@
 import { jsPDF } from 'jspdf';
 import { ODRequest, Profile, TeamMember } from '../types';
 
-const loadImage = (url: string): Promise<HTMLImageElement | null> => {
-  if (!url) return Promise.resolve(null);
-  return new Promise((resolve) => {
-    const img = new Image();
-    const timeout = setTimeout(() => {
-      console.warn(`[PDF] Image load timed out for: ${url}`);
-      resolve(null);
-    }, 8000); // 8 second timeout for images
-
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      clearTimeout(timeout);
-      resolve(img);
-    };
-    img.onerror = () => {
-      clearTimeout(timeout);
-      console.error(`[PDF] Failed to load image at ${url}`);
-      resolve(null);
-    };
-    img.src = url;
-  });
-};
-
 const formatFullDate = (dateStr: string) => {
   if (!dateStr) return '';
   const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -48,7 +25,7 @@ const getOrdinalYear = (year: string) => {
 /**
  * Generates the professional OD letter with robust multi-student participant logic.
  * Constraints: Lead student and additional team members are aggregated and used for grammar logic.
- * Enforced: Strictly single-page output.
+ * Enforced: Strictly single-page output. No physical signatures required.
  */
 export const generateODDocument = async (request: ODRequest, studentProfile: Profile, facultyProfile?: Profile): Promise<Blob> => {
   console.log("[PDF] Starting document generation for:", request.event_title);
@@ -177,8 +154,7 @@ export const generateODDocument = async (request: ODRequest, studentProfile: Pro
   doc.text('Thanking You,', MARGIN, currentY); currentY += 10;
   doc.text('Yours faithfully,', MARGIN, currentY); currentY += 5;
 
-  // --- 4. Signatures Section ---
-  const sigWidth = 35;
+  // --- 4. Signatures Section (Names only) ---
   const sigHeight = 15;
   const sigsPerRow = 3;
   const sigSpacingX = 45;
@@ -187,18 +163,12 @@ export const generateODDocument = async (request: ODRequest, studentProfile: Pro
   let sigX = MARGIN;
   let sigY = currentY;
 
-  // Lead Student Signature
-  if (studentProfile.signature_url) {
-    const studentSig = await loadImage(studentProfile.signature_url);
-    if (studentSig) {
-      doc.addImage(studentSig, 'PNG', sigX, sigY, sigWidth, sigHeight);
-    }
-  }
+  // Lead Student Name
   doc.setFontSize(9);
   doc.text(request.student_name, sigX, sigY + sigHeight + 4);
   doc.setFontSize(12);
 
-  // Team Member Signatures
+  // Team Member Names
   for (let i = 0; i < teamMembers.length; i++) {
     const member = teamMembers[i];
     const col = (i + 1) % sigsPerRow;
@@ -207,12 +177,6 @@ export const generateODDocument = async (request: ODRequest, studentProfile: Pro
     const mX = MARGIN + (col * sigSpacingX);
     const mY = currentY + (row * sigSpacingY);
 
-    if (member.signature_url) {
-      const memberSig = await loadImage(member.signature_url);
-      if (memberSig) {
-        doc.addImage(memberSig, 'PNG', mX, mY, sigWidth, sigHeight);
-      }
-    }
     doc.setFontSize(9);
     doc.text(member.name, mX, mY + sigHeight + 4);
     doc.setFontSize(12);
@@ -226,12 +190,6 @@ export const generateODDocument = async (request: ODRequest, studentProfile: Pro
   const signatureX = PAGE_WIDTH - MARGIN - 60;
 
   if (facultyProfile) {
-    if (facultyProfile.signature_url) {
-      const facultySig = await loadImage(facultyProfile.signature_url);
-      if (facultySig) {
-        doc.addImage(facultySig, 'PNG', signatureX, currentY - 5, sigWidth, sigHeight);
-      }
-    }
     currentY += 20;
     doc.setFont('times', 'bold');
     doc.text(`${facultyProfile.full_name}`, signatureX, currentY);
@@ -257,7 +215,10 @@ export const generateODDocument = async (request: ODRequest, studentProfile: Pro
   doc.setFont('times', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(150, 150, 150);
-  doc.text('Approved via website. No signature required.', 105, 282, { align: 'center' });
+  const footerText = facultyProfile 
+    ? 'Approved via website. No physical signature required.' 
+    : 'Generated via website. No physical signature required.';
+  doc.text(footerText, 105, 282, { align: 'center' });
 
   return doc.output('blob');
 };

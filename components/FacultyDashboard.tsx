@@ -79,7 +79,7 @@ const FacultyDashboard: React.FC = () => {
     try {
       if (approve) {
         // Fix: generateODLetter requires studentProfile and optionally facultyProfile.
-        // We fetch the lead student's metadata to retrieve their digital signature for the PDF.
+        // We fetch the lead student's metadata to include their details in the PDF.
         const { data: studentProfileData } = await supabase
           .from('profiles')
           .select('*')

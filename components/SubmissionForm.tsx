@@ -17,14 +17,20 @@ const ALLOWED_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
 import { DEPARTMENTS } from '../constants';
 
 const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, profile }) => {
+  const initialYear = profile?.year || '2';
+  const getInitialSemester = (year: string) => {
+    const y = parseInt(year);
+    return (2 * y - 1).toString();
+  };
+
   const [formData, setFormData] = useState<SubmissionFormData>({
     student_name: profile?.full_name || '',
     register_no: profile?.identification_no || '',
     roll_no: profile?.roll_no || '',
     phone_number: '',
-    year: profile?.year || '2', 
+    year: initialYear, 
     department: profile?.department || 'Computer Science and Engineering',
-    semester: '3',
+    semester: profile?.semester || getInitialSemester(initialYear),
     event_title: '',
     organization_name: '',
     organization_location: '',
@@ -127,6 +133,12 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
       // Reset year if department changes and year 5 is no longer valid
       if (name === 'department' && value !== 'M.Tech. CSE (5-Years)' && prev.year === '5') {
         newData.year = '4';
+      }
+      // Sync semester with year
+      if (name === 'year') {
+        const year = parseInt(value);
+        const sem1 = 2 * year - 1;
+        newData.semester = sem1.toString();
       }
       return newData;
     });
@@ -506,7 +518,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
               onChange={handleInputChange} 
               className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none shadow-sm"
             >
-               {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(sem => (
+               {[2 * parseInt(formData.year) - 1, 2 * parseInt(formData.year)].map(sem => (
                  <option key={sem} value={sem.toString()}>{sem}{sem === 1 ? 'st' : sem === 2 ? 'nd' : sem === 3 ? 'rd' : 'th'} Sem</option>
                ))}
              </select>

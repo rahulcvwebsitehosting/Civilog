@@ -43,7 +43,7 @@ ADD COLUMN IF NOT EXISTS signature_url TEXT;
 CREATE TABLE IF NOT EXISTS public.notifications (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES auth.users(id),
-    title TEXT NOT NULL,
+    title TEXT,
     message TEXT NOT NULL,
     type TEXT DEFAULT 'info',
     read BOOLEAN DEFAULT false,

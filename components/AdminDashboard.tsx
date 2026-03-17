@@ -2,22 +2,27 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { Profile, ODRequest } from '../types';
+import { generateODLetter } from '../services/pdfService';
 import { 
   Shield, Users, History, Search, Filter, 
   ChevronRight, Calendar, Clock, User, 
   CheckCircle2, XCircle, Trash2, Info,
   GraduationCap, Briefcase, Building2,
   ArrowUpDown, Download, LayoutDashboard,
-  ArrowUp, ArrowDown, RefreshCw, Mail
+  ArrowUp, ArrowDown, RefreshCw, Mail,
+  AlertCircle, Check, X, Loader2
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import FeedCard from './FeedCard';
 
 const AdminDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'audit' | 'users' | 'requests' | 'feed' | 'system'>('feed');
-  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<'users' | 'requests' | 'feed' | 'system'>('feed');
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [requests, setRequests] = useState<ODRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [processingId, setProcessingId] = useState<string | null>(null);
+  const [confirmRejectRequest, setConfirmRejectRequest] = useState<ODRequest | null>(null);
+  const [adminProfile, setAdminProfile] = useState<Profile | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [deptFilter, setDeptFilter] = useState<string>('all');
@@ -89,13 +94,18 @@ const AdminDashboard: React.FC = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      if (activeTab === 'audit') {
-        const { data } = await supabase
-          .from('audit_logs')
-          .select('*')
-          .order('created_at', { ascending: sortOrder === 'asc' });
-        setAuditLogs(data || []);
-      } else if (activeTab === 'users') {
+      // Fetch admin profile
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setAdminProfile({
+          id: user.id,
+          email: user.email || '',
+          role: user.user_metadata?.role || 'admin',
+          full_name: user.user_metadata?.full_name || 'Admin',
+        });
+      }
+
+      if (activeTab === 'users') {
         const { data } = await supabase
           .from('profiles')
           .select('*')
@@ -163,8 +173,131 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
+  const handleApproval = async (request: ODRequest, approve: boolean, confirmed: boolean = false) => {
+    if (!approve && !confirmed) {
+      setConfirmRejectRequest(request);
+      return;
+    }
+
+    setProcessingId(request.id);
+    setConfirmRejectRequest(null);
+    try {
+      if (approve) {
+        // Fetch student profile
+        const { data: studentProfileData } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', request.user_id)
+          .single();
+
+        const studentProfile: Profile = studentProfileData || {
+          id: request.user_id,
+          email: '',
+          role: 'student',
+          full_name: request.student_name,
+        };
+
+        const pdfBlob = await generateODLetter(request, studentProfile, adminProfile || undefined);
+        const fileName = `OD_Letter_${request.register_no}_${Date.now()}.pdf`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('od-files')
+          .upload(`od_letters/${fileName}`, pdfBlob);
+        
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('od-files')
+          .getPublicUrl(`od_letters/${fileName}`);
+
+        const { error: dbError } = await supabase
+          .from('od_requests')
+          .update({ 
+            status: 'Approved', 
+            od_letter_url: publicUrl, 
+            notification_sent: true,
+            hod_id: adminProfile?.id,
+            hod_approved_at: new Date().toISOString()
+          })
+          .eq('id', request.id);
+          
+        if (dbError) throw dbError;
+
+        // Notify Student
+        await supabase.from('notifications').insert({
+          user_id: request.user_id,
+          message: `Your OD request for ${request.event_title} has been approved by Admin.`,
+          type: 'success',
+          read: false
+        });
+      } else {
+        const { error: dbError } = await supabase
+          .from('od_requests')
+          .update({ status: 'Rejected' })
+          .eq('id', request.id);
+          
+        if (dbError) throw dbError;
+
+        // Notify Student
+        await supabase.from('notifications').insert({
+          user_id: request.user_id,
+          message: `Your OD request for ${request.event_title} has been rejected by Admin.`,
+          type: 'error',
+          read: false
+        });
+      }
+      setRequests(prev => prev.map(r => r.id === request.id ? { ...r, status: approve ? 'Approved' : 'Rejected' } : r));
+    } catch (err) {
+      console.error(err);
+      alert('Error processing request');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-[#F8FAFC] p-4 sm:p-8 font-display">
+    <div className="min-h-screen bg-[#F8FAFC] p-4 sm:p-8 font-display relative">
+      {/* Rejection Confirmation Modal */}
+      <AnimatePresence>
+        {confirmRejectRequest && (
+          <div className="fixed inset-0 z-[150] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-[2rem] p-8 max-w-md w-full shadow-2xl border border-slate-200"
+            >
+              <div className="flex flex-col items-center text-center space-y-4">
+                <div className="w-16 h-16 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center">
+                  <XCircle size={32} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900 uppercase tracking-tight">Confirm Rejection</h3>
+                  <p className="text-sm text-slate-500 mt-2">
+                    Are you sure you want to <span className="font-bold text-red-600">REJECT</span> the OD request for <span className="font-bold text-slate-900">{confirmRejectRequest.student_name}</span>? 
+                    This action cannot be undone and the student will be notified.
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-4 w-full pt-4">
+                  <button 
+                    onClick={() => setConfirmRejectRequest(null)}
+                    className="px-6 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold uppercase text-xs tracking-widest hover:bg-slate-200 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={() => handleApproval(confirmRejectRequest, false, true)}
+                    className="px-6 py-3 bg-red-600 text-white rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg shadow-red-500/20 hover:bg-red-700 transition-all flex items-center justify-center gap-2"
+                  >
+                    <X size={14} /> Confirm Deny
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       <div className="max-w-7xl mx-auto space-y-8">
         
         {/* Header */}
@@ -182,12 +315,6 @@ const AdminDashboard: React.FC = () => {
               className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'feed' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
             >
               <LayoutDashboard size={14} className="inline mr-2" /> Global Feed
-            </button>
-            <button 
-              onClick={() => setActiveTab('audit')}
-              className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'audit' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
-            >
-              <History size={14} className="inline mr-2" /> Audit Log
             </button>
             <button 
               onClick={() => setActiveTab('users')}
@@ -289,58 +416,16 @@ const AdminDashboard: React.FC = () => {
                         <FeedCard 
                           key={r.id} 
                           request={r} 
-                          isAdminView={true}
+                          isAdminView={false}
+                          isFaculty={true}
+                          onApprove={(req) => handleApproval(req, true, true)}
+                          onReject={(req) => handleApproval(req, false, false)}
+                          isProcessing={processingId === r.id}
                         />
                       ))}
                     </div>
                   )}
                 </div>
-              )}
-
-              {activeTab === 'audit' && (
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50 border-b">
-                      <th className="p-6 text-[10px] font-black text-slate-500 uppercase tracking-widest">Timestamp</th>
-                      <th className="p-6 text-[10px] font-black text-slate-500 uppercase tracking-widest">User</th>
-                      <th className="p-6 text-[10px] font-black text-slate-500 uppercase tracking-widest">Action</th>
-                      <th className="p-6 text-[10px] font-black text-slate-500 uppercase tracking-widest">Details</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {auditLogs.map((log) => (
-                      <tr key={log.id} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="p-6">
-                          <div className="flex items-center gap-2 text-slate-900 font-bold text-xs">
-                            <Calendar size={14} className="text-slate-400" />
-                            {new Date(log.created_at).toLocaleDateString()}
-                          </div>
-                          <div className="flex items-center gap-2 text-slate-400 text-[10px] mt-1 font-mono">
-                            <Clock size={12} />
-                            {new Date(log.created_at).toLocaleTimeString()}
-                          </div>
-                        </td>
-                        <td className="p-6">
-                          <p className="font-bold text-slate-900 text-xs">{log.user_email || 'System'}</p>
-                          <p className="text-[9px] font-mono text-slate-400 uppercase tracking-tighter">{log.user_id?.substring(0, 8)}...</p>
-                        </td>
-                        <td className="p-6">
-                          <div className="flex items-center gap-2">
-                            {getActionIcon(log.action)}
-                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-700">{log.action.replace('_', ' ')}</span>
-                          </div>
-                        </td>
-                        <td className="p-6">
-                          <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
-                            <pre className="text-[9px] font-mono text-slate-600 whitespace-pre-wrap">
-                              {JSON.stringify(log.details, null, 2)}
-                            </pre>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
               )}
 
               {activeTab === 'users' && (
@@ -410,6 +495,7 @@ const AdminDashboard: React.FC = () => {
                       <th className="p-6 text-[10px] font-black text-slate-500 uppercase tracking-widest">Event Details</th>
                       <th className="p-6 text-[10px] font-black text-slate-500 uppercase tracking-widest">Current Status</th>
                       <th className="p-6 text-[10px] font-black text-slate-500 uppercase tracking-widest">Timeline</th>
+                      <th className="p-6 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -455,6 +541,30 @@ const AdminDashboard: React.FC = () => {
                               </div>
                             )}
                           </div>
+                        </td>
+                        <td className="p-6 text-right">
+                          {r.status === 'Approved' || r.status === 'Rejected' ? (
+                            <span className="text-[10px] font-bold text-slate-400 uppercase italic">Processed</span>
+                          ) : (
+                            <div className="flex justify-end gap-2">
+                              <button 
+                                onClick={() => handleApproval(r, false, false)}
+                                disabled={processingId === r.id}
+                                className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-50"
+                                title="Reject Request"
+                              >
+                                {processingId === r.id ? <Loader2 size={16} className="animate-spin" /> : <X size={16} />}
+                              </button>
+                              <button 
+                                onClick={() => handleApproval(r, true, true)}
+                                disabled={processingId === r.id}
+                                className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-50"
+                                title="Approve Request"
+                              >
+                                {processingId === r.id ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                              </button>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     ))}

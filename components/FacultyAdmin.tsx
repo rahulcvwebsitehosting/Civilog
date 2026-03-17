@@ -12,7 +12,7 @@ import NestedFolderView from './NestedFolderView';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
 
-import { DEPARTMENTS } from '../constants';
+import { DEPARTMENTS, BASE_URL } from '../constants';
 
 // Utility function to format date as "01st October, 2026"
 const formatFancyDate = (dateString: string | null): string => {
@@ -335,7 +335,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
               .eq('department', request.department);
 
             if (hodProfiles && hodProfiles.length > 0) {
-              const dashboardUrl = `${window.location.origin}/hod-dashboard?request_id=${request.id}`;
+              const dashboardUrl = `${BASE_URL}/hod-dashboard?request_id=${request.id}`;
               const emailMessage = `
                 <div style="font-family: sans-serif; line-height: 1.6; color: #333;">
                   <h2 style="color: #003366;">OD Authorization Required</h2>
@@ -349,6 +349,14 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
               `;
 
               for (const hod of hodProfiles) {
+                // In-app notification for HOD
+                await supabase.from('notifications').insert({
+                  user_id: hod.id,
+                  message: `New OD Authorization required for ${request.student_name} (${request.register_no}). Approved by Advisor.`,
+                  type: 'info',
+                  read: false
+                });
+
                 if (hod.email) {
                   const emailRes = await fetch('/api/send-email', {
                     method: 'POST',

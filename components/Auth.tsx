@@ -113,7 +113,7 @@ const Auth: React.FC = () => {
             <LogIn size={32} />
           </div>
           <h2 className="text-2xl font-black text-blueprint-blue uppercase tracking-tight italic">
-            {isSignUp ? 'Initialize ESEC OD' : 'ESEC Login'}
+            {isSignUp ? 'Profile Creation' : 'Login'}
           </h2>
           <p className="text-pencil-gray text-[10px] font-technical font-bold uppercase tracking-widest mt-1">
             {isSignUp ? 'New Student Account' : 'Enter Credentials'}
@@ -178,7 +178,7 @@ const Auth: React.FC = () => {
               disabled={loading}
               className="w-full bg-blueprint-blue text-white py-3.5 rounded-xl font-black flex items-center justify-center gap-2 hover:bg-goldenrod transition-all shadow-lg shadow-amber-500/10 disabled:opacity-50 uppercase tracking-widest text-xs"
             >
-              {loading ? <Loader2 className="animate-spin" size={18} /> : (isSignUp ? 'Request Access' : 'Authenticate')}
+              {loading ? <Loader2 className="animate-spin" size={18} /> : (isSignUp ? 'Create Profile' : 'Login')}
             </button>
           </form>
 
@@ -187,18 +187,17 @@ const Auth: React.FC = () => {
               <span className="w-full border-t border-slate-100"></span>
             </div>
             <div className="relative flex justify-center text-[10px] uppercase font-black text-slate-400">
-              <span className="bg-white px-3">Utilities</span>
+              <span className="bg-white px-3">Authentication</span>
             </div>
           </div>
 
-          <div className="pt-2">
-             <button
-              onClick={() => navigate('/track')}
-              className="w-full bg-white border-2 border-slate-100 text-pencil-gray py-3 rounded-xl font-black flex items-center justify-center gap-2 hover:bg-slate-50 transition-all uppercase tracking-widest text-[10px]"
-            >
-              <Search size={16} /> Track Existing Submittal
-            </button>
-          </div>
+          <button
+            onClick={() => navigate('/track')}
+            className="w-full bg-slate-50 text-slate-600 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-100 transition-all border border-slate-200 uppercase tracking-widest text-[10px]"
+          >
+            <Search size={16} />
+            Track Submittal
+          </button>
         </div>
 
         <div className="mt-8 pt-6 border-t border-slate-100 text-center">
@@ -206,7 +205,7 @@ const Auth: React.FC = () => {
             onClick={() => { setIsSignUp(!isSignUp); setError(null); setMessage(null); }}
             className="text-blueprint-blue font-black text-[10px] uppercase tracking-widest hover:underline"
           >
-            {isSignUp ? 'Back to Login' : "No Account? Register"}
+            {isSignUp ? 'Back to Login' : "No Account? Profile Creation"}
           </button>
         </div>
       </div>

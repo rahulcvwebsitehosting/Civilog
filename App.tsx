@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { HashRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
-import { LogOut, Search as SearchIcon, LayoutDashboard, Settings, User, Home, Terminal, Database } from 'lucide-react';
+import { LogOut, Search as SearchIcon, LayoutDashboard, Settings, User, Home, Terminal, Database, LogIn } from 'lucide-react';
 import { supabase, configError } from './supabaseClient';
 import Auth from './components/Auth';
 import StudentDashboard from './components/StudentDashboard';
@@ -12,6 +12,7 @@ import ProfileSetup from './components/ProfileSetup';
 import ProfilePage from './components/ProfilePage';
 import CTOProfile from './components/CTOProfile';
 import AdminDashboard from './components/AdminDashboard';
+import NotificationCenter from './components/NotificationCenter';
 import { Profile } from './types';
 
 const NavLink: React.FC<{ to: string; children: React.ReactNode; icon: React.ReactNode }> = ({ to, children, icon }) => {
@@ -34,35 +35,48 @@ const NavLink: React.FC<{ to: string; children: React.ReactNode; icon: React.Rea
 
 const MobileNav: React.FC<{ profile: Profile | null }> = ({ profile }) => {
   const location = useLocation();
-  if (!profile || !profile.is_profile_complete) return null;
-
   const isActive = (path: string) => location.pathname === path;
 
   return (
     <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 px-6 py-3 flex justify-around items-center z-[50] shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
-      <Link to={
-        profile.role === 'admin' ? '/admin-panel' :
-        profile.role === 'hod' ? '/hod-dashboard' :
-        profile.role === 'advisor' ? '/advisor-dashboard' :
-        '/student-dashboard'
-      } className={`flex flex-col items-center gap-1 ${isActive('/student-dashboard') || isActive('/advisor-dashboard') || isActive('/hod-dashboard') || isActive('/admin-panel') ? 'text-blueprint-blue' : 'text-slate-400'}`}>
-        <Home size={22} className={isActive('/student-dashboard') || isActive('/advisor-dashboard') || isActive('/hod-dashboard') || isActive('/admin-panel') ? 'fill-blueprint-blue/10' : ''} />
-        <span className="text-[8px] font-black uppercase tracking-tighter">Terminal</span>
-      </Link>
-      {(profile.role === 'advisor' || profile.role === 'hod' || profile.role === 'admin') && (
-        <Link to="/faculty/registry" className={`flex flex-col items-center gap-1 ${isActive('/faculty/registry') ? 'text-blueprint-blue' : 'text-slate-400'}`}>
-          <Database size={22} className={isActive('/faculty/registry') ? 'fill-blueprint-blue/10' : ''} />
-          <span className="text-[8px] font-black uppercase tracking-tighter">Registry</span>
-        </Link>
+      {profile && profile.is_profile_complete ? (
+        <>
+          <Link to={
+            profile.role === 'admin' ? '/admin-panel' :
+            profile.role === 'hod' ? '/hod-dashboard' :
+            profile.role === 'advisor' ? '/advisor-dashboard' :
+            '/student-dashboard'
+          } className={`flex flex-col items-center gap-1 ${isActive('/student-dashboard') || isActive('/advisor-dashboard') || isActive('/hod-dashboard') || isActive('/admin-panel') ? 'text-blueprint-blue' : 'text-slate-400'}`}>
+            <Home size={22} className={isActive('/student-dashboard') || isActive('/advisor-dashboard') || isActive('/hod-dashboard') || isActive('/admin-panel') ? 'fill-blueprint-blue/10' : ''} />
+            <span className="text-[8px] font-black uppercase tracking-tighter">Terminal</span>
+          </Link>
+          {(profile.role === 'advisor' || profile.role === 'hod' || profile.role === 'admin') && (
+            <Link to="/faculty/registry" className={`flex flex-col items-center gap-1 ${isActive('/faculty/registry') ? 'text-blueprint-blue' : 'text-slate-400'}`}>
+              <Database size={22} className={isActive('/faculty/registry') ? 'fill-blueprint-blue/10' : ''} />
+              <span className="text-[8px] font-black uppercase tracking-tighter">Registry</span>
+            </Link>
+          )}
+          <Link to="/track" className={`flex flex-col items-center gap-1 ${isActive('/track') ? 'text-blueprint-blue' : 'text-slate-400'}`}>
+            <SearchIcon size={22} className={isActive('/track') ? 'fill-blueprint-blue/10' : ''} />
+            <span className="text-[8px] font-black uppercase tracking-tighter">Track</span>
+          </Link>
+          <Link to="/profile" className={`flex flex-col items-center gap-1 ${isActive('/profile') ? 'text-blueprint-blue' : 'text-slate-400'}`}>
+            <User size={22} className={isActive('/profile') ? 'fill-blueprint-blue/10' : ''} />
+            <span className="text-[8px] font-black uppercase tracking-tighter">Profile</span>
+          </Link>
+        </>
+      ) : (
+        <>
+          <Link to="/login" className={`flex flex-col items-center gap-1 ${isActive('/login') ? 'text-blueprint-blue' : 'text-slate-400'}`}>
+            <User size={22} className={isActive('/login') ? 'fill-blueprint-blue/10' : ''} />
+            <span className="text-[8px] font-black uppercase tracking-tighter">Login</span>
+          </Link>
+          <Link to="/track" className={`flex flex-col items-center gap-1 ${isActive('/track') ? 'text-blueprint-blue' : 'text-slate-400'}`}>
+            <SearchIcon size={22} className={isActive('/track') ? 'fill-blueprint-blue/10' : ''} />
+            <span className="text-[8px] font-black uppercase tracking-tighter">Track</span>
+          </Link>
+        </>
       )}
-      <Link to="/track" className={`flex flex-col items-center gap-1 ${isActive('/track') ? 'text-blueprint-blue' : 'text-slate-400'}`}>
-        <SearchIcon size={22} className={isActive('/track') ? 'fill-blueprint-blue/10' : ''} />
-        <span className="text-[8px] font-black uppercase tracking-tighter">Track</span>
-      </Link>
-      <Link to="/profile" className={`flex flex-col items-center gap-1 ${isActive('/profile') ? 'text-blueprint-blue' : 'text-slate-400'}`}>
-        <User size={22} className={isActive('/profile') ? 'fill-blueprint-blue/10' : ''} />
-        <span className="text-[8px] font-black uppercase tracking-tighter">Profile</span>
-      </Link>
     </nav>
   );
 };
@@ -72,20 +86,26 @@ const Header: React.FC<{ profile: Profile | null; onLogout: () => void }> = ({ p
     <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
       <div className="flex items-center gap-4">
         <Link to="/" className="flex items-center gap-4 group">
-          <div className="bg-blueprint-blue p-2.5 rounded-2xl text-white shadow-xl shadow-amber-500/20 group-hover:rotate-12 transition-transform">
-            <span className="material-symbols-outlined text-2xl">school</span>
+          <div className="bg-white p-1 rounded-2xl shadow-xl shadow-amber-500/10 group-hover:scale-110 transition-transform overflow-hidden flex items-center justify-center w-12 h-12 border border-slate-100">
+            <img 
+              src="https://erode-sengunthar.ac.in/wp-content/uploads/2023/02/ESEC_Logo.png" 
+              alt="ESEC Logo" 
+              className="w-full h-full object-contain"
+              referrerPolicy="no-referrer"
+            />
           </div>
           <div>
-            <h1 className="text-2xl font-black tracking-tighter text-blueprint-blue italic leading-none">ESEC OD</h1>
-            <p className="text-[9px] uppercase tracking-[0.3em] text-pencil-gray font-technical font-bold mt-1">College OD Management System</p>
+            <h1 className="text-lg font-black tracking-tighter text-blue-600 uppercase italic leading-none">ERODE SENGUNTHAR ENGINEERING COLLEGE OD</h1>
+            <p className="text-[8px] uppercase tracking-[0.2em] text-pencil-gray font-technical font-bold mt-1">Student OD Management System</p>
           </div>
         </Link>
       </div>
       
       <div className="flex items-center gap-4">
+        {profile && <NotificationCenter userId={profile.id} />}
         <nav className="hidden lg:flex items-center gap-2 bg-white/50 p-1.5 rounded-2xl border border-white">
           <NavLink to="/track" icon={<SearchIcon size={18} />}>Track</NavLink>
-          {profile && profile.is_profile_complete && (
+          {profile && profile.is_profile_complete ? (
             <>
               {profile.role === 'student' ? (
                 <NavLink to="/student-dashboard" icon={<LayoutDashboard size={18} />}>Feed</NavLink>
@@ -101,6 +121,8 @@ const Header: React.FC<{ profile: Profile | null; onLogout: () => void }> = ({ p
               )}
               <NavLink to="/profile" icon={<User size={18} />}>Profile</NavLink>
             </>
+          ) : (
+            <NavLink to="/login" icon={<LogIn size={18} />}>Login</NavLink>
           )}
         </nav>
 
@@ -435,7 +457,20 @@ const App: React.FC = () => {
               )
             } />
 
-            <Route path="/track" element={<TrackingView />} />
+            <Route path="/faculty-admin" element={
+              session && profile?.is_profile_complete ? (
+                profile.role === 'admin' ? <Navigate to="/admin-panel" replace /> :
+                profile.role === 'hod' ? <Navigate to="/hod-dashboard" replace /> :
+                profile.role === 'advisor' ? <Navigate to="/advisor-dashboard" replace /> :
+                <Navigate to="/" replace />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            } />
+
+            <Route path="/track" element={
+              <TrackingView profile={profile} />
+            } />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
@@ -444,10 +479,10 @@ const App: React.FC = () => {
           <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="flex items-center gap-2 opacity-40 grayscale">
               <span className="material-symbols-outlined">domain</span>
-              <p className="text-[10px] font-technical font-bold uppercase tracking-widest">ESEC Departments • System v2.5.1</p>
+              <p className="text-[10px] font-technical font-bold uppercase tracking-widest">ESEC Departments • System v2.6.0</p>
             </div>
             <p className="text-[10px] font-technical font-bold text-pencil-gray uppercase tracking-widest opacity-40">
-              © {new Date().getFullYear()} ESEC OD PORTAL
+              © {new Date().getFullYear()} ERODE SENGUNTHAR ENGINEERING COLLEGE OD
             </p>
           </div>
         </footer>

@@ -1,6 +1,6 @@
 {
-  "name": "ESEC OD Portal",
-  "description": "A comprehensive system for ESEC students to submit, track, and manage On-Duty (OD) requests with automated PDF generation and faculty approval workflows.",
+  "name": "ERODE SENGUNTHAR ENGINEERING COLLEGE STUDENT ON-DUTY MANAGEMENT SYSTEM",
+  "description": "A comprehensive student on-duty management system for Erode Sengunthar Engineering College, enabling automated PDF generation and faculty approval workflows.",
   "requestFramePermissions": [
     "camera"
   ]

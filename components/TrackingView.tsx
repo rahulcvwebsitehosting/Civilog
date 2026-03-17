@@ -1,12 +1,15 @@
 
 import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
-import { ODRequest, ODStatus } from '../types';
-import { Search as SearchIcon, Loader2, Download, Image as ImageIcon, Award, FileCheck, Info, MapPin, CheckCircle2, Calendar } from 'lucide-react';
+import { Profile, ODRequest, ODStatus } from '../types';
+import { Search as SearchIcon, Loader2, Download, Image as ImageIcon, Award, FileCheck, Info, MapPin, CheckCircle2, Calendar, ShieldAlert } from 'lucide-react';
 import exifr from 'exifr';
 
+interface TrackingViewProps {
+  profile?: Profile | null;
+}
 
-const TrackingView: React.FC = () => {
+const TrackingView: React.FC<TrackingViewProps> = ({ profile }) => {
   const [registerNo, setRegisterNo] = useState('');
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<ODRequest[]>([]);
@@ -29,8 +32,33 @@ const TrackingView: React.FC = () => {
         .order('created_at', { ascending: false });
 
       if (fetchError) throw fetchError;
-      setResults(data as ODRequest[]);
-      if (data.length === 0) {
+      
+      if (data && data.length > 0) {
+        // Check department restriction
+        const firstRequest = data[0] as ODRequest;
+        
+        // Admins can see everything
+        if (profile && profile.role !== 'admin') {
+          // Check department first as requested
+          if (firstRequest.department !== profile.department) {
+            setError('That department cannot be accessed. You can only track ODs from your own department.');
+            setResults([]);
+            return;
+          }
+
+          // For students, also check year and semester for "classmate" restriction
+          if (profile.role === 'student') {
+            if (firstRequest.year !== profile.year || firstRequest.semester !== profile.semester) {
+              setError('Access Denied: You can only track ODs of your own classmates (same year and semester).');
+              setResults([]);
+              return;
+            }
+          }
+        }
+
+        setResults(data as ODRequest[]);
+      } else {
+        setResults([]);
         setError('No submittals found for this technical identification.');
       }
     } catch (err: any) {
@@ -149,7 +177,11 @@ const TrackingView: React.FC = () => {
       <div className="space-y-6">
         {error && (
           <div className="bg-white border-2 border-slate-100 p-12 rounded-[2.5rem] text-center shadow-xl shadow-slate-100/50">
-            <Info className="mx-auto text-slate-200 mb-4" size={56} />
+            {error.includes('accessed') || error.includes('Denied') ? (
+              <ShieldAlert className="mx-auto text-red-400 mb-4 animate-pulse" size={56} />
+            ) : (
+              <Info className="mx-auto text-slate-200 mb-4" size={56} />
+            )}
             <p className="text-slate-500 font-bold uppercase tracking-widest text-[11px]">{error}</p>
           </div>
         )}

@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { ODRequest, ODStatus, Profile } from '../types';
-import { Plus, XCircle, Loader2, GraduationCap, Terminal, Trophy, RefreshCw, Trash2, AlertCircle, X } from 'lucide-react';
+import { Plus, XCircle, Loader2, GraduationCap, Terminal, Trophy, RefreshCw, Trash2, AlertCircle, X, ArrowRight } from 'lucide-react';
 import SubmissionForm from './SubmissionForm';
 import FeedCard from './FeedCard';
 import NotificationCenter from './NotificationCenter';
@@ -524,28 +524,42 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
 
   return (
     <div className="max-w-2xl mx-auto pb-24 relative">
-      <div className="mb-8 flex justify-between items-end bg-white/50 backdrop-blur-sm p-6 rounded-2xl border border-blueprint-blue/10 relative z-50">
-        <div>
-          <h2 className="text-3xl font-black text-blueprint-blue tracking-tighter uppercase italic">ACTIVITY FEED</h2>
-          <p className="text-[10px] text-pencil-gray font-technical uppercase tracking-[0.2em] font-bold">Activity Log • {profile.department || 'ESEC'}</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <NotificationCenter userId={profile.id} />
-          <button 
-            onClick={fetchRequests}
-            disabled={loading}
-            className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-gray-800 text-slate-600 dark:text-gray-300 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-gray-700 border border-slate-200 dark:border-gray-700 shadow-sm transition-all active:scale-95 disabled:opacity-50"
-            title="Refresh Log"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">Refresh</span>
-          </button>
-          <button
-            onClick={() => setShowForm(true)}
-            className="bg-blueprint-blue text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-goldenrod transition-all shadow-lg shadow-amber-500/10 uppercase text-xs tracking-wider"
-          >
-            <Plus size={16} /> Log Entry
-          </button>
+      <div className="mb-8 bg-white/50 backdrop-blur-sm p-6 rounded-3xl border border-blueprint-blue/10 relative z-50 shadow-sm">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+          <div className="space-y-1">
+            <h2 className="text-2xl sm:text-3xl font-black text-blueprint-blue tracking-tighter uppercase italic leading-none whitespace-nowrap">
+              LOG ENTRIES HERE
+            </h2>
+            <p className="text-[10px] text-pencil-gray font-technical uppercase tracking-[0.2em] font-bold opacity-60">
+              Activity Log • {profile.department || 'ESEC'}
+            </p>
+          </div>
+          
+          <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end">
+            <div className="hidden lg:block">
+              <ArrowRight className="text-blueprint-blue animate-pulse" size={32} />
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowForm(true)}
+                className="bg-blueprint-blue text-white px-6 py-3.5 rounded-2xl font-bold flex items-center gap-2 hover:bg-blue-900 transition-all shadow-xl shadow-blue-900/10 uppercase text-xs tracking-widest active:scale-95 group"
+              >
+                <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" /> 
+                Log Entry
+              </button>
+              
+              <button 
+                onClick={fetchRequests}
+                disabled={loading}
+                className="flex items-center justify-center w-12 h-12 sm:w-auto sm:px-5 bg-white dark:bg-gray-800 text-slate-600 dark:text-gray-300 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-gray-700 border border-slate-200 dark:border-gray-700 shadow-sm transition-all active:scale-95 disabled:opacity-50"
+                title="Refresh Log"
+              >
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline ml-2">Refresh</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 

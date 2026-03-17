@@ -2,7 +2,7 @@
   "name": "esec-od-portal",
   "version": "1.0.0",
   "private": true,
-  "description": "ESEC OD Portal - Academic Management System",
+  "description": "ESEC Student On-Duty Management System - Academic Management System",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",

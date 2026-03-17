@@ -124,7 +124,7 @@ async function sendEmail(to: string, subject: string, html: string) {
       'Authorization': `Bearer ${RESEND_API_KEY}`
     },
     body: JSON.stringify({
-      from: 'ESEC OD Portal <onboarding@resend.dev>',
+      from: 'ESEC Student On-Duty Management System <onboarding@resend.dev>',
       to: [to],
       subject,
       html

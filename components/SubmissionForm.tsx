@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { supabase } from '../supabaseClient';
-import { Loader2, UserPlus, Trash2, Phone, Tag, MapPin, AlertCircle, Upload, Info, CheckCircle2, Calendar, Beaker, Image as ImageIcon, FileText, CreditCard, X, User, Database, PenTool } from 'lucide-react';
+import { Loader2, Phone, AlertCircle, Upload, Image as ImageIcon, FileText, CreditCard, X, User } from 'lucide-react';
 import { SubmissionFormData, Profile, TeamMember, ODRequest } from '../types';
 import { generateODDocument } from '../services/pdfService';
 import { logAudit } from '../services/auditService';
@@ -15,7 +15,7 @@ interface SubmissionFormProps {
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
 
-import { DEPARTMENTS } from '../constants';
+import { DEPARTMENTS, BASE_URL } from '../constants';
 
 const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, profile }) => {
   const initialYear = profile?.year || '2';
@@ -28,7 +28,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
     student_name: profile?.full_name || '',
     register_no: profile?.identification_no || '',
     roll_no: profile?.roll_no || '',
-    phone_number: '',
+    phone_number: profile?.phone_number || '',
     year: initialYear, 
     department: profile?.department || 'Computer Science and Engineering',
     semester: profile?.semester || getInitialSemester(initialYear),
@@ -46,14 +46,6 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
   const [payFile, setPayFile] = useState<File | null>(null);
   const [posterFile, setPosterFile] = useState<File | null>(null);
   
-  const [teamMemberInput, setTeamMemberInput] = useState<TeamMember>({
-    name: '',
-    register_no: '',
-    roll_no: '',
-    year: '2',
-    department: profile?.department || 'Computer Science and Engineering'
-  });
-
   if (!profile) return null;
 
   const [loading, setLoading] = useState(false);
@@ -78,40 +70,6 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
     
     return totalPossible > 0 ? (filledCount / totalPossible) * 100 : 0;
   }, [formData, regFile, posterFile]);
-
-  const handleAutoFill = () => {
-    setFormData(prev => ({
-      ...prev,
-      phone_number: '9876543210',
-      department: 'Computer Science and Engineering',
-      semester: '5',
-      event_title: 'Technical Symposium on AI & Innovation',
-      organization_name: 'IIT Madras',
-      organization_location: 'Adyar, Chennai',
-      event_type: 'Others',
-      event_date: '2026-01-10',
-      event_end_date: '2026-01-12',
-      team_members: [
-        {
-          name: 'Suresh Kumar',
-          register_no: '2203730045',
-          roll_no: '22CS45',
-          year: '3',
-          department: 'Computer Science and Engineering'
-        }
-      ]
-    }));
-    
-    setCustomEventType('Inter-College Hackathon');
-    
-    setTeamMemberInput({
-      name: '',
-      register_no: '',
-      roll_no: '',
-      year: '2',
-      department: profile.department || 'Computer Science and Engineering'
-    });
-  };
 
   const validateFile = (file: File) => {
     if (file.size > MAX_FILE_SIZE) {
@@ -157,29 +115,6 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
       setError(null);
       setter(file);
     }
-  };
-
-  const addTeamMember = async () => {
-    if (teamMemberInput.name && teamMemberInput.register_no && teamMemberInput.roll_no && teamMemberInput.department) {
-      setFormData(prev => ({ 
-        ...prev, 
-        team_members: [...prev.team_members, { ...teamMemberInput }] 
-      }));
-      setTeamMemberInput({ 
-        name: '', 
-        register_no: '', 
-        roll_no: '', 
-        year: '2', 
-        department: profile.department || 'Computer Science and Engineering'
-      });
-      setLoading(false);
-    } else {
-      setError('Please fill all member fields.');
-    }
-  };
-
-  const removeTeamMember = (index: number) => {
-    setFormData(prev => ({ ...prev, team_members: prev.team_members.filter((_, i) => i !== index) }));
   };
 
   const startBackgroundUpload = (file: File, path: string, label: string, contentType?: string) => {
@@ -270,7 +205,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
       const { data: insertedData, error: dbError } = await supabase.from('od_requests').insert([
         {
           ...requestData,
-          status: 'Pending Advisor',
+          status: 'Pending HOD',
           registration_proof_url: regUrl,
           payment_proof_url: payUrl,
           event_poster_url: posterUrl,
@@ -316,7 +251,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
           const { data: recipients, error: recipientError } = await supabase
             .from('profiles')
             .select('id, email, full_name, role')
-            .in('role', ['advisor', 'hod'])
+            .eq('role', 'hod')
             .eq('department', formData.department);
 
           if (recipientError) {
@@ -326,15 +261,20 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
           console.log(`[DEBUG] Found ${recipients?.length || 0} potential recipients (Advisors/HODs)`);
 
           if (recipients && recipients.length > 0) {
-            const dashboardUrl = `${window.location.origin}/advisor-dashboard?request_id=${insertedData.id}`;
-            // Also handle HOD dashboard link if needed
-            
             for (const recipient of recipients) {
               if (recipient.email) {
-                const targetDashboard = recipient.role === 'hod' ? 'hod-dashboard' : 'advisor-dashboard';
-                const finalUrl = `${window.location.origin}/${targetDashboard}?request_id=${insertedData.id}`;
+                const finalUrl = `${BASE_URL}/hod-dashboard?request_id=${insertedData.id}`;
                 
-                console.log(`[DEBUG] Sending email to ${recipient.role}: ${recipient.email}`);
+                console.log(`[DEBUG] Sending email to HOD: ${recipient.email}`);
+                
+                // Also insert in-app notification
+                await supabase.from('notifications').insert({
+                  user_id: recipient.id,
+                  message: `New OD Request from ${formData.student_name} (${formData.register_no}) for ${formData.event_title}.`,
+                  type: 'info',
+                  read: false
+                });
+
                 const emailMessage = `
                   <div style="font-family: sans-serif; line-height: 1.6; color: #333;">
                     <h2 style="color: #003366;">New OD Request Submitted</h2>
@@ -365,10 +305,10 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
             // Mark notification as sent
             await supabase.from('od_requests').update({ notification_sent: true }).eq('id', insertedData.id);
           } else {
-            console.warn(`[DEBUG] No advisors found for department: ${formData.department}`);
+            console.warn(`[DEBUG] No HODs found for department: ${formData.department}`);
           }
         } catch (notifyErr) {
-          console.error("[DEBUG] Advisor notification failed:", notifyErr);
+          console.error("[DEBUG] HOD notification failed:", notifyErr);
         }
       }
 
@@ -390,83 +330,8 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
 
       <div className="relative px-10 pt-12 pb-8 border-b border-slate-200 dark:border-gray-600 flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-black text-slate-900 dark:text-gray-100 uppercase tracking-tighter italic leading-none">OD Submittal</h1>
-          <div className="flex flex-wrap gap-2 mt-3">
-            <button 
-              type="button"
-              onClick={handleAutoFill}
-              className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-amber-600 shadow-lg shadow-amber-500/20 transition-all active:scale-95"
-            >
-              <span className="material-symbols-outlined text-[16px]">terminal</span> DEBUG: AUTO-FILL
-            </button>
-            <button 
-              type="button"
-              onClick={async () => {
-                const start = Date.now();
-                console.log("--- SYSTEM CHECK START ---");
-                try {
-                  // 1. Check connection & Table existence
-                  const { data: profileCheck, error: profileError } = await supabase.from('profiles').select('id').limit(1);
-                  if (profileError) throw new Error(`Profiles table check failed: ${profileError.message}`);
-                  
-                  const { data: odCheck, error: odError } = await supabase.from('od_requests').select('id').limit(1);
-                  if (odError) throw new Error(`OD Requests table check failed: ${odError.message}`);
-
-                  // 1.5 Check Advisor/HOD counts for current department
-                  const { count: advisorCount } = await supabase
-                    .from('profiles')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('role', 'advisor')
-                    .eq('department', formData.department);
-                  
-                  const { count: hodCount } = await supabase
-                    .from('profiles')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('role', 'hod')
-                    .eq('department', formData.department);
-
-                  // 2. Check Storage Bucket
-                  const { data: buckets, error: bucketError } = await supabase.storage.listBuckets();
-                  if (bucketError) throw new Error(`Storage check failed: ${bucketError.message}`);
-                  const hasBucket = buckets.some(b => b.name === 'od-files');
-                  
-                  const duration = Date.now() - start;
-                  
-                  // 3. Check key format
-                  const anonKey = (supabase as any).supabaseKey || '';
-                  const url = (supabase as any).supabaseUrl || '';
-                  const isStandardKey = anonKey.startsWith('eyJ');
-                  const isManagementKey = anonKey.startsWith('sb_publishable_');
-                  
-                  let msg = `✅ System Check: SUCCESS!\n`;
-                  msg += `⏱️ Response time: ${duration}ms\n`;
-                  msg += `📂 Tables: Found 'profiles' and 'od_requests'\n`;
-                  msg += `👥 Dept Context: ${formData.department}\n`;
-                  msg += `👨‍🏫 Advisors in Dept: ${advisorCount || 0}\n`;
-                  msg += `🎓 HODs in Dept: ${hodCount || 0}\n`;
-                  msg += `📦 Storage: 'od-files' bucket is ${hasBucket ? 'ACTIVE' : 'MISSING'}\n\n`;
-                  msg += `🔗 Using URL: ${url.substring(0, 15)}...\n`;
-                  msg += `🔑 Using Key: ${anonKey.substring(0, 8)}...\n\n`;
-                  
-                  if (!hasBucket) {
-                    msg += `❌ CRITICAL: 'od-files' bucket not found in Storage. Please create it.\n\n`;
-                  }
-
-                  if (isManagementKey) {
-                    msg += `❌ KEY ERROR: You are using a 'Management API' key. This will NOT work for database operations.\n`;
-                  }
-                  
-                  alert(msg);
-                } catch (err: any) {
-                  console.error("System Check Failed:", err);
-                  alert(`❌ System Check: FAILED!\n\nError: ${err.message}\n\nCommon Fixes:\n1. Run the SQL schema I gave you.\n2. Create the 'od-files' bucket.\n3. Ensure your Anon Key starts with 'eyJ'.`);
-                }
-              }}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-900 shadow-lg shadow-slate-500/20 transition-all active:scale-95"
-            >
-              <Database size={14} /> SYSTEM CHECK
-            </button>
-          </div>
+          <h1 className="text-3xl font-black text-slate-900 dark:text-gray-100 uppercase tracking-tighter italic leading-none">OD Submission</h1>
+          <p className="text-[10px] text-pencil-gray font-technical font-bold uppercase tracking-widest mt-2">Please fill in the details accurately</p>
         </div>
         <button onClick={onClose} className="text-slate-300 hover:text-red-500 transition-colors p-2 bg-slate-100 rounded-full" type="button">
           <X size={20} />
@@ -474,10 +339,9 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
       </div>
 
       <form onSubmit={handleSubmit} className="p-10 space-y-10 max-h-[65vh] overflow-y-auto custom-scrollbar bg-topo">
-        {/* ... (Lead Identification section remains same) ... */}
         <div className="space-y-5">
           <h2 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] font-mono flex items-center gap-2">
-            <span className="w-8 h-[1px] bg-slate-200"></span> 01 LEAD IDENTIFICATION
+            <span className="w-8 h-[1px] bg-slate-200"></span> 01 PERSONAL INFORMATION
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <div className="relative">
@@ -488,7 +352,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
                 value={formData.student_name}
                 onChange={handleInputChange}
                 className="w-full bg-white dark:bg-gray-800 text-sm pl-12 pr-4 py-4 rounded-2xl border border-slate-200 outline-none focus:border-blueprint-blue transition-colors shadow-sm" 
-                placeholder="Lead Student Name" 
+                placeholder="Student Name (Ex. Rahul Shyam)" 
               />
             </div>
             <div className="relative">
@@ -543,8 +407,8 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
              </select>
           </div>
           <div className="grid grid-cols-2 gap-5">
-             <input name="register_no" required value={formData.register_no} onChange={handleInputChange} className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none font-mono shadow-sm" placeholder="Reg No" />
-             <input name="roll_no" required value={formData.roll_no} onChange={handleInputChange} className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none font-mono shadow-sm" placeholder="Roll No" />
+             <input name="register_no" required value={formData.register_no} onChange={handleInputChange} className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none font-mono shadow-sm" placeholder="Reg No (Ex. 2403730410321019)" />
+             <input name="roll_no" required value={formData.roll_no} onChange={handleInputChange} className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none font-mono shadow-sm" placeholder="Roll No (Ex. ES24CE19)" />
           </div>
         </div>
 
@@ -552,7 +416,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
           <h2 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] font-mono flex items-center gap-2">
             <span className="w-8 h-[1px] bg-slate-200"></span> 02 SPECIFICATIONS
           </h2>
-          <input name="event_title" required value={formData.event_title} onChange={handleInputChange} className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none font-bold shadow-sm" placeholder="Event Title" />
+          <input name="event_title" required value={formData.event_title} onChange={handleInputChange} className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none font-bold shadow-sm" placeholder="Event Title (Ex. Paper Presentation)" />
           <div className="grid grid-cols-2 gap-5">
             <div className="space-y-2">
               <select name="event_type" value={formData.event_type} onChange={handleInputChange} className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none shadow-sm">
@@ -582,7 +446,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
                 />
               )}
             </div>
-            <input name="organization_name" required value={formData.organization_name} onChange={handleInputChange} className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none shadow-sm h-fit" placeholder="Organization" />
+            <input name="organization_name" required value={formData.organization_name} onChange={handleInputChange} className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none shadow-sm h-fit" placeholder="Organization (Ex. ESEC)" />
           </div>
           <div className="grid grid-cols-2 gap-5">
             <div className="space-y-1.5">
@@ -608,97 +472,12 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
               />
             </div>
           </div>
-          <input name="organization_location" required value={formData.organization_location} onChange={handleInputChange} className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none shadow-sm" placeholder="Organization Location (e.g. Chennai)" />
-        </div>
-
-        <div className="space-y-5 pt-2">
-          <h2 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] font-mono flex items-center gap-2">
-            <span className="w-8 h-[1px] bg-slate-200"></span> 03 TEAM COMPOSITION
-          </h2>
-          
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-[2rem] border border-slate-100 dark:border-gray-700 shadow-sm space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <input 
-                placeholder="Member Name" 
-                value={teamMemberInput.name} 
-                onChange={e => setTeamMemberInput({...teamMemberInput, name: e.target.value})}
-                className="w-full bg-slate-50 dark:bg-gray-700 text-sm px-5 py-3 rounded-xl border border-slate-100 outline-none focus:border-blueprint-blue transition-colors"
-              />
-              <input 
-                placeholder="Register No" 
-                value={teamMemberInput.register_no} 
-                onChange={e => setTeamMemberInput({...teamMemberInput, register_no: e.target.value})}
-                className="w-full bg-slate-50 dark:bg-gray-700 text-sm px-5 py-3 rounded-xl border border-slate-100 outline-none focus:border-blueprint-blue transition-colors font-mono"
-              />
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <input 
-                placeholder="Roll No" 
-                value={teamMemberInput.roll_no} 
-                onChange={e => setTeamMemberInput({...teamMemberInput, roll_no: e.target.value})}
-                className="w-full bg-slate-50 dark:bg-gray-700 text-sm px-5 py-3 rounded-xl border border-slate-100 outline-none focus:border-blueprint-blue transition-colors font-mono"
-              />
-              <select 
-                value={teamMemberInput.year} 
-                onChange={e => setTeamMemberInput({...teamMemberInput, year: e.target.value})}
-                className="w-full bg-slate-50 dark:bg-gray-700 text-sm px-4 py-3 rounded-xl border border-slate-100 outline-none"
-              >
-                <option value="1">1st Year</option>
-                <option value="2">2nd Year</option>
-                <option value="3">3rd Year</option>
-                <option value="4">4th Year</option>
-              </select>
-              <select 
-                value={teamMemberInput.department} 
-                onChange={e => setTeamMemberInput({...teamMemberInput, department: e.target.value})}
-                className="w-full bg-slate-50 dark:bg-gray-700 text-sm px-4 py-3 rounded-xl border border-slate-100 outline-none col-span-2"
-              >
-                {DEPARTMENTS.map(dept => (
-                  <option key={dept} value={dept}>{dept}</option>
-                ))}
-              </select>
-            </div>
-
-            <button 
-              type="button" 
-              onClick={addTeamMember}
-              disabled={loading}
-              className="w-full py-3 bg-slate-100 dark:bg-gray-700 hover:bg-blueprint-blue hover:text-white text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-            >
-              {loading ? <Loader2 className="animate-spin" size={14} /> : <UserPlus size={14} />}
-              Add Member to Squad
-            </button>
-          </div>
-
-          {formData.team_members.length > 0 && (
-            <div className="space-y-3 animate-in fade-in slide-in-from-top-4 duration-500">
-              {formData.team_members.map((member, idx) => (
-                <div key={idx} className="flex items-center justify-between p-4 bg-white dark:bg-gray-800 rounded-2xl border border-slate-100 dark:border-gray-700 shadow-sm group">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-slate-50 dark:bg-gray-700 flex items-center justify-center text-blueprint-blue font-black text-xs">
-                      {idx + 1}
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-slate-900 dark:text-gray-100">{member.name}</p>
-                      <p className="text-[10px] text-slate-400 font-mono uppercase">{member.register_no} • {member.roll_no}</p>
-                    </div>
-                  </div>
-                  <button 
-                    type="button"
-                    onClick={() => removeTeamMember(idx)}
-                    className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
+          <input name="organization_location" required value={formData.organization_location} onChange={handleInputChange} className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none shadow-sm" placeholder="Organization Location (Ex. Chennai)" />
         </div>
 
         <div className="space-y-5 pt-2 pb-8">
            <h2 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] font-mono flex items-center gap-2">
-            <span className="w-8 h-[1px] bg-slate-200"></span> 04 DOCUMENTATION
+            <span className="w-8 h-[1px] bg-slate-200"></span> 03 DOCUMENTATION (Optional)
           </h2>
            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
              <label className={`h-28 border-2 rounded-2xl flex flex-col items-center justify-center cursor-pointer transition-all duration-300 ${posterFile ? 'border-blueprint-blue bg-blue-50/50 shadow-inner' : 'border-dashed border-slate-300 bg-white hover:border-slate-400 hover:bg-slate-50'}`}>
@@ -734,12 +513,12 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
           {loading ? (
             <>
               <Loader2 className="animate-spin" size={20} />
-              <span>Transmitting Data...</span>
+              <span>Submitting...</span>
             </>
           ) : (
             <>
               <Upload size={20} />
-              <span>Transmit OD Request</span>
+              <span>Submit OD Request</span>
             </>
           )}
         </button>

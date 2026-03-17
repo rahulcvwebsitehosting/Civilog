@@ -36,6 +36,18 @@ async function startServer() {
   console.log(`[SMTP] EMAIL_USER is ${process.env.EMAIL_USER ? 'DEFINED' : 'UNDEFINED'}`);
   console.log(`[SMTP] EMAIL_PASS is ${process.env.EMAIL_PASS ? 'DEFINED' : 'UNDEFINED'}`);
 
+  // Health check endpoint
+  app.get("/api/health", (req, res) => {
+    res.json({ 
+      status: "ok", 
+      smtp: {
+        user: process.env.EMAIL_USER ? 'Configured' : 'Missing',
+        pass: process.env.EMAIL_PASS ? 'Configured' : 'Missing'
+      },
+      environment: process.env.NODE_ENV || 'development'
+    });
+  });
+
   // Test route for email
   app.get("/api/test-email", async (req, res) => {
     const testTo = req.query.to as string;
@@ -83,7 +95,7 @@ async function startServer() {
       console.log(`[SMTP] Subject: ${subject}`);
       
       const mailOptions = {
-        from: `"ESEC OD Portal" <${EMAIL_USER}>`,
+        from: `"ESEC Student On-Duty Management System" <${EMAIL_USER}>`,
         to: to,
         subject: subject,
         html: message,

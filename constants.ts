@@ -1,4 +1,6 @@
 
+export const BASE_URL = 'https://civilog.vercel.app';
+
 export const DEPARTMENTS = [
   'Civil Engineering',
   'Agriculture Engineering',

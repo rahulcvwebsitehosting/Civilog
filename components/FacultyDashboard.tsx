@@ -31,6 +31,7 @@ const FacultyDashboard: React.FC = () => {
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [facultyProfile, setFacultyProfile] = useState<Profile | null>(null);
   const [confirmApprovalRequest, setConfirmApprovalRequest] = useState<ODRequest | null>(null);
+  const [confirmRejectRequest, setConfirmRejectRequest] = useState<ODRequest | null>(null);
 
   const fetchRequests = async () => {
     setLoading(true);
@@ -74,8 +75,14 @@ const FacultyDashboard: React.FC = () => {
       return;
     }
 
+    if (!approve && !confirmed) {
+      setConfirmRejectRequest(request);
+      return;
+    }
+
     setProcessingId(request.id);
     setConfirmApprovalRequest(null);
+    setConfirmRejectRequest(null);
     try {
       if (approve) {
         // Fix: generateODLetter requires studentProfile and optionally facultyProfile.
@@ -106,12 +113,43 @@ const FacultyDashboard: React.FC = () => {
           .from('od-files')
           .getPublicUrl(`od_letters/${fileName}`);
 
+        const isAdvisor = facultyProfile?.role === 'advisor';
+        const newStatus = isAdvisor ? 'Pending HOD' : 'Approved';
+
         const { error: dbError } = await supabase
           .from('od_requests')
-          .update({ status: 'Approved', od_letter_url: publicUrl, notification_sent: true })
+          .update({ 
+            status: newStatus, 
+            od_letter_url: publicUrl, 
+            notification_sent: true,
+            advisor_id: isAdvisor ? facultyProfile.id : undefined,
+            advisor_approved_at: isAdvisor ? new Date().toISOString() : undefined,
+            hod_id: !isAdvisor ? facultyProfile?.id : undefined,
+            hod_approved_at: !isAdvisor ? new Date().toISOString() : undefined
+          })
           .eq('id', request.id);
           
         if (dbError) throw dbError;
+
+        // Notify HOD if this was an advisor approval
+        if (isAdvisor) {
+          const { data: hods } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('role', 'hod')
+            .eq('department', request.department);
+          
+          if (hods) {
+            for (const hod of hods) {
+              await supabase.from('notifications').insert({
+                user_id: hod.id,
+                message: `New OD Authorization required for ${request.student_name}. Approved by Advisor.`,
+                type: 'info',
+                read: false
+              });
+            }
+          }
+        }
 
         // Notify Student about Approval
         try {
@@ -188,6 +226,47 @@ const FacultyDashboard: React.FC = () => {
                     className="px-6 py-3 bg-blue-600 text-white rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all flex items-center justify-center gap-2"
                   >
                     <Check size={14} /> Confirm
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Rejection Confirmation Modal */}
+      <AnimatePresence>
+        {confirmRejectRequest && (
+          <div className="fixed inset-0 z-[150] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-[2rem] p-8 max-w-md w-full shadow-2xl border border-slate-200"
+            >
+              <div className="flex flex-col items-center text-center space-y-4">
+                <div className="w-16 h-16 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center">
+                  <XCircle size={32} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900 uppercase tracking-tight">Confirm Rejection</h3>
+                  <p className="text-sm text-slate-500 mt-2">
+                    Are you sure you want to <span className="font-bold text-red-600">REJECT</span> the OD request for <span className="font-bold text-slate-900">{confirmRejectRequest.student_name}</span>? 
+                    This action cannot be undone and the student will be notified.
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-4 w-full pt-4">
+                  <button 
+                    onClick={() => setConfirmRejectRequest(null)}
+                    className="px-6 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold uppercase text-xs tracking-widest hover:bg-slate-200 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={() => handleApproval(confirmRejectRequest, false, true)}
+                    className="px-6 py-3 bg-red-600 text-white rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg shadow-red-500/20 hover:bg-red-700 transition-all flex items-center justify-center gap-2"
+                  >
+                    <X size={14} /> Confirm Deny
                   </button>
                 </div>
               </div>

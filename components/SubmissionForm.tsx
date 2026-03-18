@@ -184,7 +184,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
         roll_no: formData.roll_no,
         phone_number: formData.phone_number,
         year: formData.year,
-        department: formData.department,
+        department: profile.department || formData.department,
         semester: formData.semester,
         event_title: formData.event_title,
         organization_name: formData.organization_name,

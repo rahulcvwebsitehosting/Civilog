@@ -84,7 +84,15 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ profile, onUpdate }) => {
           id: profile.id,
           email: profile.email,
           role: profile.role,
-          ...formData,
+          full_name: formData.full_name,
+          identification_no: formData.identification_no,
+          roll_no: formData.roll_no,
+          phone_number: formData.phone_number,
+          year: formData.year,
+          semester: formData.semester,
+          designation: formData.designation,
+          department: formData.department,
+          is_hod: formData.is_hod,
           is_profile_complete: true
         }, { onConflict: 'id' });
 

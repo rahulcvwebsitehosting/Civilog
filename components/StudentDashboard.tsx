@@ -280,7 +280,7 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
   }, [requests.length, profile.id]); // Use requests.length to avoid infinite loop if fetchRequests is called inside
 
   const handleDelete = async (request: ODRequest) => {
-    if (request.status === 'Approved' || request.status === 'Completed' || request.status === 'Pending HOD') {
+    if (request.status === 'Approved' || request.status === 'Completed' || request.status === 'Pending HOD' || request.status === 'Pending Advisor') {
       alert("System Violation: Authorized or partially authorized logs cannot be deleted.");
       return;
     }

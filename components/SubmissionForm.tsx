@@ -205,7 +205,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
       const { data: insertedData, error: dbError } = await supabase.from('od_requests').insert([
         {
           ...requestData,
-          status: 'Pending HOD',
+          status: 'Pending Advisor',
           registration_proof_url: regUrl,
           payment_proof_url: payUrl,
           event_poster_url: posterUrl,
@@ -247,43 +247,43 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
       // Step 6: Notify Advisor (Background)
       if (insertedData) {
         try {
-          console.log(`[DEBUG] Searching for advisors/HODs in department: "${formData.department}"`);
+          console.log(`[DEBUG] Searching for advisors in department: "${formData.department}"`);
           const { data: recipients, error: recipientError } = await supabase
             .from('profiles')
             .select('id, email, full_name, role')
-            .eq('role', 'hod')
+            .eq('role', 'advisor')
             .eq('department', formData.department);
 
           if (recipientError) {
             console.error("[DEBUG] Recipient fetch error:", recipientError);
           }
 
-          console.log(`[DEBUG] Found ${recipients?.length || 0} potential recipients (Advisors/HODs)`);
+          console.log(`[DEBUG] Found ${recipients?.length || 0} potential recipients (Advisors)`);
 
           if (recipients && recipients.length > 0) {
             for (const recipient of recipients) {
               if (recipient.email) {
-                const finalUrl = `${BASE_URL}/hod-dashboard?request_id=${insertedData.id}`;
+                const finalUrl = `${BASE_URL}/advisor-dashboard?request_id=${insertedData.id}`;
                 
-                console.log(`[DEBUG] Sending email to HOD: ${recipient.email}`);
+                console.log(`[DEBUG] Sending email to Advisor: ${recipient.email}`);
                 
                 // Also insert in-app notification
                 await supabase.from('notifications').insert({
                   user_id: recipient.id,
-                  message: `New OD Request from ${formData.student_name} (${formData.register_no}) for ${formData.event_title}.`,
+                  message: `New OD Request from ${formData.student_name} (${formData.register_no}) for ${formData.event_title}. Pending your recommendation.`,
                   type: 'info',
                   read: false
                 });
 
                 const emailMessage = `
                   <div style="font-family: sans-serif; line-height: 1.6; color: #333;">
-                    <h2 style="color: #003366;">New OD Request Submitted</h2>
-                    <p>A new On-Duty request has been submitted by <strong>${formData.student_name}</strong> (${formData.register_no}) and is pending review.</p>
+                    <h2 style="color: #003366;">New OD Request for Recommendation</h2>
+                    <p>A new On-Duty request has been submitted by <strong>${formData.student_name}</strong> (${formData.register_no}) and is pending your recommendation.</p>
                     <p><strong>Event:</strong> ${formData.event_title}</p>
                     <p><strong>Organization:</strong> ${formData.organization_name}</p>
                     <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
-                    <p>Please log in to your dashboard to review this request.</p>
-                    <a href="${finalUrl}" style="display: inline-block; padding: 12px 24px; background-color: #003366; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold;">View Dashboard</a>
+                    <p>Please log in to your dashboard to review and recommend this request to the HOD.</p>
+                    <a href="${finalUrl}" style="display: inline-block; padding: 12px 24px; background-color: #003366; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold;">View Advisor Dashboard</a>
                     <p style="font-size: 12px; color: #666; margin-top: 30px;">Ref: OD-REQ-${insertedData.id.substring(0, 8)}</p>
                   </div>
                 `;
@@ -293,7 +293,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
                     to: recipient.email,
-                    subject: `New OD Request: ${formData.event_title}`,
+                    subject: `New OD Request for Recommendation: ${formData.event_title}`,
                     message: emailMessage
                   })
                 });
@@ -305,10 +305,10 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
             // Mark notification as sent
             await supabase.from('od_requests').update({ notification_sent: true }).eq('id', insertedData.id);
           } else {
-            console.warn(`[DEBUG] No HODs found for department: ${formData.department}`);
+            console.warn(`[DEBUG] No Advisors found for department: ${formData.department}`);
           }
         } catch (notifyErr) {
-          console.error("[DEBUG] HOD notification failed:", notifyErr);
+          console.error("[DEBUG] Advisor notification failed:", notifyErr);
         }
       }
 

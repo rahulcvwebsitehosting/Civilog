@@ -593,6 +593,18 @@ const AdminDashboard: React.FC = () => {
                             {systemStatus?.smtp?.pass || 'Checking...'}
                           </span>
                         </div>
+                        <div className="flex justify-between items-center p-4 bg-white rounded-2xl border">
+                          <span className="text-[10px] font-black text-slate-400 uppercase">Verification</span>
+                          <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase ${systemStatus?.smtp?.verified ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
+                            {systemStatus?.smtp?.verified ? 'Verified' : 'Failed'}
+                          </span>
+                        </div>
+                        {systemStatus?.smtp?.error && (
+                          <div className="p-4 bg-red-50 border border-red-100 rounded-2xl">
+                            <p className="text-[10px] font-bold text-red-600 uppercase mb-1">Error Details</p>
+                            <p className="text-[10px] text-red-500 font-mono break-all">{systemStatus.smtp.error}</p>
+                          </div>
+                        )}
                       </div>
 
                       <div className="mt-8 space-y-4">

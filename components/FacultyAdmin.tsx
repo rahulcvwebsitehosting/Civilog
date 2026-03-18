@@ -56,8 +56,8 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
       const data = await res.json();
       if (data.smtp) {
         setSmtpStatus({
-          configured: data.smtp.user === 'Configured' && data.smtp.pass === 'Configured',
-          user: data.smtp.user === 'Configured' ? 'Active' : 'Not Configured'
+          configured: data.smtp.verified === true,
+          user: data.smtp.verified ? 'Active' : (data.smtp.error || 'Offline')
         });
       }
     } catch (e) {
@@ -811,7 +811,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
           <div className="flex items-center gap-2 mt-1">
             <div className={`w-1.5 h-1.5 rounded-full ${smtpStatus.configured ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
             <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">
-              Email Service: {smtpStatus.configured ? 'Active' : 'Offline (Check Settings)'}
+              Email Service: {smtpStatus.configured ? 'Active' : `Offline (${smtpStatus.user || 'Check Settings'})`}
             </span>
           </div>
         </div>

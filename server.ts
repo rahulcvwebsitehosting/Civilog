@@ -9,19 +9,32 @@ let transporter: nodemailer.Transporter | null = null;
 function getTransporter() {
   const EMAIL_USER = process.env.EMAIL_USER;
   const EMAIL_PASS = process.env.EMAIL_PASS;
+  const SMTP_HOST = process.env.SMTP_HOST || 'smtp.gmail.com';
+  const SMTP_PORT = parseInt(process.env.SMTP_PORT || '465');
+  const SMTP_SECURE = process.env.SMTP_SECURE !== 'false'; // Default to true (SSL)
 
   if (!EMAIL_USER || !EMAIL_PASS) {
     throw new Error("Email credentials are not configured (EMAIL_USER/EMAIL_PASS)");
   }
 
   if (!transporter) {
-    transporter = nodemailer.createTransport({
-      service: 'gmail',
+    // If service is provided, use it (e.g. 'gmail'), otherwise use host/port
+    const config: any = {
       auth: {
         user: EMAIL_USER,
         pass: EMAIL_PASS,
       },
-    });
+    };
+
+    if (process.env.SMTP_SERVICE) {
+      config.service = process.env.SMTP_SERVICE;
+    } else {
+      config.host = SMTP_HOST;
+      config.port = SMTP_PORT;
+      config.secure = SMTP_SECURE;
+    }
+
+    transporter = nodemailer.createTransport(config);
   }
   return { transporter, EMAIL_USER };
 }
@@ -37,12 +50,25 @@ async function startServer() {
   console.log(`[SMTP] EMAIL_PASS is ${process.env.EMAIL_PASS ? 'DEFINED' : 'UNDEFINED'}`);
 
   // Health check endpoint
-  app.get("/api/health", (req, res) => {
+  app.get("/api/health", async (req, res) => {
+    let smtpVerified = false;
+    let smtpError = null;
+
+    try {
+      const { transporter } = getTransporter();
+      await transporter.verify();
+      smtpVerified = true;
+    } catch (err: any) {
+      smtpError = err.message;
+    }
+
     res.json({ 
       status: "ok", 
       smtp: {
         user: process.env.EMAIL_USER ? 'Configured' : 'Missing',
-        pass: process.env.EMAIL_PASS ? 'Configured' : 'Missing'
+        pass: process.env.EMAIL_PASS ? 'Configured' : 'Missing',
+        verified: smtpVerified,
+        error: smtpError
       },
       environment: process.env.NODE_ENV || 'development'
     });

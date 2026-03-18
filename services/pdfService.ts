@@ -3,12 +3,9 @@ import { ODRequest, Profile, TeamMember } from '../types';
 
 const formatFullDate = (dateStr: string) => {
   if (!dateStr) return '';
-  const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-  const date = new Date(dateStr);
-  const dd = String(date.getDate()).padStart(2, '0');
-  const monthName = months[date.getMonth()];
-  const yyyy = date.getFullYear();
-  return `${dd}-${monthName}-${yyyy}`;
+  const [yyyy, mm, dd] = dateStr.split('-');
+  const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  return `${dd}-${months[parseInt(mm) - 1]}-${yyyy}`;
 };
 
 const getOrdinalYear = (year: string) => {

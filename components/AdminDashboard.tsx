@@ -14,8 +14,10 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import FeedCard from './FeedCard';
+import { useToast } from '../contexts/ToastContext';
 
 const AdminDashboard: React.FC = () => {
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<'users' | 'requests' | 'feed' | 'system'>('feed');
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [requests, setRequests] = useState<ODRequest[]>([]);
@@ -247,9 +249,9 @@ const AdminDashboard: React.FC = () => {
         });
       }
       setRequests(prev => prev.map(r => r.id === request.id ? { ...r, status: approve ? 'Approved' : 'Rejected' } : r));
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert('Error processing request');
+      showToast(err.message || 'Error processing request', "error");
     } finally {
       setProcessingId(null);
     }
@@ -675,7 +677,7 @@ const AdminDashboard: React.FC = () => {
                         </div>
                         <div className="p-4 bg-white rounded-2xl border">
                           <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Environment</p>
-                          <p className="text-xs font-bold text-slate-700 uppercase">{(import.meta as any).env?.MODE || 'development'}</p>
+                          <p className="text-xs font-bold text-slate-700 uppercase">{import.meta.env.MODE || 'development'}</p>
                         </div>
                       </div>
                     </div>

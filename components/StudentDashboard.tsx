@@ -7,6 +7,7 @@ import SubmissionForm from './SubmissionForm';
 import FeedCard from './FeedCard';
 import NotificationCenter from './NotificationCenter';
 import { Link } from 'react-router-dom';
+import { useToast } from '../contexts/ToastContext';
 
 interface PrizeDetailsPromptModalProps {
   onClose: () => void;
@@ -196,7 +197,6 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
   const [showPrizeQuestionModal, setShowPrizeQuestionModal] = useState(false);
   const [pendingRequestForCert, setPendingRequestForCert] = useState<ODRequest | null>(null);
 
-  if (!profile) return null;
   const [uploadState, setUploadState] = useState<{ id: string | null; type: string | null; index: number | null }>({
     id: null,
     type: null,
@@ -207,7 +207,8 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
   const [currentPrizeIndex, setCurrentPrizeIndex] = useState<number | null>(null);
   const [isPrizeDetailsSubmitting, setIsPrizeDetailsSubmitting] = useState(false); // For loading state of modal button
   const [tempPrizeUploadUrl, setTempPrizeUploadUrl] = useState<string | null>(null);
-
+  const syncedRequestIds = React.useRef<Set<string>>(new Set());
+  const { showToast } = useToast();
 
   const fetchRequests = async () => {
     if (!profile?.id) return;
@@ -240,23 +241,27 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
   };
 
   useEffect(() => {
-    fetchRequests();
-  }, [profile.id]);
+    if (profile?.id) {
+      fetchRequests();
+    }
+  }, [profile?.id]);
 
   // Sync notifications for earlier approvals that might have been missed
   useEffect(() => {
     const syncNotifications = async () => {
-      if (!profile.id || requests.length === 0) return;
+      if (!profile?.id || requests.length === 0) return;
 
       const unsentApprovals = requests.filter(r => 
         (r.status === 'Approved' || r.status === 'Completed') && 
-        r.notification_sent === false
+        r.notification_sent === false &&
+        !syncedRequestIds.current.has(r.id)
       );
 
       if (unsentApprovals.length === 0) return;
 
       for (const req of unsentApprovals) {
         try {
+          syncedRequestIds.current.add(req.id);
           // Create notification
           await supabase.from('notifications').insert({
             user_id: profile.id,
@@ -277,11 +282,13 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
     };
 
     syncNotifications();
-  }, [requests.length, profile.id]); // Use requests.length to avoid infinite loop if fetchRequests is called inside
+  }, [requests, profile?.id]);
+
+  if (!profile) return null;
 
   const handleDelete = async (request: ODRequest) => {
     if (request.status === 'Approved' || request.status === 'Completed' || request.status === 'Pending HOD' || request.status === 'Pending Advisor') {
-      alert("System Violation: Authorized or partially authorized logs cannot be deleted.");
+      showToast("System Violation: Authorized or partially authorized logs cannot be deleted.", "error");
       return;
     }
     setDeleteRequest(request);
@@ -298,7 +305,7 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
         .eq('user_id', profile.id);
 
       if (error) {
-        alert('System failure during deletion: ' + error.message);
+        showToast('System failure during deletion: ' + error.message, "error");
       } else {
         setRequests(prev => prev.filter(r => r.id !== deleteRequest.id));
       }
@@ -344,7 +351,7 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
         setTempPrizeUploadUrl(publicUrl); // Store the URL temporarily
         setShowPrizePrompt(true);        // Show the modal to collect details
       } catch (err: any) {
-        alert(err.message || 'Error uploading prize certificate.');
+        showToast(err.message || 'Error uploading prize certificate.', "error");
         setUploadState({ id: null, type: null, index: null }); // Clear upload state on error
       }
     };
@@ -355,13 +362,13 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
   // This function handles the modal confirmation, using the already uploaded URL
   const handlePrizeDetailsConfirmed = async (prizeType: string, prizeEvent: string) => {
     if (!currentPrizeRequest || currentPrizeIndex === null || !tempPrizeUploadUrl) {
-      alert('Missing prize upload context. Please try again.');
+      showToast('Missing prize upload context. Please try again.', "error");
       return;
     }
 
     setIsPrizeDetailsSubmitting(true); // Start loading for the modal button
     try {
-      const updates: any = {};
+      const updates: Partial<ODRequest> = {};
       const currentPhotos = Array.isArray(currentPrizeRequest.geotag_photo_urls) ? currentPrizeRequest.geotag_photo_urls : [];
       const currentCerts = Array.isArray(currentPrizeRequest.certificate_urls) ? currentPrizeRequest.certificate_urls : [];
       const currentPrizeDetails = Array.isArray(currentPrizeRequest.prize_details) ? currentPrizeRequest.prize_details : [];
@@ -385,8 +392,9 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
 
       if (dbError) throw dbError;
       await fetchRequests(); // Re-fetch to update local state and re-render FeedCard with new data
+      showToast('Achievement details saved successfully!', "success");
     } catch (err: any) {
-      alert(err.message || 'Error saving prize details.');
+      showToast(err.message || 'Error saving prize details.', "error");
     } finally {
       setUploadState({ id: null, type: null, index: null }); // Clear general upload state
       setShowPrizePrompt(false);
@@ -432,23 +440,23 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
           .from('od-files')
           .getPublicUrl(`evidence/${fileName}`);
 
-        const updates: any = {};
+        const updates: Partial<ODRequest> = {};
         const currentPhotos = Array.isArray(request.geotag_photo_urls) ? request.geotag_photo_urls : [];
         const currentCerts = Array.isArray(request.certificate_urls) ? request.certificate_urls : [];
         const currentPrizeDetails = Array.isArray(request.prize_details) ? request.prize_details : [];
 
+        let nextCerts = [...currentCerts];
         if (type === 'photo') {
           const nextPhotos = [...currentPhotos];
           nextPhotos[index] = publicUrl;
           updates.geotag_photo_urls = nextPhotos;
         } else if (type === 'certificate') {
-          const nextCerts = [...currentCerts];
           nextCerts[index] = publicUrl;
           updates.certificate_urls = nextCerts;
         } 
         
         // Auto-complete logic: Mark as Completed if a certificate is uploaded
-        const hasCert = (currentCerts.filter(Boolean).length > 0) || (currentPrizeDetails.filter(p => p.url && p.url.trim() !== '').length > 0);
+        const hasCert = (nextCerts.filter(Boolean).length > 0) || (currentPrizeDetails.filter(p => p.url && p.url.trim() !== '').length > 0);
         
         if (hasCert) {
           updates.status = 'Completed';
@@ -462,8 +470,9 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
 
         if (dbError) throw dbError;
         await fetchRequests(); // Use await here to ensure state is updated before re-render
+        showToast('Evidence uploaded successfully!', "success");
       } catch (err: any) {
-        alert(err.message || 'Error uploading evidence');
+        showToast(err.message || 'Error uploading evidence', "error");
       } finally {
         setUploadState({ id: null, type: null, index: null });
       }
@@ -494,7 +503,7 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
           .from('od-files')
           .getPublicUrl(`evidence/${fileName}`);
 
-        const updates: any = {};
+        const updates: Partial<ODRequest> = {};
         const currentCerts = Array.isArray(request.certificate_urls) ? request.certificate_urls : [];
 
         const nextCerts = [...currentCerts];
@@ -512,8 +521,9 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
 
         if (dbError) throw dbError;
         await fetchRequests();
+        showToast('Certificate uploaded successfully!', "success");
       } catch (err: any) {
-        alert(err.message || 'Error uploading certificate');
+        showToast(err.message || 'Error uploading certificate', "error");
       } finally {
         setUploadState({ id: null, type: null, index: null });
       }

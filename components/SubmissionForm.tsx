@@ -45,9 +45,6 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
   const [regFile, setRegFile] = useState<File | null>(null);
   const [payFile, setPayFile] = useState<File | null>(null);
   const [posterFile, setPosterFile] = useState<File | null>(null);
-  
-  if (!profile) return null;
-
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,6 +67,8 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
     
     return totalPossible > 0 ? (filledCount / totalPossible) * 100 : 0;
   }, [formData, regFile, posterFile]);
+  
+  if (!profile) return null;
 
   const validateFile = (file: File) => {
     if (file.size > MAX_FILE_SIZE) {
@@ -119,7 +118,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
 
   const startBackgroundUpload = (file: File, path: string, label: string, contentType?: string) => {
     console.log(`[BACKGROUND] Starting ${label} upload to ${path}...`);
-    supabase.storage
+    return supabase.storage
       .from('od-files')
       .upload(path, file, { 
         cacheControl: '3600', 
@@ -127,10 +126,17 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
         contentType: contentType || file.type
       })
       .then(({ error: err }) => {
-        if (err) console.error(`[BACKGROUND] ${label} upload failed:`, err);
-        else console.log(`[BACKGROUND] ${label} upload successful: ${path}`);
+        if (err) {
+          console.error(`[BACKGROUND] ${label} upload failed:`, err);
+          throw err;
+        }
+        console.log(`[BACKGROUND] ${label} upload successful: ${path}`);
+        return path;
       })
-      .catch(e => console.error(`[BACKGROUND] ${label} exception:`, e));
+      .catch(e => {
+        console.error(`[BACKGROUND] ${label} exception:`, e);
+        throw e;
+      });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -195,10 +201,9 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
         team_members: formData.team_members,
       };
 
-      // Predict OD Letter URL
+      // Predict OD Letter Path
       const letterFileName = `${Date.now()}_Requisition_${formData.register_no}.pdf`;
       const letterPath = `od_letters/${letterFileName}`;
-      const letterUrl = supabase.storage.from('od-files').getPublicUrl(letterPath).data.publicUrl;
 
       // Step 3: Database Insertion (FAST)
       console.log("Step 3: Inserting into database...");
@@ -209,7 +214,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
           registration_proof_url: regUrl,
           payment_proof_url: payUrl,
           event_poster_url: posterUrl,
-          od_letter_url: letterUrl,
+          od_letter_url: null, // Set to null initially, updated after background upload
           notification_sent: false,
           created_at: new Date().toISOString(),
         }
@@ -237,7 +242,18 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
       // Generate PDF in background
       generateODDocument({ ...requestData, id: insertedData?.id || 'PENDING' } as any, profile).then(blob => {
         const letterFile = new File([blob], letterFileName, { type: 'application/pdf' });
-        startBackgroundUpload(letterFile, letterPath, 'OD Letter', 'application/pdf');
+        startBackgroundUpload(letterFile, letterPath, 'OD Letter', 'application/pdf').then(() => {
+          if (insertedData) {
+            const realUrl = supabase.storage.from('od-files').getPublicUrl(letterPath).data.publicUrl;
+            supabase.from('od_requests')
+              .update({ od_letter_url: realUrl })
+              .eq('id', insertedData.id)
+              .then(({ error: updateError }) => {
+                if (updateError) console.error("[BACKGROUND] Failed to update OD Letter URL in DB:", updateError);
+                else console.log("[BACKGROUND] OD Letter URL updated in DB:", realUrl);
+              });
+          }
+        });
       }).catch(e => console.error("[BACKGROUND] PDF generation failed:", e));
 
       if (regFile && regPath) startBackgroundUpload(regFile, regPath, 'Registration Proof');

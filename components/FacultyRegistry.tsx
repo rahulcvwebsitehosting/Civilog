@@ -5,8 +5,10 @@ import { ODRequest } from '../types';
 import { Loader2, Download, Search, RefreshCw, Award, Edit3, Save, X, ExternalLink, Trophy, Image as ImageIcon, History } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { logAudit } from '../services/auditService';
+import { useToast } from '../contexts/ToastContext';
 
 const FacultyRegistry: React.FC = () => {
+  const { showToast } = useToast();
   const [requests, setRequests] = useState<ODRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<string | null>(null);
@@ -122,7 +124,7 @@ const FacultyRegistry: React.FC = () => {
       .eq('id', id);
 
     if (error) {
-      alert('Failed to update achievement details: ' + error.message);
+      showToast('Failed to update achievement details: ' + error.message, "error");
     } else {
       // Log Audit
       await logAudit('UPDATE_ACHIEVEMENT', 'od_request', id, {

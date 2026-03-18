@@ -4,12 +4,14 @@ import { supabase } from '../supabaseClient';
 import { Profile, ODRequest, ODStatus } from '../types';
 import { Search as SearchIcon, Loader2, Download, Image as ImageIcon, Award, FileCheck, Info, MapPin, CheckCircle2, Calendar, ShieldAlert } from 'lucide-react';
 import exifr from 'exifr';
+import { useToast } from '../contexts/ToastContext';
 
 interface TrackingViewProps {
   profile?: Profile | null;
 }
 
 const TrackingView: React.FC<TrackingViewProps> = ({ profile }) => {
+  const { showToast } = useToast();
   const [registerNo, setRegisterNo] = useState('');
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<ODRequest[]>([]);
@@ -120,6 +122,7 @@ const TrackingView: React.FC<TrackingViewProps> = ({ profile }) => {
 
       if (dbError) throw dbError;
       
+      showToast('Evidence logged successfully!', "success");
       setResults(prev => prev.map(r => {
         if (r.id === request.id) {
           return { ...r, ...updates };
@@ -127,7 +130,7 @@ const TrackingView: React.FC<TrackingViewProps> = ({ profile }) => {
         return r;
       }));
     } catch (err: any) {
-      alert(err.message || 'Evidence logging failed.');
+      showToast(err.message || 'Evidence logging failed.', "error");
     } finally {
       setUploading(null);
     }

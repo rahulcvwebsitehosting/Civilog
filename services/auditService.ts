@@ -25,18 +25,9 @@ export const logAudit = async (
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    // Fetch profile for more details
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('full_name, role')
-      .eq('id', user.id)
-      .single();
-
     const { error } = await supabase.from('audit_logs').insert({
       user_id: user.id,
       user_email: user.email,
-      user_full_name: profile?.full_name || 'System User',
-      user_role: profile?.role || 'user',
       action,
       entity_type: entityType,
       entity_id: entityId,

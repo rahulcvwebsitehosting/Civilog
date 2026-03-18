@@ -5,6 +5,7 @@ import { ODRequest, Profile } from '../types';
 import { CheckCircle, XCircle, ExternalLink, Loader2, RefreshCw, Paperclip, CreditCard, AlertCircle, Check, X } from 'lucide-react';
 import { generateODLetter } from '../services/pdfService';
 import { motion, AnimatePresence } from 'motion/react';
+import { useToast } from '../contexts/ToastContext';
 
 // Utility function to format date as "01st October, 2026"
 const formatFancyDate = (dateString: string | null): string => {
@@ -26,6 +27,7 @@ const formatFancyDate = (dateString: string | null): string => {
 };
 
 const FacultyDashboard: React.FC = () => {
+  const { showToast } = useToast();
   const [requests, setRequests] = useState<ODRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -206,9 +208,10 @@ const FacultyDashboard: React.FC = () => {
         }
       }
       setRequests(prev => prev.filter(r => r.id !== request.id));
-    } catch (err) {
+      showToast(`Request ${approve ? 'approved' : 'rejected'} successfully`, "success");
+    } catch (err: any) {
       console.error(err);
-      alert('Error processing request');
+      showToast(err.message || 'Error processing request', "error");
     } finally {
       setProcessingId(null);
     }

@@ -14,27 +14,33 @@ function getTransporter() {
   const SMTP_SECURE = process.env.SMTP_SECURE !== 'false'; // Default to true (SSL)
 
   if (!EMAIL_USER || !EMAIL_PASS) {
+    console.warn("[SMTP Warning] EMAIL_USER or EMAIL_PASS is missing. Email features will not work.");
     throw new Error("Email credentials are not configured (EMAIL_USER/EMAIL_PASS)");
   }
 
   if (!transporter) {
-    // If service is provided, use it (e.g. 'gmail'), otherwise use host/port
-    const config: any = {
-      auth: {
-        user: EMAIL_USER,
-        pass: EMAIL_PASS,
-      },
-    };
+    try {
+      // If service is provided, use it (e.g. 'gmail'), otherwise use host/port
+      const config: any = {
+        auth: {
+          user: EMAIL_USER,
+          pass: EMAIL_PASS,
+        },
+      };
 
-    if (process.env.SMTP_SERVICE) {
-      config.service = process.env.SMTP_SERVICE;
-    } else {
-      config.host = SMTP_HOST;
-      config.port = SMTP_PORT;
-      config.secure = SMTP_SECURE;
+      if (process.env.SMTP_SERVICE) {
+        config.service = process.env.SMTP_SERVICE;
+      } else {
+        config.host = SMTP_HOST;
+        config.port = SMTP_PORT;
+        config.secure = SMTP_SECURE;
+      }
+
+      transporter = nodemailer.createTransport(config);
+    } catch (err: any) {
+      console.error("[SMTP Error] Failed to create transporter:", err.message);
+      throw err;
     }
-
-    transporter = nodemailer.createTransport(config);
   }
   return { transporter, EMAIL_USER };
 }

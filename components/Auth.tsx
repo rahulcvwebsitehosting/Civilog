@@ -14,9 +14,9 @@ const Auth: React.FC = () => {
   const [message, setMessage] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  const ADVISOR_PASSWORD = 'Advisoresec@123';
-  const HOD_PASSWORD = 'Hodesec@123';
-  const ADMIN_PASSWORD = 'Adminesec@123';
+  const ADVISOR_PASSWORD = import.meta.env.VITE_ADVISOR_PASSWORD || '';
+  const HOD_PASSWORD = import.meta.env.VITE_HOD_PASSWORD || '';
+  const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || '';
 
   const getRoleFromPassword = (pwd: string) => {
     if (pwd === ADMIN_PASSWORD) return 'admin';
@@ -57,8 +57,6 @@ const Auth: React.FC = () => {
         if (error) throw error;
 
         if (data.user) {
-          const role = getRoleFromPassword(password);
-          
           // Check if profile already exists and is complete
           const { data: existingProfile } = await supabase
             .from('profiles')
@@ -66,7 +64,9 @@ const Auth: React.FC = () => {
             .eq('id', data.user.id)
             .single();
 
-          // Always ensure metadata is synced with the password-derived role
+          const role = existingProfile ? existingProfile.role : getRoleFromPassword(password);
+          
+          // Always ensure metadata is synced with the role
           // But only if it's different to avoid unnecessary updates
           if (data.user.user_metadata?.role !== role) {
             await supabase.auth.updateUser({

@@ -13,6 +13,8 @@ import ProfilePage from './components/ProfilePage';
 import CTOProfile from './components/CTOProfile';
 import AdminDashboard from './components/AdminDashboard';
 import NotificationCenter from './components/NotificationCenter';
+import ErrorBoundary from './components/ErrorBoundary';
+import { ToastProvider } from './contexts/ToastContext';
 import { Profile } from './types';
 
 const NavLink: React.FC<{ to: string; children: React.ReactNode; icon: React.ReactNode }> = ({ to, children, icon }) => {
@@ -235,6 +237,8 @@ const App: React.FC = () => {
 
       if (session) {
         setSession(session);
+        // Fix: Set currentUserIdRef.current immediately to prevent duplicate fetch in onAuthStateChange
+        currentUserIdRef.current = session.user.id;
         // Load from metadata first but DON'T stop loading yet
         updateProfileFromUser(session.user, false);
         // Then fetch the source of truth from DB
@@ -336,12 +340,14 @@ const App: React.FC = () => {
   }
 
   return (
-    <HashRouter>
-      <div className="min-h-screen flex flex-col font-display">
-        <Header profile={profile} onLogout={handleLogout} />
-        <main className="flex-1 max-w-7xl mx-auto w-full px-6 py-8 pb-24 lg:pb-8">
-          <Routes>
-            <Route path="/" element={
+    <ToastProvider>
+      <HashRouter>
+        <div className="min-h-screen flex flex-col font-display">
+          <Header profile={profile} onLogout={handleLogout} />
+          <main className="flex-1 max-w-7xl mx-auto w-full px-6 py-8 pb-24 lg:pb-8">
+            <ErrorBoundary>
+              <Routes>
+                <Route path="/" element={
               session ? (
                 profile ? (
                   profile.is_profile_complete ? (
@@ -425,13 +431,15 @@ const App: React.FC = () => {
               )
             } />
 
-            <Route path="/debug-profiles" element={
-              session && profile?.role === 'admin' ? (
-                <DebugProfiles />
-              ) : (
-                <Navigate to="/" replace />
-              )
-            } />
+            {(import.meta.env.DEV) && (
+              <Route path="/debug-profiles" element={
+                session && profile?.role === 'admin' ? (
+                  <DebugProfiles />
+                ) : (
+                  <Navigate to="/" replace />
+                )
+              } />
+            )}
 
             <Route path="/hod-dashboard" element={
               session && profile?.role === 'hod' && profile?.is_profile_complete ? (
@@ -473,22 +481,24 @@ const App: React.FC = () => {
             } />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-        </main>
-        <MobileNav profile={profile} />
-        <footer className="hidden lg:block bg-white/50 backdrop-blur-sm border-t border-blueprint-blue/10 py-8">
-          <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
-            <div className="flex items-center gap-2 opacity-40 grayscale">
-              <span className="material-symbols-outlined">domain</span>
-              <p className="text-[10px] font-technical font-bold uppercase tracking-widest">ESEC Departments • System v2.6.0</p>
-            </div>
-            <p className="text-[10px] font-technical font-bold text-pencil-gray uppercase tracking-widest opacity-40">
-              © {new Date().getFullYear()} ERODE SENGUNTHAR ENGINEERING COLLEGE OD
-            </p>
+        </ErrorBoundary>
+      </main>
+      <MobileNav profile={profile} />
+      <footer className="hidden lg:block bg-white/50 backdrop-blur-sm border-t border-blueprint-blue/10 py-8">
+        <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
+          <div className="flex items-center gap-2 opacity-40 grayscale">
+            <span className="material-symbols-outlined">domain</span>
+            <p className="text-[10px] font-technical font-bold uppercase tracking-widest">ESEC Departments • System v2.6.0</p>
           </div>
-        </footer>
-      </div>
-    </HashRouter>
-  );
+          <p className="text-[10px] font-technical font-bold text-pencil-gray uppercase tracking-widest opacity-40">
+            © {new Date().getFullYear()} ERODE SENGUNTHAR ENGINEERING COLLEGE OD
+          </p>
+        </div>
+      </footer>
+    </div>
+  </HashRouter>
+</ToastProvider>
+);
 };
 
 export default App;

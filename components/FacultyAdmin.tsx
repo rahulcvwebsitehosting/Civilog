@@ -11,6 +11,7 @@ import NotificationCenter from './NotificationCenter';
 import NestedFolderView from './NestedFolderView';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
+import { useToast } from '../contexts/ToastContext';
 
 import { DEPARTMENTS, BASE_URL } from '../constants';
 
@@ -80,9 +81,11 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
 
   // Auth for Delete
   const [deleteCandidateId, setDeleteCandidateId] = useState<string | null>(null);
+  const [softDeleteCandidateId, setSoftDeleteCandidateId] = useState<string | null>(null);
   const [adminPasswordInput, setAdminPasswordInput] = useState('');
+  const { showToast } = useToast();
   
-  const ADMIN_PASSWORD = 'Adminesec@123';
+  const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || '';
   
   const fetchRequests = async () => {
     setLoading(true);
@@ -149,7 +152,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
       if (role !== 'admin') {
         if (dept) {
           // Show records where department matches OR where it's null/empty (legacy records)
-          query = query.or(`department.eq."${dept}",department.is.null,department.eq.""`);
+          query = query.or(`department.eq.${dept},department.is.null,department.eq.""`);
         } else {
           // If no department is set for the faculty, they should see zero requests
           // This prevents cross-department leaks if metadata is missing.
@@ -162,7 +165,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         let q = supabase.from('od_requests').select('*', { count: 'exact', head: true }).eq('status', status);
         if (role !== 'admin') {
           if (dept) {
-            q = q.or(`department.eq."${dept}",department.is.null,department.eq.""`);
+            q = q.or(`department.eq.${dept},department.is.null,department.eq.""`);
           } else {
             q = q.eq('department', 'NON_EXISTENT_DEPARTMENT_FALLBACK');
           }
@@ -229,7 +232,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
       (role === 'hod' && request.status === 'Pending HOD');
 
     if (!canPerformAction) {
-      alert(`As ${role.toUpperCase()}, you are not authorized to ${approve ? 'approve' : 'reject'} requests in '${request.status}' state.`);
+      showToast(`As ${role.toUpperCase()}, you are not authorized to ${approve ? 'approve' : 'reject'} requests in '${request.status}' state.`, "error");
       return;
     }
 
@@ -467,8 +470,9 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         });
       }
       fetchRequests();
+      showToast(`Request ${approve ? 'approved' : 'rejected'} successfully`, "success");
     } catch (err: any) {
-      alert(err.message || 'Action failed');
+      showToast(err.message || 'Action failed', "error");
     } finally {
       setProcessingId(null);
     }
@@ -476,8 +480,6 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
 
   // Soft Delete - Move to Recycle Bin
   const handleSoftDelete = async (id: string) => {
-    if (!window.confirm("Are you sure you want to move this post to the Recycle Bin?")) return;
-    
     try {
       const { error } = await supabase.from('od_requests').update({ status: 'Archived' }).eq('id', id);
       if (error) throw error;
@@ -486,8 +488,10 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
       await logAudit('ARCHIVE_OD', 'od_request', id);
 
       fetchRequests();
+      showToast("Request archived successfully", "success");
+      setSoftDeleteCandidateId(null);
     } catch (err: any) {
-      alert("Error archiving: " + err.message);
+      showToast("Error archiving: " + err.message, "error");
     }
   };
 
@@ -501,8 +505,9 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
       await logAudit('RESTORE_OD', 'od_request', id);
 
       fetchRequests();
+      showToast("Request restored successfully", "success");
     } catch (err: any) {
-      alert("Error restoring: " + err.message);
+      showToast("Error restoring: " + err.message, "error");
     }
   };
 
@@ -516,13 +521,61 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
   const handleHardDelete = async (e: React.FormEvent) => {
     e.preventDefault();
     if (adminPasswordInput !== ADMIN_PASSWORD) {
-      alert("Authentication Failed: Incorrect Admin Password.");
+      showToast("Authentication Failed: Incorrect Admin Password.", "error");
       return;
     }
 
     if (!deleteCandidateId) return;
 
     try {
+      // 1. Fetch the record to get file URLs
+      const { data: requestToDelete, error: fetchError } = await supabase
+        .from('od_requests')
+        .select('*')
+        .eq('id', deleteCandidateId)
+        .single();
+
+      if (fetchError || !requestToDelete) throw new Error("Could not fetch request for deletion");
+
+      // 2. Extract all URLs
+      const urls: string[] = [];
+      if (requestToDelete.registration_proof_url) urls.push(requestToDelete.registration_proof_url);
+      if (requestToDelete.payment_proof_url) urls.push(requestToDelete.payment_proof_url);
+      if (requestToDelete.event_poster_url) urls.push(requestToDelete.event_poster_url);
+      if (requestToDelete.od_letter_url) urls.push(requestToDelete.od_letter_url);
+      
+      if (Array.isArray(requestToDelete.geotag_photo_urls)) {
+        requestToDelete.geotag_photo_urls.forEach((url: string) => { if (url) urls.push(url); });
+      }
+      if (Array.isArray(requestToDelete.certificate_urls)) {
+        requestToDelete.certificate_urls.forEach((url: string) => { if (url) urls.push(url); });
+      }
+      if (Array.isArray(requestToDelete.prize_details)) {
+        requestToDelete.prize_details.forEach((prize: any) => { if (prize && prize.url) urls.push(prize.url); });
+      }
+
+      // 3. Parse paths from URLs
+      const pathsToDelete = urls.map(url => {
+        try {
+          // Supabase public URLs contain the bucket name 'od-files'
+          const parts = url.split('/od-files/');
+          return parts.length > 1 ? parts[1] : null;
+        } catch (e) {
+          return null;
+        }
+      }).filter(Boolean) as string[];
+
+      // 4. Delete files from storage
+      if (pathsToDelete.length > 0) {
+        console.log(`[CLEANUP] Removing ${pathsToDelete.length} files from storage...`);
+        const { error: storageError } = await supabase.storage.from('od-files').remove(pathsToDelete);
+        if (storageError) {
+          console.warn("[CLEANUP] Storage removal failed:", storageError);
+          // Continue to delete DB record even if storage cleanup fails
+        }
+      }
+
+      // 5. Delete the database record
       const { error } = await supabase.from('od_requests').delete().eq('id', deleteCandidateId);
       if (error) throw error;
 
@@ -531,8 +584,9 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
 
       setDeleteCandidateId(null);
       fetchRequests();
+      showToast("Record and associated files deleted permanently", "success");
     } catch (err: any) {
-      alert("Deletion Error: " + err.message);
+      showToast("Deletion Error: " + err.message, "error");
     }
   };
 
@@ -619,7 +673,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
       }
 
       if (!targetEmail) {
-        alert("No target email found for this status/department. Please ensure the recipient has a valid profile.");
+        showToast("No target email found for this status/department. Please ensure the recipient has a valid profile.", "error");
         return;
       }
 
@@ -631,7 +685,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
 
       const result = await res.json();
       if (result.success) {
-        alert(`Notification sent successfully to ${targetEmail}`);
+        showToast(`Notification sent successfully to ${targetEmail}`, "success");
         await supabase.from('od_requests').update({ notification_sent: true }).eq('id', request.id);
         
         // Log Audit
@@ -650,7 +704,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
       }
     } catch (err: any) {
       console.error("Manual Notification Error:", err);
-      alert("Manual Notification Failed: " + err.message);
+      showToast("Manual Notification Failed: " + err.message, "error");
     } finally {
       setProcessingId(null);
     }
@@ -750,6 +804,36 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Soft Delete Confirmation Modal */}
+      {softDeleteCandidateId && (
+        <div className="fixed inset-0 z-[150] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200">
+             <div className="flex justify-between items-start mb-6">
+                <div>
+                  <h3 className="text-xl font-black text-slate-900 uppercase italic">Archive Request</h3>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Move to Recycle Bin</p>
+                </div>
+                <button onClick={() => setSoftDeleteCandidateId(null)} className="text-slate-300 hover:text-slate-500"><X size={20}/></button>
+             </div>
+             <p className="text-sm text-slate-600 mb-8">Are you sure you want to move this post to the Recycle Bin? It can be restored later from the Archived sector.</p>
+             <div className="flex gap-3">
+               <button 
+                 onClick={() => setSoftDeleteCandidateId(null)}
+                 className="flex-1 py-3 bg-slate-100 text-slate-600 font-black uppercase text-[10px] tracking-widest rounded-xl hover:bg-slate-200 transition-all"
+               >
+                 Cancel
+               </button>
+               <button 
+                 onClick={() => handleSoftDelete(softDeleteCandidateId)}
+                 className="flex-1 py-3 bg-amber-500 text-white font-black uppercase text-[10px] tracking-widest rounded-xl shadow-lg shadow-amber-200 hover:bg-amber-600 transition-all"
+               >
+                 Archive
+               </button>
+             </div>
+          </div>
+        </div>
+      )}
 
       {/* Password Modal for Hard Delete */}
       {deleteCandidateId && (
@@ -1082,7 +1166,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                             </>
                           ) : (
                             <button
-                              onClick={() => handleSoftDelete(request.id)}
+                              onClick={() => setSoftDeleteCandidateId(request.id)}
                               className="px-3 py-2 bg-slate-50 text-slate-400 border border-slate-200 rounded-xl hover:bg-red-50 hover:text-red-500 hover:border-red-200 transition-all"
                               title="Move to Recycle Bin"
                             >
@@ -1142,7 +1226,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                      </>
                   ) : (
                     <button 
-                      onClick={() => handleSoftDelete(request.id)}
+                      onClick={() => setSoftDeleteCandidateId(request.id)}
                       className="bg-white p-2 rounded-lg text-slate-400 hover:text-red-500 shadow-sm border border-slate-200 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
                       title="Remove to Recycle Bin"
                     >

@@ -4,7 +4,7 @@ import { supabase } from '../supabaseClient';
 import { Profile } from '../types';
 import { Loader2, User, Fingerprint, Briefcase, GraduationCap, Building2, Upload } from 'lucide-react';
 
-import { DEPARTMENTS } from '../constants';
+import { DEPARTMENTS, BASE_URL } from '../constants';
 
 interface ProfileSetupProps {
   profile: Profile;
@@ -86,6 +86,53 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ profile, onComplete }) => {
           throw new Error("System Permission Denied: Please ensure the 'profiles' table RLS policies are applied in Supabase.");
         }
         throw dbError;
+      }
+
+      // 3. Lazy Notification Drain
+      if (profile.role === 'advisor' || profile.role === 'hod') {
+        const targetStatus = profile.role === 'advisor' ? 'Pending Advisor' : 'Pending HOD';
+        const { data: pendingRequests } = await supabase
+          .from('od_requests')
+          .select('*')
+          .eq('department', formData.department)
+          .eq('status', targetStatus);
+
+        if (pendingRequests && pendingRequests.length > 0) {
+          const dashboardLink = profile.role === 'advisor' ? `${BASE_URL}/advisor-dashboard` : `${BASE_URL}/hod-dashboard`;
+          
+          // In-app notification
+          await supabase.from('notifications').insert({
+            user_id: profile.id,
+            message: `Welcome! You have ${pendingRequests.length} pending OD requests in your department to review.`,
+            type: 'info',
+            read: false
+          });
+
+          // Email notification
+          const emailMessage = `
+            <div style="font-family: sans-serif; line-height: 1.6; color: #333;">
+              <h2 style="color: #003366;">Welcome to ESEC OD Portal</h2>
+              <p>Hello <strong>${formData.full_name}</strong>,</p>
+              <p>Your profile setup is complete. You have <strong>${pendingRequests.length}</strong> pending OD requests in the <strong>${formData.department}</strong> department waiting for your review.</p>
+              <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
+              <a href="${dashboardLink}" style="display: inline-block; padding: 12px 24px; background-color: #003366; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold;">Go to Dashboard</a>
+            </div>
+          `;
+
+          try {
+            await fetch('/api/send-email', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                to: profile.email,
+                subject: `Pending OD Requests: ${pendingRequests.length} items to review`,
+                message: emailMessage
+              })
+            });
+          } catch (e) {
+            console.error("Lazy notification email failed:", e);
+          }
+        }
       }
 
       onComplete();

@@ -1,5 +1,5 @@
 
-export const BASE_URL = 'https://civilog.vercel.app';
+export const BASE_URL = typeof window !== 'undefined' ? window.location.origin : 'https://civilog.vercel.app';
 
 export const DEPARTMENTS = [
   'Civil Engineering',

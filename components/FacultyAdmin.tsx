@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { ODRequest, Profile, ODStatus } from '../types';
-import { Loader2, RefreshCw, Search, BarChart3, Clock, CheckCircle2, LayoutList, BookOpen, AlertCircle, ChevronLeft, Terminal, FileText, Download, ExternalLink, Database, Trash2, Archive, RefreshCcw, Lock, X, Folder, Bell, Filter, FileSpreadsheet, UserCheck, GraduationCap, Mail, Check } from 'lucide-react';
+import { Loader2, RefreshCw, Search, BarChart3, Clock, CheckCircle2, LayoutList, BookOpen, AlertCircle, ChevronLeft, Terminal, FileText, Download, ExternalLink, Database, Trash2, Archive, RefreshCcw, Lock, X, Folder, Bell, Filter, FileSpreadsheet, UserCheck, GraduationCap, Mail, Check, User } from 'lucide-react';
 import { generateODDocument } from '../services/pdfService';
 import { Link, useSearchParams } from 'react-router-dom';
 import { logAudit } from '../services/auditService';
@@ -48,6 +48,26 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
   const [activeStatus, setActiveStatus] = useState<ODStatus>('Pending Advisor');
   const [viewMode, setViewMode] = useState<'registry' | 'inspection' | 'nested'>('nested');
   const [facultyProfile, setFacultyProfile] = useState<Profile | null>(null);
+  const [smtpStatus, setSmtpStatus] = useState<{ configured: boolean; user: string | null }>({ configured: false, user: null });
+
+  const checkSmtpStatus = async () => {
+    try {
+      const res = await fetch('/api/health');
+      const data = await res.json();
+      if (data.smtp) {
+        setSmtpStatus({
+          configured: data.smtp.user === 'Configured' && data.smtp.pass === 'Configured',
+          user: data.smtp.user === 'Configured' ? 'Active' : 'Not Configured'
+        });
+      }
+    } catch (e) {
+      console.warn("Could not check SMTP status:", e);
+    }
+  };
+
+  useEffect(() => {
+    checkSmtpStatus();
+  }, []);
   const [searchParams] = useSearchParams();
   const requestId = searchParams.get('request_id');
 
@@ -76,22 +96,40 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
       if (!user) return;
 
       // Fetch profile from DB for source of truth
-      const { data: dbProfile } = await supabase
+      const { data: dbProfile, error: profileError } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', user.id)
         .single();
 
-      const profile: Profile = dbProfile ? (dbProfile as Profile) : {
-        id: user.id,
-        email: user.email || '',
-        role: user.user_metadata?.role || 'faculty',
-        full_name: user.user_metadata?.full_name || '',
-        department: user.user_metadata?.department || null,
-        is_hod: user.user_metadata?.is_hod || false,
-      };
-      
+      if (profileError || !dbProfile) {
+        console.warn("Profile not found or incomplete in database");
+        // We still set a fallback profile from metadata for basic UI, 
+        // but we'll restrict data access if is_profile_complete is false
+        const fallbackProfile: Profile = {
+          id: user.id,
+          email: user.email || '',
+          role: user.user_metadata?.role || 'faculty',
+          full_name: user.user_metadata?.full_name || '',
+          department: user.user_metadata?.department || null,
+          is_hod: user.user_metadata?.is_hod || false,
+          is_profile_complete: false
+        };
+        setFacultyProfile(fallbackProfile);
+        setLoading(false);
+        return;
+      }
+
+      const profile = dbProfile as Profile;
       setFacultyProfile(profile);
+      
+      // Lazy Registration Check: Only show requests if profile is complete
+      if (!profile.is_profile_complete) {
+        setRequests([]);
+        setLoading(false);
+        return;
+      }
+
       const dept = profile.department;
 
       // Fetch list based on active status
@@ -106,16 +144,27 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         query = query.eq('status', activeStatus);
       }
 
-      // Role-based filtering
-      if (role !== 'admin' && dept) {
-        query = query.eq('department', dept);
+      // Role-based filtering: Advisors and HODs only see their own department
+      // Match using the department field on both od_requests and profiles tables.
+      if (role !== 'admin') {
+        if (dept) {
+          query = query.eq('department', dept);
+        } else {
+          // If no department is set for the faculty, they should see zero requests
+          // This prevents cross-department leaks if metadata is missing.
+          query = query.eq('department', 'NON_EXISTENT_DEPARTMENT_FALLBACK');
+        }
       }
 
       // Fetch all counts for stats in parallel
       const getCount = (status: ODStatus) => {
         let q = supabase.from('od_requests').select('*', { count: 'exact', head: true }).eq('status', status);
-        if (role !== 'admin' && dept) {
-          q = q.eq('department', dept);
+        if (role !== 'admin') {
+          if (dept) {
+            q = q.eq('department', dept);
+          } else {
+            q = q.eq('department', 'NON_EXISTENT_DEPARTMENT_FALLBACK');
+          }
         }
         return q;
       };
@@ -493,40 +542,83 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
       let targetEmail = '';
       let subject = '';
       let message = '';
+      let recipientName = '';
 
       if (request.status === 'Pending Advisor') {
         const { data: recipients } = await supabase
           .from('profiles')
-          .select('email')
+          .select('email, full_name')
           .in('role', ['advisor', 'hod'])
           .eq('department', request.department);
         if (recipients && recipients.length > 0) {
           targetEmail = recipients[0].email;
-          subject = `New OD: ${request.event_title}`;
-          message = `<h2>New OD Request</h2><p>Student: ${request.student_name}</p><p>Event: ${request.event_title}</p><p>Please review in Advisor Dashboard.</p>`;
+          recipientName = recipients[0].full_name || 'Faculty Member';
+          subject = `New OD Request for Review: ${request.event_title}`;
+          message = `
+            <div style="font-family: sans-serif; padding: 20px; color: #334155; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; border-radius: 12px;">
+              <h2 style="color: #1e293b; margin-top: 0;">Hello ${recipientName},</h2>
+              <p>A new On-Duty request has been submitted by <strong>${request.student_name}</strong> and is pending your review.</p>
+              <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                <p style="margin: 0; font-size: 14px;"><strong>Student:</strong> ${request.student_name} (${request.register_no})</p>
+                <p style="margin: 5px 0 0 0; font-size: 14px;"><strong>Event:</strong> ${request.event_title}</p>
+              </div>
+              <p>Please log in to the ESEC OD Portal to review and recommend this request.</p>
+              <a href="${BASE_URL}/advisor-dashboard" style="display: inline-block; background: #0369a1; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 10px;">Open Dashboard</a>
+              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+              <p style="font-size: 12px; color: #64748b;">ESEC Student On-Duty Management System</p>
+            </div>
+          `;
         }
       } else if (request.status === 'Pending HOD') {
         const { data: hods } = await supabase
           .from('profiles')
-          .select('email')
+          .select('email, full_name')
           .eq('role', 'hod')
           .eq('department', request.department);
         if (hods && hods.length > 0) {
           targetEmail = hods[0].email;
-          subject = `Advisor Approved: ${request.event_title}`;
-          message = `<h2>OD Authorization Required</h2><p>Student: ${request.student_name}</p><p>Event: ${request.event_title}</p><p>Final authorization required in HOD Dashboard.</p>`;
+          recipientName = hods[0].full_name || 'HOD';
+          subject = `OD Authorization Required: ${request.event_title}`;
+          message = `
+            <div style="font-family: sans-serif; padding: 20px; color: #334155; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; border-radius: 12px;">
+              <h2 style="color: #1e293b; margin-top: 0;">Hello ${recipientName},</h2>
+              <p>An On-Duty request from <strong>${request.student_name}</strong> has been recommended by the Advisor and requires your final authorization.</p>
+              <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                <p style="margin: 0; font-size: 14px;"><strong>Student:</strong> ${request.student_name} (${request.register_no})</p>
+                <p style="margin: 5px 0 0 0; font-size: 14px;"><strong>Event:</strong> ${request.event_title}</p>
+              </div>
+              <p>Please log in to the HOD Dashboard to authorize this request.</p>
+              <a href="${BASE_URL}/hod-dashboard" style="display: inline-block; background: #0369a1; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 10px;">Open Dashboard</a>
+              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+              <p style="font-size: 12px; color: #64748b;">ESEC Student On-Duty Management System</p>
+            </div>
+          `;
         }
-      } else if (request.status === 'Approved') {
-        const { data: student } = await supabase.from('profiles').select('email').eq('id', request.user_id).single();
+      } else {
+        // For Approved, Rejected, Completed, or any other status, notify the student
+        const { data: student } = await supabase.from('profiles').select('email, full_name').eq('id', request.user_id).single();
         if (student) {
           targetEmail = student.email;
-          subject = `OD Sanctioned: ${request.event_title}`;
-          message = `<h2>OD Sanctioned!</h2><p>Your OD for ${request.event_title} has been approved. Download the letter from the portal.</p>`;
+          recipientName = student.full_name || request.student_name;
+          subject = `Update on your OD Request: ${request.event_title}`;
+          message = `
+            <div style="font-family: sans-serif; padding: 20px; color: #334155; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; border-radius: 12px;">
+              <h2 style="color: #1e293b; margin-top: 0;">Hello ${recipientName},</h2>
+              <p>There has been an update to your On-Duty request for <strong>${request.event_title}</strong>.</p>
+              <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                <p style="margin: 0; font-size: 14px;">Current Status: <strong style="color: #0369a1;">${request.status}</strong></p>
+              </div>
+              <p>Please log in to the ESEC OD Portal to view the details.</p>
+              <a href="${BASE_URL}" style="display: inline-block; background: #0369a1; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 10px;">Open Portal</a>
+              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+              <p style="font-size: 12px; color: #64748b;">ESEC Student On-Duty Management System</p>
+            </div>
+          `;
         }
       }
 
       if (!targetEmail) {
-        alert("No target email found for this status/department.");
+        alert("No target email found for this status/department. Please ensure the recipient has a valid profile.");
         return;
       }
 
@@ -538,13 +630,25 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
 
       const result = await res.json();
       if (result.success) {
-        alert(`Notification sent to ${targetEmail}`);
+        alert(`Notification sent successfully to ${targetEmail}`);
         await supabase.from('od_requests').update({ notification_sent: true }).eq('id', request.id);
+        
+        // Log Audit
+        await logAudit('MANUAL_NOTIFICATION', 'od_request', request.id, {
+          recipient: targetEmail,
+          status: request.status,
+          faculty_id: facultyProfile?.id
+        });
+        
         fetchRequests();
       } else {
+        if (result.error?.includes('EMAIL_USER') || result.error?.includes('credentials')) {
+          throw new Error('SMTP Email service is not configured. Please set EMAIL_USER and EMAIL_PASS in the environment variables.');
+        }
         throw new Error(result.error || "Failed to send");
       }
     } catch (err: any) {
+      console.error("Manual Notification Error:", err);
       alert("Manual Notification Failed: " + err.message);
     } finally {
       setProcessingId(null);
@@ -677,11 +781,38 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         </div>
       )}
 
+      {facultyProfile && !facultyProfile.is_profile_complete && (
+        <div className="bg-amber-50 border-2 border-amber-200 p-8 rounded-[2rem] text-center space-y-4 shadow-sm animate-in fade-in slide-in-from-top-4 duration-500">
+          <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center mx-auto">
+            <User size={32} />
+          </div>
+          <div>
+            <h3 className="text-xl font-black text-slate-900 uppercase italic">Profile Incomplete</h3>
+            <p className="text-xs text-slate-500 font-medium mt-2 max-w-md mx-auto">
+              Please complete your profile setup to start reviewing OD requests for your department. 
+              Once your department is set, all pending requests will automatically appear here.
+            </p>
+          </div>
+          <Link 
+            to="/setup-profile"
+            className="inline-block px-8 py-3 bg-blueprint-blue text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-amber-500/20 hover:bg-blue-900 transition-all"
+          >
+            Complete Profile Setup
+          </Link>
+        </div>
+      )}
+
       <div className="flex flex-col md:flex-row justify-between items-center gap-4 relative z-50">
         <div>
           <h2 className="text-3xl font-black text-slate-900 tracking-tight italic uppercase">
             {role === 'admin' ? 'MASTER TERMINAL' : role === 'hod' ? 'HOD TERMINAL' : 'ADVISOR TERMINAL'}
           </h2>
+          <div className="flex items-center gap-2 mt-1">
+            <div className={`w-1.5 h-1.5 rounded-full ${smtpStatus.configured ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
+            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">
+              Email Service: {smtpStatus.configured ? 'Active' : 'Offline (Check Settings)'}
+            </span>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {role === 'admin' && (

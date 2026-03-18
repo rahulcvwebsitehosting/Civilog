@@ -455,6 +455,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
                 type="date" 
                 name="event_date" 
                 required 
+                min={new Date().toISOString().split('T')[0]}
                 value={formData.event_date} 
                 onChange={handleInputChange} 
                 className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none shadow-sm" 
@@ -466,6 +467,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
                 type="date" 
                 name="event_end_date" 
                 required 
+                min={formData.event_date || new Date().toISOString().split('T')[0]}
                 value={formData.event_end_date} 
                 onChange={handleInputChange} 
                 className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none shadow-sm" 

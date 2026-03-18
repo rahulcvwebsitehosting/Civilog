@@ -36,25 +36,48 @@ const FacultyDashboard: React.FC = () => {
   const fetchRequests = async () => {
     setLoading(true);
     
-    // Fetch the current faculty profile to include their signature in approved letters
     const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      setFacultyProfile({
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    // Fetch the source of truth profile from DB
+    const { data: dbProfile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+
+    if (!dbProfile || !dbProfile.is_profile_complete) {
+      setFacultyProfile(dbProfile ? (dbProfile as Profile) : {
         id: user.id,
         email: user.email || '',
         role: user.user_metadata?.role || 'faculty',
         full_name: user.user_metadata?.full_name || '',
+        is_profile_complete: false
       });
+      setRequests([]);
+      setLoading(false);
+      return;
     }
+
+    const profile = dbProfile as Profile;
+    setFacultyProfile(profile);
+
+    const isAdvisor = profile.role === 'advisor';
+    const targetStatus = isAdvisor ? 'Pending Advisor' : 'Pending HOD';
 
     let query = supabase
       .from('od_requests')
       .select('*')
-      .eq('status', 'Pending')
+      .eq('status', targetStatus)
       .order('created_at', { ascending: false });
 
-    if (user?.user_metadata?.department) {
-      query = query.eq('department', user.user_metadata.department);
+    if (profile.department) {
+      query = query.eq('department', profile.department);
+    } else {
+      query = query.eq('department', 'NON_EXISTENT_FALLBACK');
     }
 
     const { data, error } = await query;

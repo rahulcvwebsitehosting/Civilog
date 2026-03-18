@@ -40,7 +40,7 @@ const FacultyRegistry: React.FC = () => {
 
     if (role !== 'admin' && dept) {
       // Show records where department matches OR where it's null/empty (legacy records)
-      query = query.or(`department.eq.${dept},department.is.null,department.eq.""`);
+      query = query.or(`department.eq."${dept}",department.is.null,department.eq.""`);
     }
 
     const { data, error } = await query;

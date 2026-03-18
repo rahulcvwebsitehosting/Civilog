@@ -148,7 +148,8 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
       // Match using the department field on both od_requests and profiles tables.
       if (role !== 'admin') {
         if (dept) {
-          query = query.eq('department', dept);
+          // Show records where department matches OR where it's null/empty (legacy records)
+          query = query.or(`department.eq.${dept},department.is.null,department.eq.""`);
         } else {
           // If no department is set for the faculty, they should see zero requests
           // This prevents cross-department leaks if metadata is missing.
@@ -161,7 +162,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         let q = supabase.from('od_requests').select('*', { count: 'exact', head: true }).eq('status', status);
         if (role !== 'admin') {
           if (dept) {
-            q = q.eq('department', dept);
+            q = q.or(`department.eq.${dept},department.is.null,department.eq.""`);
           } else {
             q = q.eq('department', 'NON_EXISTENT_DEPARTMENT_FALLBACK');
           }

@@ -385,7 +385,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
               .eq('department', request.department);
 
             if (hodProfiles && hodProfiles.length > 0) {
-              const dashboardUrl = `${BASE_URL}/hod-dashboard?request_id=${request.id}`;
+              const dashboardUrl = BASE_URL;
               const emailMessage = `
                 <div style="font-family: sans-serif; line-height: 1.6; color: #333;">
                   <h2 style="color: #003366;">OD Authorization Required</h2>
@@ -564,7 +564,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                 <p style="margin: 5px 0 0 0; font-size: 14px;"><strong>Event:</strong> ${request.event_title}</p>
               </div>
               <p>Please log in to the ESEC OD Portal to review and recommend this request.</p>
-              <a href="${BASE_URL}/advisor-dashboard" style="display: inline-block; background: #0369a1; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 10px;">Open Dashboard</a>
+              <a href="${BASE_URL}" style="display: inline-block; background: #0369a1; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 10px;">Open Dashboard</a>
               <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
               <p style="font-size: 12px; color: #64748b;">ESEC Student On-Duty Management System</p>
             </div>
@@ -589,7 +589,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                 <p style="margin: 5px 0 0 0; font-size: 14px;"><strong>Event:</strong> ${request.event_title}</p>
               </div>
               <p>Please log in to the HOD Dashboard to authorize this request.</p>
-              <a href="${BASE_URL}/hod-dashboard" style="display: inline-block; background: #0369a1; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 10px;">Open Dashboard</a>
+              <a href="${BASE_URL}" style="display: inline-block; background: #0369a1; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 10px;">Open Dashboard</a>
               <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
               <p style="font-size: 12px; color: #64748b;">ESEC Student On-Duty Management System</p>
             </div>

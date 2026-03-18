@@ -98,7 +98,7 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ profile, onComplete }) => {
           .eq('status', targetStatus);
 
         if (pendingRequests && pendingRequests.length > 0) {
-          const dashboardLink = profile.role === 'advisor' ? `${BASE_URL}/advisor-dashboard` : `${BASE_URL}/hod-dashboard`;
+          const dashboardLink = BASE_URL;
           
           // In-app notification
           await supabase.from('notifications').insert({

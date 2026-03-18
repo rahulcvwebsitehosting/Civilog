@@ -263,7 +263,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
           if (recipients && recipients.length > 0) {
             for (const recipient of recipients) {
               if (recipient.email) {
-                const finalUrl = `${BASE_URL}/advisor-dashboard?request_id=${insertedData.id}`;
+                const finalUrl = BASE_URL;
                 
                 console.log(`[DEBUG] Sending email to Advisor: ${recipient.email}`);
                 

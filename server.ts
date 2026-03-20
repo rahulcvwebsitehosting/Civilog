@@ -52,8 +52,21 @@ async function startServer() {
   app.use(express.json());
 
   // Log SMTP status on startup
-  console.log(`[SMTP] EMAIL_USER is ${process.env.EMAIL_USER ? 'DEFINED' : 'UNDEFINED'}`);
-  console.log(`[SMTP] EMAIL_PASS is ${process.env.EMAIL_PASS ? 'DEFINED' : 'UNDEFINED'}`);
+  console.log(`[SMTP Startup] EMAIL_USER: ${process.env.EMAIL_USER ? 'Present' : 'Missing'}`);
+  console.log(`[SMTP Startup] EMAIL_PASS: ${process.env.EMAIL_PASS ? 'Present' : 'Missing'}`);
+  console.log(`[SMTP Startup] SMTP_SERVICE: ${process.env.SMTP_SERVICE || 'Not set'}`);
+
+  // Debug endpoint to verify server is responding
+  app.get("/api/debug-server", (req, res) => {
+    res.json({ 
+      message: "Server is alive and handling API routes",
+      env: {
+        EMAIL_USER: !!process.env.EMAIL_USER,
+        EMAIL_PASS: !!process.env.EMAIL_PASS,
+        SMTP_SERVICE: process.env.SMTP_SERVICE || "none"
+      }
+    });
+  });
 
   // Health check endpoint
   app.get("/api/health", async (req, res) => {

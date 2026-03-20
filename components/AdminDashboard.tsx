@@ -59,11 +59,23 @@ const AdminDashboard: React.FC = () => {
     setTestResult(null);
     try {
       const res = await fetch('/api/verify-smtp');
-      const data = await res.json();
-      if (data.success) {
-        setTestResult({ success: true, message: "SMTP Connection Verified! Transporter is ready." });
+      const contentType = res.headers.get("content-type");
+      
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Server responded with ${res.status}: ${text.substring(0, 100)}...`);
+      }
+
+      if (contentType && contentType.indexOf("application/json") !== -1) {
+        const data = await res.json();
+        if (data.success) {
+          setTestResult({ success: true, message: "SMTP Connection Verified! Transporter is ready." });
+        } else {
+          setTestResult({ success: false, message: `Verification Failed: ${data.error}` });
+        }
       } else {
-        setTestResult({ success: false, message: `Verification Failed: ${data.error}` });
+        const text = await res.text();
+        throw new Error(`Expected JSON but received ${contentType}. Response: ${text.substring(0, 100)}...`);
       }
     } catch (err: any) {
       setTestResult({ success: false, message: `Error: ${err.message}` });
@@ -80,11 +92,23 @@ const AdminDashboard: React.FC = () => {
     setTestResult(null);
     try {
       const res = await fetch(`/api/test-email?to=${encodeURIComponent(testEmail)}`);
-      const data = await res.json();
-      if (data.success) {
-        setTestResult({ success: true, message: "Test email sent successfully! Check your inbox." });
+      const contentType = res.headers.get("content-type");
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Server responded with ${res.status}: ${text.substring(0, 100)}...`);
+      }
+
+      if (contentType && contentType.indexOf("application/json") !== -1) {
+        const data = await res.json();
+        if (data.success) {
+          setTestResult({ success: true, message: "Test email sent successfully! Check your inbox." });
+        } else {
+          setTestResult({ success: false, message: `Failed: ${data.error}` });
+        }
       } else {
-        setTestResult({ success: false, message: `Failed: ${data.error}` });
+        const text = await res.text();
+        throw new Error(`Expected JSON but received ${contentType}. Response: ${text.substring(0, 100)}...`);
       }
     } catch (err: any) {
       setTestResult({ success: false, message: `Error: ${err.message}` });
@@ -617,6 +641,22 @@ const AdminDashboard: React.FC = () => {
                         >
                           {verifyLoading ? <RefreshCw size={14} className="animate-spin" /> : <Shield size={14} />}
                           {verifyLoading ? 'Verifying...' : 'Verify SMTP Connection'}
+                        </button>
+
+                        <button 
+                          onClick={async () => {
+                            try {
+                              const res = await fetch('/api/debug-server');
+                              const data = await res.json();
+                              setTestResult({ success: true, message: `Debug: ${JSON.stringify(data)}` });
+                            } catch (err: any) {
+                              setTestResult({ success: false, message: `Debug Error: ${err.message}` });
+                            }
+                          }}
+                          className="w-full py-3 bg-slate-100 border-2 border-slate-200 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all flex items-center justify-center gap-2"
+                        >
+                          <Shield size={14} />
+                          Debug Server
                         </button>
 
                         <p className="text-[10px] text-slate-500 italic">

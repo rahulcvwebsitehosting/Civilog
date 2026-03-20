@@ -162,3 +162,8 @@ CREATE POLICY "Public Access" ON storage.objects FOR SELECT USING (bucket_id = '
 CREATE POLICY "Authenticated Upload" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'od-files' AND auth.role() = 'authenticated');
 CREATE POLICY "Authenticated Update" ON storage.objects FOR UPDATE USING (bucket_id = 'od-files' AND auth.role() = 'authenticated');
 CREATE POLICY "Authenticated Delete" ON storage.objects FOR DELETE USING (bucket_id = 'od-files' AND auth.role() = 'authenticated');
+
+-- Fix RLS infinite recursion on profiles table
+DROP POLICY IF EXISTS "profiles_select" ON profiles;
+CREATE POLICY "profiles_select" ON profiles FOR SELECT USING (true);
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;

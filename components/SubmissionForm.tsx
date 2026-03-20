@@ -331,6 +331,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
     } catch (err: any) {
       console.error("--- SUBMISSION FAILED ---", err);
       setError(`Error: ${err.message || 'Unknown error'}`);
+    } finally {
       setLoading(false);
     }
   };

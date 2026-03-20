@@ -725,6 +725,16 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         ? teamMembersRaw 
         : (typeof teamMembersRaw === 'string' ? JSON.parse(teamMembersRaw) : []);
       
+      // Helper for hyperlink formulas
+      const createLink = (url: string | null, label: string) => 
+        url ? { t: 's', f: `=HYPERLINK("${url}", "${label}")`, v: label } : 'N/A';
+
+      // Helper to aggregate arrays of links
+      const formatUrls = (urls: string[] | null) => {
+        if (!urls || !Array.isArray(urls) || urls.length === 0) return 'N/A';
+        return urls[0] ? { t: 's', f: `=HYPERLINK("${urls[0]}", "View Evidence (1/${urls.length})")`, v: `View Evidence (1/${urls.length})` } : 'N/A';
+      };
+
       return {
         'Student Name': r.student_name,
         'Register No': r.register_no,
@@ -743,7 +753,13 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         'Status': r.status,
         'Achievement': r.achievement_details || 'N/A',
         'Advisor Approved': r.advisor_approved_at ? 'Yes' : 'No',
-        'HOD Approved': r.hod_approved_at ? 'Yes' : 'No'
+        'HOD Approved': r.hod_approved_at ? 'Yes' : 'No',
+        'Reg Proof': createLink(r.registration_proof_url, "View Reg Proof"),
+        'Pay Proof': createLink(r.payment_proof_url, "View Pay Proof"),
+        'Event Poster': createLink(r.event_poster_url, "View Poster"),
+        'OD Letter': createLink(r.od_letter_url, "View OD Letter"),
+        'Geotagged Photos': formatUrls(r.geotag_photo_urls),
+        'Certificates': formatUrls(r.certificate_urls)
       };
     });
 
@@ -1041,8 +1057,9 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
       ) : viewMode === 'nested' ? (
         <NestedFolderView 
           requests={filteredRequests} 
-          onApprove={(req) => handleAction(req, true)}
-          onReject={(req) => handleAction(req, false)}
+          onApprove={role !== 'admin' ? (req) => handleAction(req, true) : undefined}
+          onReject={role !== 'admin' ? (req) => handleAction(req, false) : undefined}
+          isAdminView={role === 'admin'}
           processingId={processingId}
         />
       ) : viewMode === 'registry' ? (
@@ -1198,6 +1215,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                 <FeedCard 
                   request={request}
                   isFaculty={true}
+                  isAdminView={role === 'admin'}
                   isProcessing={processingId === request.id}
                   onApprove={canApprove(request) ? (req) => handleAction(req, true) : undefined}
                   onReject={canApprove(request) ? (req) => handleAction(req, false) : undefined}

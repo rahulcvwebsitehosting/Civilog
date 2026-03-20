@@ -10,15 +10,16 @@ import {
   GraduationCap, Briefcase, Building2,
   ArrowUpDown, Download, LayoutDashboard,
   ArrowUp, ArrowDown, RefreshCw, Mail,
-  AlertCircle, Check, X, Loader2
+  AlertCircle, Check, X, Loader2, Send
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import FeedCard from './FeedCard';
 import { useToast } from '../contexts/ToastContext';
+import { DEPARTMENTS } from '../constants';
 
 const AdminDashboard: React.FC = () => {
   const { showToast } = useToast();
-  const [activeTab, setActiveTab] = useState<'users' | 'requests' | 'feed' | 'system'>('feed');
+  const [activeTab, setActiveTab] = useState<'users' | 'requests' | 'feed' | 'system' | 'mail'>('feed');
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [requests, setRequests] = useState<ODRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -29,6 +30,15 @@ const AdminDashboard: React.FC = () => {
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [deptFilter, setDeptFilter] = useState<string>('all');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  
+  // Mail Center State
+  const [allProfiles, setAllProfiles] = useState<Profile[]>([]);
+  const [mailRecipient, setMailRecipient] = useState<string>('');
+  const [mailSubject, setMailSubject] = useState<string>('');
+  const [mailMessage, setMailMessage] = useState<string>('');
+  const [mailDept, setMailDept] = useState<string>('none');
+  const [isSendingMail, setIsSendingMail] = useState(false);
+  const [mailProgress, setMailProgress] = useState<string | null>(null);
   
   // SMTP Test State
   const [testEmail, setTestEmail] = useState('');
@@ -131,12 +141,15 @@ const AdminDashboard: React.FC = () => {
         });
       }
 
-      if (activeTab === 'users') {
+      if (activeTab === 'users' || activeTab === 'mail') {
         const { data } = await supabase
           .from('profiles')
-          .select('*')
-          .order('role', { ascending: sortOrder === 'asc' });
+          .select('id, full_name, email, role, department')
+          .order('full_name');
         setProfiles(data || []);
+        if (activeTab === 'mail') {
+          setAllProfiles(data || []);
+        }
       } else if (activeTab === 'requests' || activeTab === 'feed') {
         const { data } = await supabase
           .from('od_requests')
@@ -181,6 +194,77 @@ const AdminDashboard: React.FC = () => {
     const matchesRole = roleFilter === 'all' || p.role === roleFilter;
     return matchesSearch && matchesRole;
   });
+
+  const handleSendMail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mailSubject || !mailMessage) return;
+    
+    let recipients: string[] = [];
+    if (mailDept !== 'none') {
+      recipients = allProfiles
+        .filter(p => p.department === mailDept)
+        .map(p => p.email);
+    } else if (mailRecipient) {
+      recipients = [mailRecipient];
+    }
+
+    if (recipients.length === 0) {
+      showToast("No recipients found", "error");
+      return;
+    }
+
+    setIsSendingMail(true);
+    let successCount = 0;
+    
+    try {
+      for (let i = 0; i < recipients.length; i++) {
+        const to = recipients[i];
+        if (recipients.length > 1) {
+          setMailProgress(`Sending ${i + 1}/${recipients.length}...`);
+        }
+
+        const htmlBody = `
+          <div style="font-family: sans-serif; padding: 20px; color: #334155; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; border-radius: 12px; background: white;">
+            <div style="text-align: center; margin-bottom: 20px;">
+              <h1 style="color: #0369a1; margin: 0; font-size: 24px; text-transform: uppercase; letter-spacing: 1px;">ESEC OD Portal</h1>
+              <p style="color: #64748b; font-size: 10px; text-transform: uppercase; letter-spacing: 2px; margin-top: 5px;">Official Communication</p>
+            </div>
+            <div style="margin-bottom: 30px;">
+              ${mailMessage.replace(/\n/g, '<br/>')}
+            </div>
+            <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+            <div style="text-align: center;">
+              <p style="font-size: 12px; color: #64748b; margin: 0;">Erode Sengunthar Engineering College</p>
+              <p style="font-size: 10px; color: #94a3b8; margin-top: 5px;">Student On-Duty Management System</p>
+            </div>
+          </div>
+        `;
+
+        const res = await fetch('/api/send-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ to, subject: mailSubject, message: htmlBody })
+        });
+        
+        if (res.ok) successCount++;
+      }
+      
+      if (successCount === recipients.length) {
+        showToast(`Successfully sent to ${successCount} recipient(s)`, "success");
+        setMailRecipient('');
+        setMailSubject('');
+        setMailMessage('');
+        setMailDept('none');
+      } else {
+        showToast(`Sent to ${successCount}/${recipients.length} recipients. Some failed.`, "info");
+      }
+    } catch (err: any) {
+      showToast(`Error: ${err.message}`, "error");
+    } finally {
+      setIsSendingMail(false);
+      setMailProgress(null);
+    }
+  };
 
   const getActionIcon = (action: string) => {
     const act = action.toUpperCase();
@@ -355,6 +439,12 @@ const AdminDashboard: React.FC = () => {
               <Search size={14} className="inline mr-2" /> All Requests
             </button>
             <button 
+              onClick={() => setActiveTab('mail')}
+              className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'mail' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              <Mail size={14} className="inline mr-2" /> Mail Center
+            </button>
+            <button 
               onClick={() => setActiveTab('system')}
               className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'system' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
             >
@@ -442,10 +532,8 @@ const AdminDashboard: React.FC = () => {
                         <FeedCard 
                           key={r.id} 
                           request={r} 
-                          isAdminView={false}
+                          isAdminView={true}
                           isFaculty={true}
-                          onApprove={(req) => handleApproval(req, true, true)}
-                          onReject={(req) => handleApproval(req, false, false)}
                           isProcessing={processingId === r.id}
                         />
                       ))}
@@ -569,33 +657,112 @@ const AdminDashboard: React.FC = () => {
                           </div>
                         </td>
                         <td className="p-6 text-right">
-                          {r.status === 'Approved' || r.status === 'Rejected' ? (
-                            <span className="text-[10px] font-bold text-slate-400 uppercase italic">Processed</span>
-                          ) : (
-                            <div className="flex justify-end gap-2">
-                              <button 
-                                onClick={() => handleApproval(r, false, false)}
-                                disabled={processingId === r.id}
-                                className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-50"
-                                title="Reject Request"
-                              >
-                                {processingId === r.id ? <Loader2 size={16} className="animate-spin" /> : <X size={16} />}
-                              </button>
-                              <button 
-                                onClick={() => handleApproval(r, true, true)}
-                                disabled={processingId === r.id}
-                                className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-50"
-                                title="Approve Request"
-                              >
-                                {processingId === r.id ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                              </button>
-                            </div>
-                          )}
+                          <span className="text-[10px] font-bold text-slate-400 uppercase italic">
+                            {r.status === 'Approved' || r.status === 'Rejected' ? 'Processed' : 'Audit Only'}
+                          </span>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+              )}
+              {activeTab === 'mail' && (
+                <div className="p-8 max-w-3xl mx-auto">
+                  <div className="mb-8">
+                    <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight flex items-center gap-3">
+                      <Mail className="text-blueprint-blue" size={24} /> Mail Center
+                    </h3>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Broadcast official communications to users</p>
+                  </div>
+
+                  <form onSubmit={handleSendMail} className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Recipient</label>
+                        <div className="relative">
+                          <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                          <input 
+                            list="user-list"
+                            placeholder="Select user or type email..."
+                            value={mailRecipient}
+                            onChange={(e) => setMailRecipient(e.target.value)}
+                            disabled={mailDept !== 'none'}
+                            className="w-full pl-12 pr-4 py-3 bg-slate-50 border rounded-xl outline-none focus:border-blueprint-blue text-sm disabled:opacity-50"
+                          />
+                          <datalist id="user-list">
+                            {allProfiles.map(p => (
+                              <option key={p.id} value={p.email}>{p.full_name} ({p.role}) - {p.department}</option>
+                            ))}
+                          </datalist>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Send to Department</label>
+                        <div className="relative">
+                          <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                          <select 
+                            value={mailDept}
+                            onChange={(e) => {
+                              setMailDept(e.target.value);
+                              if (e.target.value !== 'none') setMailRecipient('');
+                            }}
+                            className="w-full pl-12 pr-4 py-3 bg-slate-50 border rounded-xl outline-none focus:border-blueprint-blue text-sm appearance-none"
+                          >
+                            <option value="none">None (Individual)</option>
+                            {DEPARTMENTS.map(d => (
+                              <option key={d} value={d}>{d}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Subject</label>
+                      <input 
+                        type="text"
+                        placeholder="Official Communication: [Subject]"
+                        value={mailSubject}
+                        onChange={(e) => setMailSubject(e.target.value)}
+                        required
+                        className="w-full px-4 py-3 bg-slate-50 border rounded-xl outline-none focus:border-blueprint-blue text-sm"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Message Body</label>
+                      <textarea 
+                        placeholder="Type your message here..."
+                        value={mailMessage}
+                        onChange={(e) => setMailMessage(e.target.value)}
+                        required
+                        rows={8}
+                        className="w-full px-4 py-3 bg-slate-50 border rounded-xl outline-none focus:border-blueprint-blue text-sm resize-none"
+                      />
+                    </div>
+
+                    <div className="pt-4">
+                      <button 
+                        type="submit"
+                        disabled={isSendingMail || (!mailRecipient && mailDept === 'none')}
+                        className="w-full py-4 bg-blueprint-blue text-white rounded-2xl font-black uppercase text-xs tracking-[0.2em] shadow-xl shadow-blue-500/20 hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center justify-center gap-3"
+                      >
+                        {isSendingMail ? (
+                          <>
+                            <Loader2 size={18} className="animate-spin" />
+                            {mailProgress || 'Sending...'}
+                          </>
+                        ) : (
+                          <>
+                            <Send size={18} />
+                            Send Communication
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
+                </div>
               )}
               {activeTab === 'system' && (
                 <div className="p-8 space-y-8">

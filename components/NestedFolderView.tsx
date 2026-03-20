@@ -7,12 +7,13 @@ import FeedCard from './FeedCard';
 
 interface NestedFolderViewProps {
   requests: ODRequest[];
-  onApprove: (req: ODRequest) => void;
-  onReject: (req: ODRequest) => void;
+  onApprove?: (req: ODRequest) => void;
+  onReject?: (req: ODRequest) => void;
+  isAdminView?: boolean;
   processingId: string | null;
 }
 
-const NestedFolderView: React.FC<NestedFolderViewProps> = ({ requests, onApprove, onReject, processingId }) => {
+const NestedFolderView: React.FC<NestedFolderViewProps> = ({ requests, onApprove, onReject, isAdminView, processingId }) => {
   const [expandedDepts, setExpandedDepts] = useState<Record<string, boolean>>({});
   const [expandedYears, setExpandedYears] = useState<Record<string, boolean>>({});
   const [expandedSems, setExpandedSems] = useState<Record<string, boolean>>({});
@@ -162,6 +163,7 @@ const NestedFolderView: React.FC<NestedFolderViewProps> = ({ requests, onApprove
                                                 <FeedCard
                                                   request={req}
                                                   isFaculty={true}
+                                                  isAdminView={isAdminView}
                                                   isProcessing={processingId === req.id}
                                                   onApprove={onApprove}
                                                   onReject={onReject}

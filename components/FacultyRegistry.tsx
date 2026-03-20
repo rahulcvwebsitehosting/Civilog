@@ -2,7 +2,8 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { ODRequest } from '../types';
-import { Loader2, Download, Search, RefreshCw, Award, Edit3, Save, X, ExternalLink, Trophy, Image as ImageIcon, History } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Loader2, Download, Search, RefreshCw, Award, Edit3, Save, X, ExternalLink, Trophy, Image as ImageIcon, History, ChevronLeft } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { logAudit } from '../services/auditService';
 import { useToast } from '../contexts/ToastContext';
@@ -41,8 +42,7 @@ const FacultyRegistry: React.FC = () => {
     const dept = profile?.department || user.user_metadata?.department;
 
     if (role !== 'admin' && dept) {
-      // Show records where department matches OR where it's null/empty (legacy records)
-      query = query.or(`department.eq."${dept}",department.is.null,department.eq.""`);
+      query = query.eq('department', dept);
     }
 
     const { data, error } = await query;
@@ -149,6 +149,12 @@ const FacultyRegistry: React.FC = () => {
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 pb-20">
+      <div className="flex items-center justify-between px-4">
+        <Link to="/faculty" className="text-blueprint-blue font-black uppercase text-[10px] tracking-widest flex items-center gap-1 hover:translate-x-[-4px] transition-transform">
+          <ChevronLeft size={16} /> Back to Dashboard
+        </Link>
+      </div>
+
       <div className="flex flex-col md:flex-row justify-between items-end gap-6 bg-white/50 backdrop-blur-sm p-8 rounded-[2rem] border border-blueprint-blue/10">
         <div>
           <h2 className="text-4xl font-black text-blueprint-blue tracking-tighter uppercase italic">Central Registry</h2>

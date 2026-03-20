@@ -151,8 +151,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
       // Match using the department field on both od_requests and profiles tables.
       if (role !== 'admin') {
         if (dept) {
-          // Show records where department matches OR where it's null/empty (legacy records)
-          query = query.or(`department.eq.${dept},department.is.null,department.eq.""`);
+          query = query.eq('department', dept);
         } else {
           // If no department is set for the faculty, they should see zero requests
           // This prevents cross-department leaks if metadata is missing.
@@ -165,7 +164,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         let q = supabase.from('od_requests').select('*', { count: 'exact', head: true }).eq('status', status);
         if (role !== 'admin') {
           if (dept) {
-            q = q.or(`department.eq.${dept},department.is.null,department.eq.""`);
+            q = q.eq('department', dept);
           } else {
             q = q.eq('department', 'NON_EXISTENT_DEPARTMENT_FALLBACK');
           }
@@ -227,7 +226,6 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
   const handleAction = async (request: ODRequest, approve: boolean, confirmed: boolean = false) => {
     // Permission check
     const canPerformAction = 
-      role === 'admin' || 
       (role === 'advisor' && request.status === 'Pending Advisor') ||
       (role === 'hod' && request.status === 'Pending HOD');
 
@@ -251,7 +249,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         
         if (!activeFacultyId) throw new Error("Authentication session lost. Please reload.");
 
-        if (role === 'hod' || (role === 'admin' && request.status === 'Pending HOD')) {
+        if (role === 'hod') {
           // HOD Approval Logic (Final Sanction)
           
           // Fetch real student profile
@@ -756,7 +754,6 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
   };
 
   const canApprove = (request: ODRequest) => {
-    if (role === 'admin') return true;
     if (role === 'advisor' && request.status === 'Pending Advisor') return true;
     if (role === 'hod' && request.status === 'Pending HOD') return true;
     return false;

@@ -117,7 +117,6 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
   };
 
   const startBackgroundUpload = (file: File, path: string, label: string, contentType?: string) => {
-    console.log(`[BACKGROUND] Starting ${label} upload to ${path}...`);
     return supabase.storage
       .from('od-files')
       .upload(path, file, { 
@@ -130,7 +129,6 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
           console.error(`[BACKGROUND] ${label} upload failed:`, err);
           throw err;
         }
-        console.log(`[BACKGROUND] ${label} upload successful: ${path}`);
         return path;
       })
       .catch(e => {
@@ -146,7 +144,6 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
     setError(null);
 
     try {
-      console.log("--- SUBMISSION START ---");
       
       // Step 0: Ensure profile exists in DB (Resiliency check)
       const { error: syncError } = await supabase.from('profiles').upsert({
@@ -206,7 +203,6 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
       const letterPath = `od_letters/${letterFileName}`;
 
       // Step 3: Database Insertion (FAST)
-      console.log("Step 3: Inserting into database...");
       const { data: insertedData, error: dbError } = await supabase.from('od_requests').insert([
         {
           ...requestData,
@@ -226,7 +222,6 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
       }
 
       // Step 4: Success UI (IMMEDIATE)
-      console.log("Step 4: Success!");
       onSuccess();
 
       // Log Audit
@@ -237,23 +232,21 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
       });
 
       // Step 5: Background Tasks (PDF, Uploads & Notifications)
-      console.log("Step 5: Starting background tasks...");
       
       // Generate PDF in background
       generateODDocument({ ...requestData, id: insertedData?.id || 'PENDING' } as any, profile).then(blob => {
         const letterFile = new File([blob], letterFileName, { type: 'application/pdf' });
-        startBackgroundUpload(letterFile, letterPath, 'OD Letter', 'application/pdf').then(() => {
-          if (insertedData) {
+        startBackgroundUpload(letterFile, letterPath, 'OD Letter', 'application/pdf')
+          .then(() => {
             const realUrl = supabase.storage.from('od-files').getPublicUrl(letterPath).data.publicUrl;
-            supabase.from('od_requests')
+            return supabase.from('od_requests')
               .update({ od_letter_url: realUrl })
-              .eq('id', insertedData.id)
-              .then(({ error: updateError }) => {
-                if (updateError) console.error("[BACKGROUND] Failed to update OD Letter URL in DB:", updateError);
-                else console.log("[BACKGROUND] OD Letter URL updated in DB:", realUrl);
-              });
-          }
-        });
+              .eq('id', insertedData.id);
+          })
+          .then(({ error }) => {
+            if (error) console.error('[BACKGROUND] od_letter_url DB update failed:', error);
+          })
+          .catch(e => console.error('[BACKGROUND] OD Letter pipeline failed:', e));
       }).catch(e => console.error("[BACKGROUND] PDF generation failed:", e));
 
       if (regFile && regPath) startBackgroundUpload(regFile, regPath, 'Registration Proof');
@@ -263,7 +256,6 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
       // Step 6: Notify Advisor (Background)
       if (insertedData) {
         try {
-          console.log(`[DEBUG] Searching for advisors in department: "${formData.department}"`);
           const { data: recipients, error: recipientError } = await supabase
             .from('profiles')
             .select('id, email, full_name, role')
@@ -274,14 +266,12 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
             console.error("[DEBUG] Recipient fetch error:", recipientError);
           }
 
-          console.log(`[DEBUG] Found ${recipients?.length || 0} potential recipients (Advisors)`);
 
           if (recipients && recipients.length > 0) {
             for (const recipient of recipients) {
               if (recipient.email) {
                 const finalUrl = BASE_URL;
                 
-                console.log(`[DEBUG] Sending email to Advisor: ${recipient.email}`);
                 
                 // Also insert in-app notification
                 await supabase.from('notifications').insert({
@@ -314,7 +304,6 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
                   })
                 });
                 const emailResult = await emailRes.json();
-                console.log(`[DEBUG] Email result for ${recipient.email}:`, emailResult);
               }
             }
             

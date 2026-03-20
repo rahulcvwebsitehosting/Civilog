@@ -116,7 +116,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- Triggers for Audit Logs
 DROP TRIGGER IF EXISTS tr_log_od_actions ON od_requests;
 CREATE TRIGGER tr_log_od_actions
-AFTER INSERT OR UPDATE OR DELETE ON od_requests
+AFTER INSERT OR UPDATE ON od_requests
 FOR EACH ROW EXECUTE FUNCTION public.log_action();
 
 DROP TRIGGER IF EXISTS tr_log_profile_updates ON profiles;

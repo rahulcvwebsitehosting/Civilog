@@ -232,7 +232,7 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
 
       console.log(`[DASHBOARD] Fetched ${data?.length || 0} requests`);
       setRequests((data as ODRequest[]) || []);
-    } catch (err) {
+    } catch (err: any) {
       console.error("[DASHBOARD] Exception:", err);
       setError('An unexpected error occurred.');
     } finally {
@@ -272,7 +272,7 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
 
           // Mark as sent
           await supabase.from('od_requests').update({ notification_sent: true }).eq('id', req.id);
-        } catch (err) {
+        } catch (err: any) {
           console.error("Failed to sync notification for request:", req.id, err);
         }
       }

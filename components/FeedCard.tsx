@@ -36,7 +36,7 @@ const ImagePreviewModal: React.FC<{ url: string; onClose: () => void; label: str
               href={url} 
               download 
               target="_blank" 
-              rel="noreferrer"
+              rel="noopener noreferrer"
               className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors"
               title="Open Original"
             >

@@ -308,7 +308,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                 <p>Dear <strong>${studentName}</strong>,</p>
                 <p>Your On-Duty request for <strong>${request.event_title}</strong> has been officially sanctioned by the Department HOD.</p>
                 <p>All the best for your presentation!</p>
-                <p><strong>Download OD Letter:</strong> <a href="${publicUrl}" style="color: #2e7d32; font-weight: bold;">Click here to download</a></p>
+                <p><strong>Download OD Letter:</strong> <a href="${publicUrl}" target="_blank" rel="noopener noreferrer" style="color: #2e7d32; font-weight: bold;">Click here to download</a></p>
                 <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
                 <p style="font-size: 12px; color: #666; margin-top: 30px;">Team ESEC OD Portal</p>
               </div>
@@ -393,7 +393,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                   <p><strong>Event:</strong> ${request.event_title}</p>
                   <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
                   <p>Please log in to your dashboard to provide the final authorization.</p>
-                  <a href="${dashboardUrl}" style="display: inline-block; padding: 12px 24px; background-color: #003366; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold;">View HOD Dashboard</a>
+                  <a href="${dashboardUrl}" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 12px 24px; background-color: #003366; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold;">View HOD Dashboard</a>
                   <p style="font-size: 12px; color: #666; margin-top: 30px;">Ref: OD-AUTH-${request.id.substring(0, 8)}</p>
                 </div>
               `;
@@ -614,7 +614,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                 <p style="margin: 5px 0 0 0; font-size: 14px;"><strong>Event:</strong> ${request.event_title}</p>
               </div>
               <p>Please log in to the ESEC OD Portal to review and recommend this request.</p>
-              <a href="${BASE_URL}" style="display: inline-block; background: #0369a1; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 10px;">Open Dashboard</a>
+              <a href="${BASE_URL}" target="_blank" rel="noopener noreferrer" style="display: inline-block; background: #0369a1; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 10px;">Open Dashboard</a>
               <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
               <p style="font-size: 12px; color: #64748b;">ESEC Student On-Duty Management System</p>
             </div>
@@ -639,7 +639,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                 <p style="margin: 5px 0 0 0; font-size: 14px;"><strong>Event:</strong> ${request.event_title}</p>
               </div>
               <p>Please log in to the HOD Dashboard to authorize this request.</p>
-              <a href="${BASE_URL}" style="display: inline-block; background: #0369a1; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 10px;">Open Dashboard</a>
+              <a href="${BASE_URL}" target="_blank" rel="noopener noreferrer" style="display: inline-block; background: #0369a1; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 10px;">Open Dashboard</a>
               <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
               <p style="font-size: 12px; color: #64748b;">ESEC Student On-Duty Management System</p>
             </div>
@@ -660,7 +660,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                 <p style="margin: 0; font-size: 14px;">Current Status: <strong style="color: #0369a1;">${request.status}</strong></p>
               </div>
               <p>Please log in to the ESEC OD Portal to view the details.</p>
-              <a href="${BASE_URL}" style="display: inline-block; background: #0369a1; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 10px;">Open Portal</a>
+              <a href="${BASE_URL}" target="_blank" rel="noopener noreferrer" style="display: inline-block; background: #0369a1; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 10px;">Open Portal</a>
               <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
               <p style="font-size: 12px; color: #64748b;">ESEC Student On-Duty Management System</p>
             </div>
@@ -1110,7 +1110,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                             <a 
                               href={request.od_letter_url} 
                               target="_blank" 
-                              rel="noreferrer" 
+                              rel="noopener noreferrer" 
                               className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 transition-colors"
                               title="View Authorized Letter"
                             >

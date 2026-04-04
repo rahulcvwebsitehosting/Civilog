@@ -223,12 +223,12 @@ const TrackingView: React.FC<TrackingViewProps> = ({ profile }) => {
 
                   <div className="flex flex-wrap gap-4 pt-4">
                     {(request.status === 'Approved' || request.status === 'Completed') && request.od_letter_url && (
-                      <a
-                        href={request.od_letter_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center gap-2 px-6 py-3 bg-blueprint-blue text-white rounded-xl font-black hover:bg-blue-900 transition-all shadow-lg shadow-blue-900/10 uppercase text-[10px] tracking-widest"
-                      >
+                        <a
+                          href={request.od_letter_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 px-6 py-3 bg-blueprint-blue text-white rounded-xl font-black hover:bg-blue-900 transition-all shadow-lg shadow-blue-900/10 uppercase text-[10px] tracking-widest"
+                        >
                         <Download size={16} />
                         Retrieve OD Letter
                       </a>

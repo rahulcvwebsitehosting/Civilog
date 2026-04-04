@@ -289,7 +289,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
                     <p><strong>Organization:</strong> ${formData.organization_name}</p>
                     <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
                     <p>Please log in to your dashboard to review and recommend this request to the HOD.</p>
-                    <a href="${finalUrl}" style="display: inline-block; padding: 12px 24px; background-color: #003366; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold;">View Advisor Dashboard</a>
+                    <a href="${finalUrl}" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 12px 24px; background-color: #003366; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold;">View Advisor Dashboard</a>
                     <p style="font-size: 12px; color: #666; margin-top: 30px;">Ref: OD-REQ-${insertedData.id.substring(0, 8)}</p>
                   </div>
                 `;

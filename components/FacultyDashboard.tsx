@@ -365,7 +365,7 @@ const FacultyDashboard: React.FC = () => {
                             <a 
                               href={request.registration_proof_url} 
                               target="_blank" 
-                              rel="noreferrer"
+                              rel="noopener noreferrer"
                               className="flex items-center gap-1.5 text-blue-600 hover:text-blue-800 text-[11px] font-bold uppercase"
                             >
                               <Paperclip size={12} /> Reg Proof
@@ -375,7 +375,7 @@ const FacultyDashboard: React.FC = () => {
                             <a 
                               href={request.payment_proof_url} 
                               target="_blank" 
-                              rel="noreferrer"
+                              rel="noopener noreferrer"
                               className="flex items-center gap-1.5 text-indigo-600 hover:text-indigo-800 text-[11px] font-bold uppercase"
                             >
                               <CreditCard size={12} /> Pay Proof

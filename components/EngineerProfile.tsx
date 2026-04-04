@@ -19,10 +19,18 @@ const EngineerProfile: React.FC = () => {
   ];
 
   const presentations = [
+    { org: 'Government College of Engineering', task: 'Technical Engagement' },
+    { org: 'Nandha Engineering College', task: 'Academic Presentation' },
+    { org: 'Velalar College of Engineering and Technology', task: 'Technical Symposium' },
+    { org: 'SSM College', task: 'Workshop Participation' },
     { org: 'PSG College of Technology', task: 'Paper Presentation & Workshop' },
-    { org: 'Kongu Engineering College', task: 'Technical Paper Presentation' },
-    { org: 'IIT Madras (SRM Chennai)', task: 'Paper Presentation' },
-    { org: 'KPR Institute', task: 'Workshop & Symposium' },
+    { org: 'Government College of Technology', task: 'Technical Seminar' },
+    { org: 'Coimbatore Institute of Technology', task: 'Academic Engagement' },
+    { org: 'Sri Ramakrishna College of Engineering', task: 'Technical Workshop' },
+    { org: 'Sasurie College of Engineering', task: 'Paper Presentation' },
+    { org: 'Bannari Amman Institute of Technology', task: 'Technical Engagement' },
+    { org: 'SNS College of Technology', task: 'Academic Presentation' },
+    { org: 'Sri Krishna College of Technology', task: 'Technical Symposium' },
   ];
 
   return (
@@ -153,7 +161,7 @@ const EngineerProfile: React.FC = () => {
                 <h2 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.4em] mb-6 flex items-center gap-2">
                   <GraduationCap size={16} className="text-blueprint-blue" /> Academic Engagement
                 </h2>
-                <div className="space-y-4">
+                <div className="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
                   {presentations.map((item, i) => (
                     <div key={i} className="space-y-1">
                       <p className="text-[10px] font-black text-blueprint-blue uppercase tracking-widest">{item.org}</p>
@@ -173,13 +181,13 @@ const EngineerProfile: React.FC = () => {
             <div className="space-y-4">
               <h5 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em]">Communication Channels</h5>
               <div className="flex flex-col gap-3">
-                <a href="https://wa.me/917305169964" target="_blank" className="flex items-center gap-3 text-sm font-black text-blueprint-blue hover:underline uppercase tracking-tight">
+                <a href="https://wa.me/917305169964" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 text-sm font-black text-blueprint-blue hover:underline uppercase tracking-tight">
                   <MessageCircle size={18} className="text-green-500" /> WhatsApp Direct
                 </a>
-                <a href="https://github.com/rahulcvwebsitehosting" target="_blank" className="flex items-center gap-3 text-sm font-black text-blueprint-blue hover:underline uppercase tracking-tight">
+                <a href="https://github.com/rahulcvwebsitehosting" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 text-sm font-black text-blueprint-blue hover:underline uppercase tracking-tight">
                   <Github size={18} /> GitHub Repository
                 </a>
-                <a href="https://www.linkedin.com/in/rahulshyamcivil/" target="_blank" className="flex items-center gap-3 text-sm font-black text-blueprint-blue hover:underline uppercase tracking-tight">
+                <a href="https://www.linkedin.com/in/rahulshyamcivil/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 text-sm font-black text-blueprint-blue hover:underline uppercase tracking-tight">
                   <Linkedin size={18} className="text-blue-600" /> LinkedIn Network
                 </a>
               </div>
@@ -191,7 +199,7 @@ const EngineerProfile: React.FC = () => {
                 AUTHENTICITY: VERIFIED<br />
                 LOGS: ARCHIVED<br />
                 ID: RS-DOS-2027<br />
-                PORTAL: <a href="https://rahulshyam-portfolio.vercel.app/" className="underline">rahulshyam-portfolio.vercel</a>
+                PORTAL: <a href="https://rahulshyam-portfolio.vercel.app/" target="_blank" rel="noopener noreferrer" className="underline">rahulshyam-portfolio.vercel</a>
               </p>
             </div>
 

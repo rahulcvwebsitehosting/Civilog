@@ -114,7 +114,7 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ profile, onComplete }) => {
               <p>Hello <strong>${formData.full_name}</strong>,</p>
               <p>Your profile setup is complete. You have <strong>${pendingRequests.length}</strong> pending OD requests in the <strong>${formData.department}</strong> department waiting for your review.</p>
               <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
-              <a href="${dashboardLink}" style="display: inline-block; padding: 12px 24px; background-color: #003366; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold;">Go to Dashboard</a>
+              <a href="${dashboardLink}" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 12px 24px; background-color: #003366; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold;">Go to Dashboard</a>
             </div>
           `;
 

@@ -14,6 +14,8 @@ import CTOProfile from './components/CTOProfile';
 import AdminDashboard from './components/AdminDashboard';
 import NotificationCenter from './components/NotificationCenter';
 import ErrorBoundary from './components/ErrorBoundary';
+import PrivacyPolicy from './components/PrivacyPolicy';
+import TermsOfUse from './components/TermsOfUse';
 import { ToastProvider } from './contexts/ToastContext';
 import { Profile } from './types';
 
@@ -479,6 +481,8 @@ const App: React.FC = () => {
             <Route path="/track" element={
               <TrackingView profile={profile} />
             } />
+            <Route path="/privacy" element={<PrivacyPolicy />} />
+            <Route path="/terms" element={<TermsOfUse />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </ErrorBoundary>
@@ -493,6 +497,11 @@ const App: React.FC = () => {
           <p className="text-[10px] font-technical font-bold text-pencil-gray uppercase tracking-widest opacity-40">
             © {new Date().getFullYear()} ERODE SENGUNTHAR ENGINEERING COLLEGE OD
           </p>
+          <div className="flex items-center gap-3 text-[10px] font-technical font-bold text-pencil-gray uppercase tracking-widest opacity-40">
+            <Link to="/privacy" className="hover:text-blueprint-blue hover:opacity-100 transition-all">Privacy Policy</Link>
+            <span>·</span>
+            <Link to="/terms" className="hover:text-blueprint-blue hover:opacity-100 transition-all">Terms of Use</Link>
+          </div>
         </div>
       </footer>
     </div>

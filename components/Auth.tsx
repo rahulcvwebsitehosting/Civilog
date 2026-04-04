@@ -10,6 +10,7 @@ const Auth: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -27,6 +28,12 @@ const Auth: React.FC = () => {
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (isSignUp && !agreedToTerms) {
+      setError('You must agree to the Terms of Use and Privacy Policy.');
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setMessage(null);
@@ -48,6 +55,7 @@ const Auth: React.FC = () => {
         } else {
           setMessage('Account request received. Please check your inbox for confirmation.');
           setIsSignUp(false);
+          setAgreedToTerms(false);
         }
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({
@@ -137,6 +145,22 @@ const Auth: React.FC = () => {
               </div>
             </div>
 
+            {isSignUp && (
+              <div className="flex items-start gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <input
+                  type="checkbox"
+                  id="terms"
+                  required
+                  checked={agreedToTerms}
+                  onChange={(e) => setAgreedToTerms(e.target.checked)}
+                  className="mt-1 w-4 h-4 rounded border-slate-300 text-blueprint-blue focus:ring-blueprint-blue/20"
+                />
+                <label htmlFor="terms" className="text-[11px] font-medium text-slate-600 leading-relaxed">
+                  I agree to the <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-blueprint-blue font-bold hover:underline">Terms of Use</a> and <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-blueprint-blue font-bold hover:underline">Privacy Policy</a>
+                </label>
+              </div>
+            )}
+
             {error && (
               <div className="bg-amber-50 text-amber-700 p-3 rounded-xl border border-amber-200 flex items-start gap-2 text-[11px] font-medium leading-tight">
                 <AlertCircle size={14} className="shrink-0 mt-0.5" />
@@ -153,7 +177,7 @@ const Auth: React.FC = () => {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || (isSignUp && !agreedToTerms)}
               className="w-full bg-blueprint-blue text-white py-3.5 rounded-xl font-black flex items-center justify-center gap-2 hover:bg-goldenrod transition-all shadow-lg shadow-amber-500/10 disabled:opacity-50 uppercase tracking-widest text-xs"
             >
               {loading ? <Loader2 className="animate-spin" size={18} /> : (isSignUp ? 'Create Profile' : 'Login')}

@@ -212,7 +212,6 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
 
   const fetchRequests = async () => {
     if (!profile?.id) return;
-    console.log(`[DASHBOARD] Fetching requests for: ${profile.id}`);
     setLoading(true);
     setError(null);
     
@@ -229,8 +228,7 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
         setError('Failed to load OD log. Please try again.');
         return;
       }
-
-      console.log(`[DASHBOARD] Fetched ${data?.length || 0} requests`);
+      
       setRequests((data as ODRequest[]) || []);
     } catch (err: any) {
       console.error("[DASHBOARD] Exception:", err);

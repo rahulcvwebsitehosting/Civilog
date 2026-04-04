@@ -565,7 +565,6 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
 
       // 4. Delete files from storage
       if (pathsToDelete.length > 0) {
-        console.log(`[CLEANUP] Removing ${pathsToDelete.length} files from storage...`);
         const { error: storageError } = await supabase.storage.from('od-files').remove(pathsToDelete);
         if (storageError) {
           console.warn("[CLEANUP] Storage removal failed:", storageError);

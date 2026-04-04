@@ -32,7 +32,6 @@ const AdminDashboard: React.FC = () => {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   
   // Mail Center State
-  const [allProfiles, setAllProfiles] = useState<Profile[]>([]);
   const [mailRecipient, setMailRecipient] = useState<string>('');
   const [mailSubject, setMailSubject] = useState<string>('');
   const [mailMessage, setMailMessage] = useState<string>('');
@@ -147,9 +146,6 @@ const AdminDashboard: React.FC = () => {
           .select('id, full_name, email, role, department')
           .order('full_name');
         setProfiles(data || []);
-        if (activeTab === 'mail') {
-          setAllProfiles(data || []);
-        }
       } else if (activeTab === 'requests' || activeTab === 'feed') {
         const { data } = await supabase
           .from('od_requests')
@@ -201,7 +197,7 @@ const AdminDashboard: React.FC = () => {
     
     let recipients: string[] = [];
     if (mailDept !== 'none') {
-      recipients = allProfiles
+      recipients = profiles
         .filter(p => p.department === mailDept)
         .map(p => p.email);
     } else if (mailRecipient) {
@@ -690,7 +686,7 @@ const AdminDashboard: React.FC = () => {
                             className="w-full pl-12 pr-4 py-3 bg-slate-50 border rounded-xl outline-none focus:border-blueprint-blue text-sm disabled:opacity-50"
                           />
                           <datalist id="user-list">
-                            {allProfiles.map(p => (
+                            {profiles.map(p => (
                               <option key={p.id} value={p.email}>{p.full_name} ({p.role}) - {p.department}</option>
                             ))}
                           </datalist>

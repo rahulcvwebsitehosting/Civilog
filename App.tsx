@@ -13,6 +13,7 @@ import ProfilePage from './components/ProfilePage';
 import EngineerProfile from './components/EngineerProfile';
 import AdminDashboard from './components/AdminDashboard';
 import NotificationCenter from './components/NotificationCenter';
+import NotificationHistory from './components/NotificationHistory';
 import ErrorBoundary from './components/ErrorBoundary';
 import PrivacyPolicy from './components/PrivacyPolicy';
 import TermsOfUse from './components/TermsOfUse';
@@ -454,6 +455,14 @@ const App: React.FC = () => {
             <Route path="/admin-panel" element={
               session && profile?.role === 'admin' && profile?.is_profile_complete ? (
                 <AdminDashboard />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            } />
+
+            <Route path="/notification-history" element={
+              session && profile?.is_profile_complete ? (
+                <NotificationHistory profile={profile} />
               ) : (
                 <Navigate to="/" replace />
               )

@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { Notification } from '../types';
+import { Link } from 'react-router-dom';
 import { Bell, X, CheckCircle2, Info, AlertTriangle, Loader2 } from 'lucide-react';
 
 const NotificationCenter: React.FC<{ userId: string }> = ({ userId }) => {
@@ -125,7 +126,13 @@ const NotificationCenter: React.FC<{ userId: string }> = ({ userId }) => {
           </div>
           
           <div className="p-3 bg-slate-50 border-t text-center">
-            <button className="text-[9px] font-black text-blueprint-blue uppercase tracking-widest hover:underline">View All History</button>
+            <Link 
+              to="/notification-history" 
+              onClick={() => setShowDropdown(false)}
+              className="text-[9px] font-black text-blueprint-blue uppercase tracking-widest hover:underline block"
+            >
+              View All History
+            </Link>
           </div>
         </div>
       )}

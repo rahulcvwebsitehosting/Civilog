@@ -7,7 +7,6 @@ import { generateODDocument } from '../services/pdfService';
 import { Link, useSearchParams } from 'react-router-dom';
 import { logAudit } from '../services/auditService';
 import FeedCard from './FeedCard';
-import NotificationCenter from './NotificationCenter';
 import NestedFolderView from './NestedFolderView';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
@@ -977,7 +976,6 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
               <BookOpen size={14} /> Detail
             </button>
           </div>
-          {facultyProfile && <NotificationCenter userId={facultyProfile.id} />}
           <button onClick={fetchRequests} className="p-2.5 bg-white border rounded-xl hover:bg-slate-50 transition-colors shadow-sm"><RefreshCw size={20} className={loading ? 'animate-spin' : ''} /></button>
         </div>
       </div>

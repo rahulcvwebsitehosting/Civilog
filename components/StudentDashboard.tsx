@@ -5,7 +5,6 @@ import { ODRequest, ODStatus, Profile } from '../types';
 import { Plus, XCircle, Loader2, GraduationCap, Terminal, Trophy, RefreshCw, Trash2, AlertCircle, X, ArrowRight } from 'lucide-react';
 import SubmissionForm from './SubmissionForm';
 import FeedCard from './FeedCard';
-import NotificationCenter from './NotificationCenter';
 import { Link } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 
@@ -669,15 +668,15 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
         </div>
       )}
 
-      {/* CTO FAB */}
+      {/* Engineer FAB */}
       <Link 
         to="/profile/rahul-shyam" 
         className="fixed bottom-24 lg:bottom-12 right-6 lg:right-12 w-14 h-14 bg-blueprint-blue text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-110 active:scale-95 transition-all z-[90] group shadow-amber-500/20"
-        title="CTO Terminal"
+        title="Engineering Terminal"
       >
         <Terminal size={24} className="group-hover:rotate-12 transition-transform" />
         <div className="absolute right-full mr-4 bg-blueprint-blue text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-xl">
-           CTO PROFILE
+           ENGINEER PROFILE
         </div>
       </Link>
     </div>

@@ -3,7 +3,7 @@ import React from 'react';
 import { Terminal, Github, Linkedin, MessageCircle, MapPin, GraduationCap, Cpu, Globe, Rocket, ShieldCheck, ExternalLink, ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
-const CTOProfile: React.FC = () => {
+const EngineerProfile: React.FC = () => {
   const techRadar = [
     { category: 'Web Dev', skills: ['Next.js', 'React', 'Tailwind CSS', 'TypeScript', 'Node.js'] },
     { category: 'AI & Intelligence', skills: ['Gemini API', 'LLM Integration', 'Multi-modal LLMs', 'AI Agents'] },
@@ -35,7 +35,7 @@ const CTOProfile: React.FC = () => {
           </Link>
           <div className="flex items-center gap-3">
              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-             <span className="text-[10px] font-black uppercase text-pencil-gray tracking-tighter">Node: CTO_DOSSIER_001</span>
+             <span className="text-[10px] font-black uppercase text-pencil-gray tracking-tighter">Node: CE_DOSSIER_001</span>
           </div>
         </div>
 
@@ -53,7 +53,7 @@ const CTOProfile: React.FC = () => {
                   </div>
                   <div className="pb-2">
                     <h1 className="text-4xl font-black text-blueprint-blue leading-none italic uppercase tracking-tighter">RAHUL SHYAM</h1>
-                    <p className="text-[11px] font-bold text-pencil-gray uppercase tracking-[0.2em] mt-2">CTO & Full Stack Engineer</p>
+                    <p className="text-[11px] font-bold text-pencil-gray uppercase tracking-[0.2em] mt-2">Civil Engineer • Full Stack Developer</p>
                   </div>
                 </div>
                 
@@ -114,7 +114,7 @@ const CTOProfile: React.FC = () => {
                    <div className="px-3 py-1 bg-white/10 rounded-full text-[9px] font-black uppercase tracking-widest border border-white/20">Active Tenure</div>
                    <div className="text-[9px] font-black uppercase tracking-widest opacity-60">2025 – Present</div>
                  </div>
-                 <h2 className="text-3xl font-black italic uppercase tracking-tight mb-2">CTO @ Academic Infrastructure</h2>
+                 <h2 className="text-3xl font-black italic uppercase tracking-tight mb-2">Civil Engineer @ Academic Infrastructure</h2>
                  <p className="text-sm opacity-80 leading-relaxed font-medium max-w-xl">
                    Leading technical architecture for a government-funded educational-tech venture developing innovative academic solutions and supply chain automation.
                  </p>
@@ -207,10 +207,10 @@ const CTOProfile: React.FC = () => {
       </div>
 
       <div className="py-12 text-center">
-        <p className="text-[9px] font-black text-pencil-gray/30 uppercase tracking-[0.6em]">ESEC OD OS • CTO OFFICE • TERMINAL SECURE</p>
+        <p className="text-[9px] font-black text-pencil-gray/30 uppercase tracking-[0.6em]">ESEC OD OS • ENGINEERING OFFICE • TERMINAL SECURE</p>
       </div>
     </div>
   );
 };
 
-export default CTOProfile;
+export default EngineerProfile;

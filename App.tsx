@@ -10,7 +10,7 @@ import FacultyRegistry from './components/FacultyRegistry';
 import TrackingView from './components/TrackingView';
 import ProfileSetup from './components/ProfileSetup';
 import ProfilePage from './components/ProfilePage';
-import CTOProfile from './components/CTOProfile';
+import EngineerProfile from './components/EngineerProfile';
 import AdminDashboard from './components/AdminDashboard';
 import NotificationCenter from './components/NotificationCenter';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -414,7 +414,7 @@ const App: React.FC = () => {
             } />
 
             <Route path="/profile/rahul-shyam" element={
-              <CTOProfile />
+              <EngineerProfile />
             } />
 
             <Route path="/student-dashboard" element={

@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { ODRequest, Profile, ODStatus } from '../types';
-import { Loader2, RefreshCw, Search, BarChart3, Clock, CheckCircle2, LayoutList, BookOpen, AlertCircle, ChevronLeft, Terminal, FileText, Download, ExternalLink, Database, Trash2, Archive, RefreshCcw, Lock, X, Folder, Bell, Filter, FileSpreadsheet, UserCheck, GraduationCap, Mail, Check, User } from 'lucide-react';
+import { Loader2, RefreshCw, Search, BarChart3, Clock, CheckCircle2, LayoutList, BookOpen, AlertCircle, ChevronLeft, Terminal, FileText, Download, ExternalLink, Database, Trash2, Archive, RefreshCcw, Lock, X, Folder, Bell, Filter, FileSpreadsheet, UserCheck, GraduationCap, Mail, Check, User, Phone } from 'lucide-react';
 import { generateODDocument } from '../services/pdfService';
 import { Link, useSearchParams } from 'react-router-dom';
 import { logAudit } from '../services/auditService';
@@ -1088,7 +1088,22 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                     <tr key={request.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-8 py-6">
                         <p className="font-black text-slate-900 uppercase text-xs">{request.student_name}</p>
-                        <p className="text-[9px] text-slate-500 font-mono">ID: {request.register_no}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <p className="text-[9px] text-slate-500 font-mono">ID: {request.register_no}</p>
+                          {request.phone_number && (
+                            <p className="text-[9px] text-primary font-black uppercase tracking-tighter flex items-center gap-1">
+                              <Phone size={10} /> {request.phone_number}
+                            </p>
+                          )}
+                        </div>
+                        {request.team_members && request.team_members.length > 0 && (
+                          <div className="mt-1.5 pt-1.5 border-t border-slate-100">
+                            <div className="text-[8px] font-black text-blueprint-blue uppercase tracking-widest">Team ({request.team_members.length})</div>
+                            <div className="text-[9px] text-slate-500 truncate max-w-[150px]">
+                              {request.team_members.map(m => m.name).join(', ')}
+                            </div>
+                          </div>
+                        )}
                       </td>
                       <td className="px-8 py-6">
                         <p className="font-black text-blueprint-blue uppercase text-sm tracking-tighter italic">{request.event_title}</p>

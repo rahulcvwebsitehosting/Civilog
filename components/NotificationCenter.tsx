@@ -62,6 +62,18 @@ const NotificationCenter: React.FC<{ userId: string }> = ({ userId }) => {
     }
   };
 
+  const markAllAsRead = async () => {
+    const { error } = await supabase
+      .from('notifications')
+      .update({ read: true })
+      .eq('user_id', userId)
+      .eq('read', false);
+
+    if (!error) {
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    }
+  };
+
   const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
@@ -125,13 +137,21 @@ const NotificationCenter: React.FC<{ userId: string }> = ({ userId }) => {
             )}
           </div>
           
-          <div className="p-3 bg-slate-50 border-t text-center">
+          <div className="p-3 bg-slate-50 border-t flex items-center justify-between gap-2">
+            <button 
+              onClick={markAllAsRead}
+              disabled={unreadCount === 0}
+              className="flex-1 text-[9px] font-black text-slate-500 uppercase tracking-widest hover:text-blueprint-blue transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              Mark all as read
+            </button>
+            <div className="w-px h-3 bg-slate-200"></div>
             <Link 
               to="/notification-history" 
               onClick={() => setShowDropdown(false)}
-              className="text-[9px] font-black text-blueprint-blue uppercase tracking-widest hover:underline block"
+              className="flex-1 text-[9px] font-black text-blueprint-blue uppercase tracking-widest hover:underline text-center"
             >
-              View All History
+              View History
             </Link>
           </div>
         </div>

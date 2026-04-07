@@ -43,6 +43,18 @@ const NotificationHistory: React.FC<{ profile: Profile }> = ({ profile }) => {
     }
   };
 
+  const markAllAsRead = async () => {
+    const { error } = await supabase
+      .from('notifications')
+      .update({ read: true })
+      .eq('user_id', profile.id)
+      .eq('read', false);
+
+    if (!error) {
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    }
+  };
+
   const deleteNotification = async (id: string) => {
     const { error } = await supabase
       .from('notifications')
@@ -87,13 +99,23 @@ const NotificationHistory: React.FC<{ profile: Profile }> = ({ profile }) => {
           </div>
           
           {notifications.length > 0 && (
-            <button 
-              onClick={clearAll}
-              className="flex items-center gap-2 px-4 py-2 bg-white border border-red-100 text-red-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-50 transition-all shadow-sm"
-            >
-              <Trash2 size={14} />
-              Clear All
-            </button>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={markAllAsRead}
+                disabled={!notifications.some(n => !n.read)}
+                className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all shadow-sm disabled:opacity-50"
+              >
+                <CheckCircle2 size={14} />
+                Mark all read
+              </button>
+              <button 
+                onClick={clearAll}
+                className="flex items-center gap-2 px-4 py-2 bg-white border border-red-100 text-red-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-50 transition-all shadow-sm"
+              >
+                <Trash2 size={14} />
+                Clear All
+              </button>
+            </div>
           )}
         </div>
 

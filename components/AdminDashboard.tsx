@@ -583,6 +583,7 @@ const AdminDashboard: React.FC = () => {
                         <td className="p-6">
                           <div className="space-y-1">
                             <p className="text-[10px] font-bold text-slate-600 uppercase tracking-tighter">ID: <span className="font-mono text-blueprint-blue">{p.identification_no || 'N/A'}</span></p>
+                            {p.phone_number && <p className="text-[10px] font-bold text-slate-600 uppercase tracking-tighter">Phone: <span className="font-mono text-blueprint-blue">{p.phone_number}</span></p>}
                             {p.role === 'student' && (
                               <>
                                 <p className="text-[10px] font-bold text-slate-600 uppercase tracking-tighter">Roll: <span className="font-mono text-blueprint-blue">{p.roll_no || 'N/A'}</span></p>
@@ -615,6 +616,13 @@ const AdminDashboard: React.FC = () => {
                           <p className="font-bold text-slate-900 text-sm">{r.student_name}</p>
                           <p className="text-[10px] font-mono text-slate-400 uppercase">{r.register_no}</p>
                           <p className="text-[9px] text-slate-400 mt-1">{r.department}</p>
+                          {r.phone_number && <p className="text-[9px] text-primary font-black uppercase mt-1">{r.phone_number}</p>}
+                          {r.team_members && r.team_members.length > 0 && (
+                            <div className="mt-2 pt-1 border-t border-slate-100">
+                              <p className="text-[8px] font-black text-blueprint-blue uppercase tracking-widest">Team ({r.team_members.length})</p>
+                              <p className="text-[9px] text-slate-500 truncate max-w-[120px]">{r.team_members.map(m => m.name).join(', ')}</p>
+                            </div>
+                          )}
                         </td>
                         <td className="p-6">
                           <p className="font-bold text-slate-700 text-xs">{r.event_title}</p>

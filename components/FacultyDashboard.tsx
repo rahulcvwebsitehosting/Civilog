@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { ODRequest, Profile } from '../types';
-import { CheckCircle, XCircle, ExternalLink, Loader2, RefreshCw, Paperclip, CreditCard, AlertCircle, Check, X } from 'lucide-react';
+import { CheckCircle, XCircle, ExternalLink, Loader2, RefreshCw, Paperclip, CreditCard, AlertCircle, Check, X, Phone } from 'lucide-react';
 import { generateODLetter } from '../services/pdfService';
 import { motion, AnimatePresence } from 'motion/react';
 import { useToast } from '../contexts/ToastContext';
@@ -353,6 +353,19 @@ const FacultyDashboard: React.FC = () => {
                         <div className="font-bold text-slate-900">{request.student_name}</div>
                         <div className="text-sm text-slate-500 font-mono">{request.register_no}</div>
                         <div className="text-xs text-blue-600 font-medium">{request.year} Yr / {request.roll_no}</div>
+                        {request.phone_number && (
+                          <div className="text-[10px] text-slate-400 font-bold mt-0.5 flex items-center gap-1">
+                            <Phone size={10} /> {request.phone_number}
+                          </div>
+                        )}
+                        {request.team_members && request.team_members.length > 0 && (
+                          <div className="mt-1.5 pt-1.5 border-t border-slate-100">
+                            <div className="text-[9px] font-black text-blue-600 uppercase tracking-widest">Team ({request.team_members.length})</div>
+                            <div className="text-[9px] text-slate-500 truncate max-w-[150px]">
+                              {request.team_members.map(m => m.name).join(', ')}
+                            </div>
+                          </div>
+                        )}
                       </td>
                       <td className="px-6 py-4">
                         <div className="font-semibold text-slate-900">{request.event_title}</div>

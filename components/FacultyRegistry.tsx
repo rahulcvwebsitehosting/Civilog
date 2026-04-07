@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { ODRequest } from '../types';
 import { Link } from 'react-router-dom';
-import { Loader2, Download, Search, RefreshCw, Award, Edit3, Save, X, ExternalLink, Trophy, Image as ImageIcon, History, ChevronLeft } from 'lucide-react';
+import { Loader2, Download, Search, RefreshCw, Award, Edit3, Save, X, ExternalLink, Trophy, Image as ImageIcon, History, ChevronLeft, Phone } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { logAudit } from '../services/auditService';
 import { useToast } from '../contexts/ToastContext';
@@ -235,6 +235,19 @@ const FacultyRegistry: React.FC = () => {
                         <span className="text-[10px] font-black text-blueprint-blue/60 uppercase tracking-widest">{request.year}YR</span>
                         <span className="text-[9px] text-slate-400 font-mono">ID: {request.register_no}</span>
                       </div>
+                      {request.phone_number && (
+                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter flex items-center gap-1 mt-1">
+                          <Phone size={10} /> {request.phone_number}
+                        </p>
+                      )}
+                      {request.team_members && request.team_members.length > 0 && (
+                        <div className="mt-2 pt-1 border-t border-slate-100">
+                          <div className="text-[8px] font-black text-blueprint-blue uppercase tracking-widest">Team ({request.team_members.length})</div>
+                          <div className="text-[9px] text-slate-500 truncate max-w-[150px]">
+                            {request.team_members.map(m => m.name).join(', ')}
+                          </div>
+                        </div>
+                      )}
                     </td>
                     <td className="px-8 py-6">
                       <p className="font-black text-blueprint-blue uppercase text-xs italic tracking-tighter">{request.event_title}</p>

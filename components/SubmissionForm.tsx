@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { supabase } from '../supabaseClient';
-import { Loader2, Phone, AlertCircle, Upload, Image as ImageIcon, FileText, CreditCard, X, User } from 'lucide-react';
+import { Loader2, Phone, AlertCircle, Upload, Image as ImageIcon, FileText, CreditCard, X, User, Users } from 'lucide-react';
 import { SubmissionFormData, Profile, TeamMember, ODRequest } from '../types';
 import { generateODDocument } from '../services/pdfService';
 import { logAudit } from '../services/auditService';
@@ -47,6 +47,34 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
   const [posterFile, setPosterFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const addTeamMember = () => {
+    setFormData(prev => ({
+      ...prev,
+      team_members: [...prev.team_members, { 
+        name: '', 
+        register_no: '', 
+        roll_no: '',
+        year: prev.year,
+        department: prev.department
+      }]
+    }));
+  };
+
+  const removeTeamMember = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      team_members: prev.team_members.filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleTeamMemberChange = (index: number, field: keyof TeamMember, value: string) => {
+    setFormData(prev => {
+      const newMembers = [...prev.team_members];
+      newMembers[index] = { ...newMembers[index], [field]: value };
+      return { ...prev, team_members: newMembers };
+    });
+  };
 
   const progress = useMemo(() => {
     const fieldsToTrack = [
@@ -422,7 +450,17 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
           <h2 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] font-mono flex items-center gap-2">
             <span className="w-8 h-[1px] bg-slate-200"></span> 02 SPECIFICATIONS
           </h2>
-          <input name="event_title" required value={formData.event_title} onChange={handleInputChange} className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none font-bold shadow-sm" placeholder="Event Title (Ex. Paper Presentation)" />
+          <div className="space-y-1.5">
+            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Event Title / Topic Name</label>
+            <input 
+              name="event_title" 
+              required 
+              value={formData.event_title} 
+              onChange={handleInputChange} 
+              className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none font-bold shadow-sm" 
+              placeholder="Ex. Seismic Analysis of High-Rise Structures" 
+            />
+          </div>
           <div className="grid grid-cols-2 gap-5">
             <div className="space-y-2">
               <select name="event_type" value={formData.event_type} onChange={handleInputChange} className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none shadow-sm">
@@ -480,12 +518,99 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
               />
             </div>
           </div>
-          <input name="organization_location" required value={formData.organization_location} onChange={handleInputChange} className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none shadow-sm" placeholder="Organization Location (Ex. Chennai)" />
+          <div className="space-y-1.5">
+            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Organization Location</label>
+            <input name="organization_location" required value={formData.organization_location} onChange={handleInputChange} className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none shadow-sm" placeholder="Ex. Chennai" />
+          </div>
+        </div>
+
+        <div className="space-y-5 pt-2">
+          <div className="flex justify-between items-center">
+            <h2 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] font-mono flex items-center gap-2">
+              <span className="w-8 h-[1px] bg-slate-200"></span> 03 TEAM MEMBERS (Optional)
+            </h2>
+            <button 
+              type="button" 
+              onClick={addTeamMember}
+              className="text-[9px] font-black text-blueprint-blue uppercase tracking-widest hover:underline"
+            >
+              + Add Member
+            </button>
+          </div>
+          
+          <div className="space-y-4">
+            {formData.team_members.map((member, index) => (
+              <div key={index} className="p-5 bg-white dark:bg-gray-800 rounded-3xl border border-slate-100 dark:border-gray-700 relative animate-in zoom-in-95 duration-200">
+                <button 
+                  type="button"
+                  onClick={() => removeTeamMember(index)}
+                  className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-red-600 transition-colors"
+                >
+                  <X size={12} />
+                </button>
+                <div className="grid grid-cols-1 gap-4">
+                  <input 
+                    placeholder="Member Name"
+                    value={member.name}
+                    onChange={(e) => handleTeamMemberChange(index, 'name', e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-gray-900 text-xs px-4 py-3 rounded-xl border-none outline-none focus:ring-1 ring-blueprint-blue"
+                    required
+                  />
+                  <div className="grid grid-cols-2 gap-3">
+                    <input 
+                      placeholder="Reg No"
+                      value={member.register_no}
+                      onChange={(e) => handleTeamMemberChange(index, 'register_no', e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-gray-900 text-[10px] px-4 py-3 rounded-xl border-none outline-none font-mono focus:ring-1 ring-blueprint-blue"
+                      required
+                    />
+                    <input 
+                      placeholder="Roll No"
+                      value={member.roll_no}
+                      onChange={(e) => handleTeamMemberChange(index, 'roll_no', e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-gray-900 text-[10px] px-4 py-3 rounded-xl border-none outline-none font-mono focus:ring-1 ring-blueprint-blue"
+                      required
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <select 
+                      value={member.year}
+                      onChange={(e) => handleTeamMemberChange(index, 'year', e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-gray-900 text-[10px] px-4 py-3 rounded-xl border-none outline-none focus:ring-1 ring-blueprint-blue"
+                      required
+                    >
+                      <option value="1">1st Year</option>
+                      <option value="2">2nd Year</option>
+                      <option value="3">3rd Year</option>
+                      <option value="4">4th Year</option>
+                      <option value="5">5th Year</option>
+                    </select>
+                    <select 
+                      value={member.department}
+                      onChange={(e) => handleTeamMemberChange(index, 'department', e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-gray-900 text-[10px] px-4 py-3 rounded-xl border-none outline-none focus:ring-1 ring-blueprint-blue"
+                      required
+                    >
+                      {DEPARTMENTS.map(dept => (
+                        <option key={dept} value={dept}>{dept}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {formData.team_members.length === 0 && (
+              <div className="py-6 border-2 border-dashed border-slate-100 dark:border-gray-800 rounded-3xl flex flex-col items-center justify-center text-slate-300">
+                <Users size={24} className="mb-2 opacity-20" />
+                <p className="text-[9px] font-bold uppercase tracking-widest">Individual Submission</p>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="space-y-5 pt-2 pb-8">
            <h2 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] font-mono flex items-center gap-2">
-            <span className="w-8 h-[1px] bg-slate-200"></span> 03 DOCUMENTATION (Optional)
+            <span className="w-8 h-[1px] bg-slate-200"></span> 04 DOCUMENTATION (Optional)
           </h2>
            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
              <label className={`h-28 border-2 rounded-2xl flex flex-col items-center justify-center cursor-pointer transition-all duration-300 ${posterFile ? 'border-blueprint-blue bg-blue-50/50 shadow-inner' : 'border-dashed border-slate-300 bg-white hover:border-slate-400 hover:bg-slate-50'}`}>

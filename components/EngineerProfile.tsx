@@ -29,7 +29,7 @@ const EngineerProfile: React.FC = () => {
     { org: 'Sri Ramakrishna College of Engineering', task: 'Technical Workshop' },
     { org: 'Sasurie College of Engineering', task: 'Paper Presentation' },
     { org: 'Bannari Amman Institute of Technology', task: 'Technical Engagement' },
-    { org: 'SNS College of Technology', task: 'Academic Presentation' },
+    { org: 'SNS College of Technology / Engineering', task: 'Academic Presentation' },
     { org: 'Sri Krishna College of Technology', task: 'Technical Symposium' },
   ];
 

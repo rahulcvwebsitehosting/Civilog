@@ -41,6 +41,12 @@ const Auth: React.FC = () => {
     try {
       if (isSignUp) {
         const role = getRoleFromPassword(password);
+        
+        if (role === 'student') {
+          // We can't check department yet since student hasn't set up profile
+          // So we store nothing here — the lock is enforced at profile setup
+        }
+
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
@@ -67,9 +73,14 @@ const Auth: React.FC = () => {
         if (data.user) {
           const { data: existingProfile } = await supabase
             .from('profiles')
-            .select('role')
+            .select('role, is_blacklisted')
             .eq('id', data.user.id)
             .single();
+
+          if (existingProfile?.is_blacklisted) {
+            await supabase.auth.signOut();
+            throw new Error('Your account has been suspended. Please contact the college admin.');
+          }
 
           const role = existingProfile?.role ?? getRoleFromPassword(password);
 

@@ -25,6 +25,8 @@ export interface Profile {
   designation?: string;
   is_hod?: boolean;
   is_profile_complete?: boolean;
+  is_blacklisted?: boolean;
+  blacklist_reason?: string;
 }
 
 export interface TeamMember {

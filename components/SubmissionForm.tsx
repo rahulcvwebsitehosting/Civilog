@@ -15,7 +15,7 @@ interface SubmissionFormProps {
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
 
-import { DEPARTMENTS, BASE_URL } from '../constants';
+import { DEPARTMENTS, BASE_URL, TAMIL_NADU_DISTRICTS } from '../constants';
 
 const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, profile }) => {
   const initialYear = profile?.year || '2';
@@ -42,6 +42,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
   });
 
   const [customEventType, setCustomEventType] = useState('');
+  const [customLocation, setCustomLocation] = useState('');
   const [regFile, setRegFile] = useState<File | null>(null);
   const [payFile, setPayFile] = useState<File | null>(null);
   const [posterFile, setPosterFile] = useState<File | null>(null);
@@ -206,6 +207,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
       const payUrl = payPath ? supabase.storage.from('od-files').getPublicUrl(payPath).data.publicUrl : null;
 
       const finalEventType = formData.event_type === 'Others' ? customEventType : formData.event_type;
+      const finalLocation = formData.organization_location === 'Other' ? customLocation : formData.organization_location;
 
       // Step 2: Prepare Database Data
       const requestData = {
@@ -219,7 +221,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
         semester: formData.semester,
         event_title: formData.event_title,
         organization_name: formData.organization_name,
-        organization_location: formData.organization_location,
+        organization_location: finalLocation,
         event_type: finalEventType,
         event_date: formData.event_date,
         event_end_date: formData.event_end_date || formData.event_date,
@@ -518,9 +520,30 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
               />
             </div>
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Organization Location</label>
-            <input name="organization_location" required value={formData.organization_location} onChange={handleInputChange} className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none shadow-sm" placeholder="Ex. Chennai" />
+            <select
+              name="organization_location"
+              required
+              value={formData.organization_location}
+              onChange={handleInputChange}
+              className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none shadow-sm"
+            >
+              <option value="">Select District</option>
+              {TAMIL_NADU_DISTRICTS.map(d => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+            {formData.organization_location === 'Other' && (
+              <input 
+                type="text"
+                placeholder="Specify Location (Ex. Bangalore)"
+                value={customLocation}
+                onChange={(e) => setCustomLocation(e.target.value)}
+                className="w-full bg-white dark:bg-gray-700 text-sm px-5 py-3 rounded-xl border-2 border-blueprint-blue outline-none animate-in slide-in-from-top-1 duration-200"
+                required
+              />
+            )}
           </div>
         </div>
 

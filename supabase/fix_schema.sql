@@ -36,6 +36,8 @@ ADD COLUMN IF NOT EXISTS department TEXT,
 ADD COLUMN IF NOT EXISTS designation TEXT,
 ADD COLUMN IF NOT EXISTS is_hod BOOLEAN DEFAULT false,
 ADD COLUMN IF NOT EXISTS is_profile_complete BOOLEAN DEFAULT false,
+ADD COLUMN IF NOT EXISTS is_blacklisted BOOLEAN DEFAULT false,
+ADD COLUMN IF NOT EXISTS blacklist_reason TEXT,
 ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW(),
 ADD COLUMN IF NOT EXISTS signature_url TEXT;
 
@@ -167,3 +169,33 @@ CREATE POLICY "Authenticated Delete" ON storage.objects FOR DELETE USING (bucket
 DROP POLICY IF EXISTS "profiles_select" ON profiles;
 CREATE POLICY "profiles_select" ON profiles FOR SELECT USING (true);
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+
+-- Registration Locks Table
+CREATE TABLE IF NOT EXISTS public.registration_locks (
+  department TEXT PRIMARY KEY,
+  locked BOOLEAN DEFAULT false,
+  locked_by UUID REFERENCES auth.users(id),
+  locked_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.registration_locks ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "admin_manage_locks" ON public.registration_locks FOR ALL USING (true);
+
+CREATE TABLE IF NOT EXISTS public.deletion_requests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_email TEXT,
+  user_name TEXT,
+  reason TEXT,
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  requested_at TIMESTAMPTZ DEFAULT NOW(),
+  resolved_at TIMESTAMPTZ,
+  resolved_by UUID REFERENCES auth.users(id)
+);
+ALTER TABLE public.deletion_requests ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "users_own_deletion" ON public.deletion_requests FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "users_view_own" ON public.deletion_requests FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "admin_manage_deletions" ON public.deletion_requests FOR ALL USING (
+  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+);
+GRANT ALL ON public.registration_locks TO authenticated, anon, service_role;

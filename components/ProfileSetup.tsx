@@ -59,6 +59,21 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ profile, onComplete }) => {
     setError(null);
 
     try {
+      // 0. Check Registration Lock (Students Only)
+      if (profile.role === 'student') {
+        const { data: lockData } = await supabase
+          .from('registration_locks')
+          .select('locked')
+          .eq('department', formData.department)
+          .single();
+
+        if (lockData?.locked) {
+          setError('Registration for this department is currently locked by the admin. Please contact your department admin.');
+          setLoading(false);
+          return;
+        }
+      }
+
       // 1. Update Auth Metadata (for session persistence)
       const { error: updateError } = await supabase.auth.updateUser({
         data: { ...formData, is_profile_complete: true }

@@ -10,7 +10,9 @@ import {
   GraduationCap, Briefcase, Building2,
   ArrowUpDown, Download, LayoutDashboard,
   ArrowUp, ArrowDown, RefreshCw, Mail,
-  AlertCircle, Check, X, Loader2, Send
+  AlertCircle, Check, X, Loader2, Send,
+  Lock, Unlock, Eye, ChevronDown, ChevronUp,
+  FileSearch, BarChart3
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import FeedCard from './FeedCard';
@@ -19,9 +21,11 @@ import { DEPARTMENTS } from '../constants';
 
 const AdminDashboard: React.FC = () => {
   const { showToast } = useToast();
-  const [activeTab, setActiveTab] = useState<'users' | 'requests' | 'feed' | 'system' | 'mail'>('feed');
+  const [activeTab, setActiveTab] = useState<'users' | 'requests' | 'feed' | 'system' | 'mail' | 'locks' | 'godview' | 'deletions'>('feed');
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [requests, setRequests] = useState<ODRequest[]>([]);
+  const [registrationLocks, setRegistrationLocks] = useState<Record<string, any>>({});
+  const [deletionRequests, setDeletionRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [confirmRejectRequest, setConfirmRejectRequest] = useState<ODRequest | null>(null);
@@ -31,6 +35,14 @@ const AdminDashboard: React.FC = () => {
   const [deptFilter, setDeptFilter] = useState<string>('all');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   
+  // God View State
+  const [godSearchTerm, setGodSearchTerm] = useState('');
+  const [godSearchResults, setGodSearchResults] = useState<Profile[]>([]);
+  const [godSearchLoading, setGodSearchLoading] = useState(false);
+  const [selectedStudentHistory, setSelectedStudentHistory] = useState<ODRequest[]>([]);
+  const [expandedStudentId, setExpandedStudentId] = useState<string | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  
   // Mail Center State
   const [mailRecipient, setMailRecipient] = useState<string>('');
   const [mailSubject, setMailSubject] = useState<string>('');
@@ -38,6 +50,10 @@ const AdminDashboard: React.FC = () => {
   const [mailDept, setMailDept] = useState<string>('none');
   const [isSendingMail, setIsSendingMail] = useState(false);
   const [mailProgress, setMailProgress] = useState<string | null>(null);
+  
+  // Blacklist State
+  const [blacklistingUserId, setBlacklistingUserId] = useState<string | null>(null);
+  const [blacklistReason, setBlacklistReason] = useState('');
   
   // SMTP Test State
   const [testEmail, setTestEmail] = useState('');
@@ -52,6 +68,59 @@ const AdminDashboard: React.FC = () => {
       checkSystemStatus();
     }
   }, [activeTab, sortOrder]);
+
+  // God View Debounce Search
+  useEffect(() => {
+    if (activeTab !== 'godview' || !godSearchTerm.trim()) {
+      setGodSearchResults([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setGodSearchLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('role', 'student')
+          .or(`full_name.ilike.%${godSearchTerm}%,identification_no.ilike.%${godSearchTerm}%,roll_no.ilike.%${godSearchTerm}%`)
+          .limit(10);
+
+        if (error) throw error;
+        setGodSearchResults(data || []);
+      } catch (err: any) {
+        showToast(err.message || 'Search failed', 'error');
+      } finally {
+        setGodSearchLoading(false);
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [godSearchTerm, activeTab]);
+
+  const fetchStudentHistory = async (studentId: string) => {
+    if (expandedStudentId === studentId) {
+      setExpandedStudentId(null);
+      return;
+    }
+
+    setHistoryLoading(true);
+    setExpandedStudentId(studentId);
+    try {
+      const { data, error } = await supabase
+        .from('od_requests')
+        .select('*')
+        .eq('user_id', studentId)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      setSelectedStudentHistory(data || []);
+    } catch (err: any) {
+      showToast(err.message || 'Failed to fetch history', 'error');
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
 
   const checkSystemStatus = async () => {
     try {
@@ -143,9 +212,23 @@ const AdminDashboard: React.FC = () => {
       if (activeTab === 'users' || activeTab === 'mail') {
         const { data } = await supabase
           .from('profiles')
-          .select('id, full_name, email, role, department')
+          .select('id, full_name, email, role, department, is_profile_complete, identification_no, phone_number, roll_no, year, designation, is_blacklisted, blacklist_reason')
           .order('full_name');
         setProfiles(data || []);
+      } else if (activeTab === 'locks') {
+        const { data: locks } = await supabase.from('registration_locks').select('*');
+        const lockMap = (locks || []).reduce((acc: any, curr: any) => {
+          acc[curr.department] = curr;
+          return acc;
+        }, {});
+        setRegistrationLocks(lockMap);
+      } else if (activeTab === 'deletions') {
+        const { data } = await supabase
+          .from('deletion_requests')
+          .select('*')
+          .eq('status', 'pending')
+          .order('requested_at', { ascending: true });
+        setDeletionRequests(data || []);
       } else if (activeTab === 'requests' || activeTab === 'feed') {
         const { data } = await supabase
           .from('od_requests')
@@ -259,6 +342,139 @@ const AdminDashboard: React.FC = () => {
     } finally {
       setIsSendingMail(false);
       setMailProgress(null);
+    }
+  };
+
+  const handleToggleLock = async (dept: string, currentLockState: boolean) => {
+    setProcessingId(dept);
+    try {
+      const { error } = await supabase.from('registration_locks').upsert({
+        department: dept,
+        locked: !currentLockState,
+        locked_by: adminProfile?.id,
+        locked_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'department' });
+
+      if (error) throw error;
+
+      showToast(`${dept} registration ${!currentLockState ? 'locked' : 'unlocked'} successfully`, "success");
+      
+      // Update local state
+      setRegistrationLocks(prev => ({
+        ...prev,
+        [dept]: {
+          ...prev[dept],
+          department: dept,
+          locked: !currentLockState,
+          locked_at: new Date().toISOString()
+        }
+      }));
+    } catch (err: any) {
+      showToast(err.message || 'Error updating lock state', "error");
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleApproveDeletion = async (request: any) => {
+    if (!adminProfile) return;
+    setProcessingId(request.id);
+    try {
+      // 1. Update request status
+      const { error: updateError } = await supabase
+        .from('deletion_requests')
+        .update({ 
+          status: 'approved', 
+          resolved_at: new Date().toISOString(), 
+          resolved_by: adminProfile.id 
+        })
+        .eq('id', request.id);
+      
+      if (updateError) throw updateError;
+
+      // 2. Delete profile (cascades to other tables if configured, but OD requests are preserved as they reference auth.users)
+      const { error: deleteError } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('id', request.user_id);
+      
+      if (deleteError) throw deleteError;
+
+      showToast("Account deleted successfully", "success");
+      fetchData();
+    } catch (err: any) {
+      showToast(err.message || "Failed to approve deletion", "error");
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleRejectDeletion = async (requestId: string) => {
+    if (!adminProfile) return;
+    setProcessingId(requestId);
+    try {
+      const { error } = await supabase
+        .from('deletion_requests')
+        .update({ 
+          status: 'rejected', 
+          resolved_at: new Date().toISOString(), 
+          resolved_by: adminProfile.id 
+        })
+        .eq('id', requestId);
+      
+      if (error) throw error;
+
+      showToast("Request rejected", "success");
+      fetchData();
+    } catch (err: any) {
+      showToast(err.message || "Failed to reject deletion", "error");
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleBlacklist = async (userId: string) => {
+    if (!blacklistReason.trim()) {
+      showToast("Please provide a reason for blacklisting", "error");
+      return;
+    }
+    setProcessingId(userId);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ is_blacklisted: true, blacklist_reason: blacklistReason })
+        .eq('id', userId);
+      
+      if (error) throw error;
+      
+      showToast("Student blacklisted successfully", "success");
+      setBlacklistingUserId(null);
+      setBlacklistReason('');
+      fetchData();
+    } catch (err: any) {
+      showToast(err.message || "Failed to blacklist student", "error");
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleUnblock = async (userId: string) => {
+    setProcessingId(userId);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ is_blacklisted: false, blacklist_reason: null })
+        .eq('id', userId);
+      
+      if (error) throw error;
+      
+      showToast("Student unblocked successfully", "success");
+      fetchData();
+    } catch (err: any) {
+      showToast(err.message || "Failed to unblock student", "error");
+    } finally {
+      setProcessingId(null);
     }
   };
 
@@ -441,6 +657,24 @@ const AdminDashboard: React.FC = () => {
               <Mail size={14} className="inline mr-2" /> Mail Center
             </button>
             <button 
+              onClick={() => setActiveTab('locks')}
+              className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'locks' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              <Lock size={14} className="inline mr-2" /> Locks
+            </button>
+            <button 
+              onClick={() => setActiveTab('godview')}
+              className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'godview' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              <Eye size={14} className="inline mr-2" /> God View
+            </button>
+            <button 
+              onClick={() => setActiveTab('deletions')}
+              className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'deletions' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              <Trash2 size={14} className="inline mr-2" /> Deletions
+            </button>
+            <button 
               onClick={() => setActiveTab('system')}
               className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'system' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
             >
@@ -546,6 +780,7 @@ const AdminDashboard: React.FC = () => {
                       <th className="p-6 text-[10px] font-black text-slate-500 uppercase tracking-widest">Role & Status</th>
                       <th className="p-6 text-[10px] font-black text-slate-500 uppercase tracking-widest">Department</th>
                       <th className="p-6 text-[10px] font-black text-slate-500 uppercase tracking-widest">Registration Info</th>
+                      <th className="p-6 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -559,6 +794,12 @@ const AdminDashboard: React.FC = () => {
                             <div>
                               <p className="font-bold text-slate-900 text-sm">{p.full_name || 'Incomplete Profile'}</p>
                               <p className="text-xs text-slate-500">{p.email}</p>
+                              {p.is_blacklisted && (
+                                <div className="mt-1 flex items-center gap-1 text-[8px] font-black text-red-600 uppercase">
+                                  <AlertCircle size={10} />
+                                  <span>Blacklisted: {p.blacklist_reason}</span>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </td>
@@ -591,6 +832,61 @@ const AdminDashboard: React.FC = () => {
                               </>
                             )}
                           </div>
+                        </td>
+                        <td className="p-6 text-right">
+                          {p.role === 'student' && (
+                            <div className="flex flex-col items-end gap-2">
+                              {p.is_blacklisted ? (
+                                <div className="flex items-center gap-2">
+                                  <span className="px-2 py-1 bg-red-100 text-red-600 rounded text-[8px] font-black uppercase tracking-widest border border-red-200">Blacklisted</span>
+                                  <button 
+                                    onClick={() => handleUnblock(p.id)}
+                                    disabled={processingId === p.id}
+                                    className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-green-700 transition-all disabled:opacity-50"
+                                  >
+                                    {processingId === p.id ? <RefreshCw size={10} className="animate-spin" /> : 'Unblock'}
+                                  </button>
+                                </div>
+                              ) : (
+                                <>
+                                  {blacklistingUserId === p.id ? (
+                                    <div className="flex flex-col gap-2 w-48">
+                                      <input 
+                                        type="text"
+                                        placeholder="Reason for blacklist..."
+                                        value={blacklistReason}
+                                        onChange={(e) => setBlacklistReason(e.target.value)}
+                                        className="px-3 py-2 bg-slate-50 border rounded-lg text-[10px] outline-none focus:border-red-500"
+                                        autoFocus
+                                      />
+                                      <div className="flex gap-2">
+                                        <button 
+                                          onClick={() => { setBlacklistingUserId(null); setBlacklistReason(''); }}
+                                          className="flex-1 px-2 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all"
+                                        >
+                                          Cancel
+                                        </button>
+                                        <button 
+                                          onClick={() => handleBlacklist(p.id)}
+                                          disabled={processingId === p.id}
+                                          className="flex-1 px-2 py-1.5 bg-red-600 text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-red-700 transition-all disabled:opacity-50"
+                                        >
+                                          {processingId === p.id ? <RefreshCw size={10} className="animate-spin" /> : 'Confirm'}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <button 
+                                      onClick={() => setBlacklistingUserId(p.id)}
+                                      className="px-3 py-1.5 bg-red-50 text-red-600 border border-red-100 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-red-100 transition-all"
+                                    >
+                                      Blacklist
+                                    </button>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -766,6 +1062,279 @@ const AdminDashboard: React.FC = () => {
                       </button>
                     </div>
                   </form>
+                </div>
+              )}
+              {activeTab === 'locks' && (
+                <div className="p-8 space-y-8">
+                  <div className="mb-8">
+                    <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight flex items-center gap-3">
+                      <Lock className="text-blueprint-blue" size={24} /> Registration Locks
+                    </h3>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Control new account creation per department</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {DEPARTMENTS.map(dept => {
+                      const lock = registrationLocks[dept];
+                      const isLocked = lock?.locked || false;
+                      return (
+                        <div key={dept} className="p-6 bg-slate-50 rounded-3xl border border-slate-200 flex flex-col justify-between gap-4 hover:shadow-md transition-all">
+                          <div>
+                            <h4 className="text-xs font-black text-slate-900 uppercase tracking-tight leading-tight">{dept}</h4>
+                            <div className="mt-2 flex items-center gap-2">
+                              <div className={`w-2 h-2 rounded-full ${isLocked ? 'bg-red-500' : 'bg-green-500'}`}></div>
+                              <span className={`text-[10px] font-black uppercase tracking-widest ${isLocked ? 'text-red-600' : 'text-green-600'}`}>
+                                {isLocked ? 'Locked' : 'Unlocked'}
+                              </span>
+                            </div>
+                            {isLocked && lock.locked_at && (
+                              <p className="text-[8px] text-slate-400 uppercase mt-1">Locked on: {new Date(lock.locked_at).toLocaleString()}</p>
+                            )}
+                          </div>
+                          
+                          <button
+                            onClick={() => handleToggleLock(dept, isLocked)}
+                            disabled={processingId === dept}
+                            className={`w-full py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
+                              isLocked 
+                                ? 'bg-green-600 text-white hover:bg-green-700 shadow-lg shadow-green-500/20' 
+                                : 'bg-red-600 text-white hover:bg-red-700 shadow-lg shadow-red-500/20'
+                            } disabled:opacity-50`}
+                          >
+                            {processingId === dept ? (
+                              <RefreshCw size={14} className="animate-spin" />
+                            ) : isLocked ? (
+                              <><Unlock size={14} /> Unlock Registration</>
+                            ) : (
+                              <><Lock size={14} /> Lock Registration</>
+                            )}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              {activeTab === 'godview' && (
+                <div className="p-8 space-y-8">
+                  <div className="mb-8">
+                    <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight flex items-center gap-3">
+                      <FileSearch className="text-blueprint-blue" size={24} /> Student God View
+                    </h3>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Full chronological OD history across all years</p>
+                  </div>
+
+                  <div className="relative max-w-2xl">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <input 
+                      type="text"
+                      placeholder="Search by Student Name, Reg No, or Roll No..."
+                      value={godSearchTerm}
+                      onChange={(e) => setGodSearchTerm(e.target.value)}
+                      className="w-full pl-12 pr-4 py-4 bg-slate-50 border rounded-2xl outline-none focus:border-blueprint-blue shadow-sm text-sm"
+                    />
+                    {godSearchLoading && (
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                        <Loader2 className="animate-spin text-blueprint-blue" size={18} />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-4">
+                    {godSearchResults.length === 0 && godSearchTerm.trim() !== '' && !godSearchLoading && (
+                      <div className="text-center py-10 bg-slate-50 rounded-3xl border border-dashed">
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">No students found matching "{godSearchTerm}"</p>
+                      </div>
+                    )}
+
+                    {godSearchResults.map((student) => (
+                      <div key={student.id} className="bg-white border rounded-[2rem] overflow-hidden shadow-sm hover:shadow-md transition-all">
+                        <button 
+                          onClick={() => fetchStudentHistory(student.id)}
+                          className="w-full p-6 flex items-center justify-between hover:bg-slate-50/50 transition-colors"
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-blueprint-blue/10 flex items-center justify-center text-blueprint-blue">
+                              <User size={24} />
+                            </div>
+                            <div className="text-left">
+                              <h4 className="font-bold text-slate-900 text-sm uppercase tracking-tight">{student.full_name}</h4>
+                              <div className="flex gap-3 mt-1">
+                                <span className="text-[10px] font-mono text-slate-400 uppercase">REG: {student.identification_no}</span>
+                                <span className="text-[10px] font-mono text-slate-400 uppercase">ROLL: {student.roll_no}</span>
+                              </div>
+                              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">{student.department} • YEAR {student.year}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            {expandedStudentId === student.id ? <ChevronUp className="text-slate-400" /> : <ChevronDown className="text-slate-400" />}
+                          </div>
+                        </button>
+
+                        <AnimatePresence>
+                          {expandedStudentId === student.id && (
+                            <motion.div 
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              className="border-t bg-slate-50/30"
+                            >
+                              {historyLoading ? (
+                                <div className="p-12 flex flex-col items-center justify-center">
+                                  <Loader2 className="animate-spin text-blueprint-blue mb-2" size={24} />
+                                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Retrieving Timeline...</p>
+                                </div>
+                              ) : (
+                                <div className="p-8 space-y-6">
+                                  {/* History Summary */}
+                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                                    <div className="bg-white p-4 rounded-2xl border shadow-sm flex flex-col items-center justify-center text-center">
+                                      <BarChart3 className="text-blueprint-blue mb-1" size={16} />
+                                      <p className="text-[18px] font-black text-slate-900 leading-none">{selectedStudentHistory.length}</p>
+                                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-1">Total ODs</p>
+                                    </div>
+                                    <div className="bg-white p-4 rounded-2xl border shadow-sm flex flex-col items-center justify-center text-center">
+                                      <CheckCircle2 className="text-green-500 mb-1" size={16} />
+                                      <p className="text-[18px] font-black text-green-600 leading-none">{selectedStudentHistory.filter(h => h.status === 'Approved').length}</p>
+                                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-1">Approved</p>
+                                    </div>
+                                    <div className="bg-white p-4 rounded-2xl border shadow-sm flex flex-col items-center justify-center text-center">
+                                      <XCircle className="text-red-500 mb-1" size={16} />
+                                      <p className="text-[18px] font-black text-red-600 leading-none">{selectedStudentHistory.filter(h => h.status === 'Rejected').length}</p>
+                                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-1">Rejected</p>
+                                    </div>
+                                    <div className="bg-white p-4 rounded-2xl border shadow-sm flex flex-col items-center justify-center text-center">
+                                      <Clock className="text-amber-500 mb-1" size={16} />
+                                      <p className="text-[18px] font-black text-amber-600 leading-none">{selectedStudentHistory.filter(h => h.status !== 'Approved' && h.status !== 'Rejected').length}</p>
+                                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-1">Pending</p>
+                                    </div>
+                                  </div>
+
+                                  {/* History List */}
+                                  <div className="space-y-4">
+                                    {selectedStudentHistory.length === 0 ? (
+                                      <div className="text-center py-10">
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest italic">No OD history recorded for this student.</p>
+                                      </div>
+                                    ) : (
+                                      selectedStudentHistory.map((h, idx) => (
+                                        <div key={h.id} className="relative pl-8 before:absolute before:left-[11px] before:top-0 before:bottom-0 before:w-[2px] before:bg-slate-200 last:before:h-4">
+                                          <div className={`absolute left-0 top-1 w-6 h-6 rounded-full border-4 border-white shadow-sm flex items-center justify-center z-10 ${
+                                            h.status === 'Approved' ? 'bg-green-500' : 
+                                            h.status === 'Rejected' ? 'bg-red-500' : 'bg-amber-500'
+                                          }`}>
+                                            {h.status === 'Approved' ? <Check size={10} className="text-white" /> : 
+                                             h.status === 'Rejected' ? <X size={10} className="text-white" /> : 
+                                             <Clock size={10} className="text-white" />}
+                                          </div>
+                                          <div className="bg-white p-5 rounded-2xl border shadow-sm hover:border-blueprint-blue/30 transition-all">
+                                            <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+                                              <div>
+                                                <div className="flex items-center gap-2">
+                                                  <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{new Date(h.created_at).toLocaleDateString()}</span>
+                                                  <span className={`px-2 py-0.5 rounded text-[7px] font-black uppercase tracking-widest ${
+                                                    h.status === 'Approved' ? 'bg-green-50 text-green-600' : 
+                                                    h.status === 'Rejected' ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'
+                                                  }`}>
+                                                    {h.status}
+                                                  </span>
+                                                </div>
+                                                <h5 className="text-sm font-bold text-slate-900 mt-1">{h.event_title}</h5>
+                                                <p className="text-[10px] text-slate-500 mt-0.5">{h.organization_name} • {h.event_type}</p>
+                                              </div>
+                                              <div className="text-left sm:text-right">
+                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Event Date</p>
+                                                <p className="text-[10px] font-mono text-slate-700">{h.event_date} {h.event_end_date && h.event_end_date !== h.event_date ? `to ${h.event_end_date}` : ''}</p>
+                                                {(h.advisor_approved_at || h.hod_approved_at) && (
+                                                  <div className="mt-2 flex flex-wrap sm:justify-end gap-2">
+                                                    {h.advisor_approved_at && (
+                                                      <span className="text-[8px] font-bold text-slate-400 uppercase bg-slate-50 px-2 py-1 rounded border">Advisor Recommended</span>
+                                                    )}
+                                                    {h.hod_approved_at && (
+                                                      <span className="text-[8px] font-bold text-slate-400 uppercase bg-slate-50 px-2 py-1 rounded border">HOD Approved</span>
+                                                    )}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ))
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {activeTab === 'deletions' && (
+                <div className="p-8 space-y-8">
+                  <div className="mb-8">
+                    <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight flex items-center gap-3">
+                      <Trash2 className="text-red-500" size={24} /> Deletion Requests
+                    </h3>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Review and approve account deletion requests</p>
+                  </div>
+
+                  {deletionRequests.length === 0 ? (
+                    <div className="text-center py-20 bg-slate-50 rounded-[2rem] border border-dashed">
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">No pending deletion requests</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-6">
+                      {deletionRequests.map((req) => (
+                        <div key={req.id} className="bg-white border rounded-[2rem] p-8 shadow-sm hover:shadow-md transition-all">
+                          <div className="flex flex-col md:flex-row justify-between gap-6">
+                            <div className="space-y-4 flex-1">
+                              <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center text-red-500">
+                                  <User size={24} />
+                                </div>
+                                <div>
+                                  <h4 className="font-bold text-slate-900 text-sm uppercase tracking-tight">{req.user_name}</h4>
+                                  <p className="text-[10px] font-mono text-slate-400 uppercase">{req.user_email}</p>
+                                </div>
+                              </div>
+                              
+                              <div className="bg-slate-50 p-6 rounded-2xl border">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Reason for Deletion</p>
+                                <p className="text-sm text-slate-700 leading-relaxed">{req.reason}</p>
+                              </div>
+
+                              <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase">
+                                <Clock size={14} />
+                                Requested on {new Date(req.requested_at).toLocaleString()}
+                              </div>
+                            </div>
+
+                            <div className="flex md:flex-col gap-3 justify-end md:w-48">
+                              <button 
+                                onClick={() => handleApproveDeletion(req)}
+                                disabled={processingId === req.id}
+                                className="flex-1 py-3 bg-green-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-green-500/20 hover:bg-green-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                              >
+                                {processingId === req.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                                Approve
+                              </button>
+                              <button 
+                                onClick={() => handleRejectDeletion(req.id)}
+                                disabled={processingId === req.id}
+                                className="flex-1 py-3 bg-red-50 text-red-600 border border-red-100 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-100 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                              >
+                                {processingId === req.id ? <Loader2 size={14} className="animate-spin" /> : <X size={14} />}
+                                Reject
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
               {activeTab === 'system' && (

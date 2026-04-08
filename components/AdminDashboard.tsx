@@ -21,7 +21,7 @@ import { DEPARTMENTS } from '../constants';
 
 const AdminDashboard: React.FC = () => {
   const { showToast } = useToast();
-  const [activeTab, setActiveTab] = useState<'users' | 'requests' | 'feed' | 'system' | 'mail' | 'locks' | 'godview' | 'deletions'>('feed');
+  const [activeTab, setActiveTab] = useState<'users' | 'requests' | 'feed' | 'system' | 'mail' | 'locks' | 'audit' | 'deletions'>('feed');
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [requests, setRequests] = useState<ODRequest[]>([]);
   const [registrationLocks, setRegistrationLocks] = useState<Record<string, any>>({});
@@ -35,10 +35,10 @@ const AdminDashboard: React.FC = () => {
   const [deptFilter, setDeptFilter] = useState<string>('all');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   
-  // God View State
-  const [godSearchTerm, setGodSearchTerm] = useState('');
-  const [godSearchResults, setGodSearchResults] = useState<Profile[]>([]);
-  const [godSearchLoading, setGodSearchLoading] = useState(false);
+  // Student Audit State
+  const [auditSearchTerm, setAuditSearchTerm] = useState('');
+  const [auditSearchResults, setAuditSearchResults] = useState<Profile[]>([]);
+  const [auditSearchLoading, setAuditSearchLoading] = useState(false);
   const [selectedStudentHistory, setSelectedStudentHistory] = useState<ODRequest[]>([]);
   const [expandedStudentId, setExpandedStudentId] = useState<string | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -69,34 +69,34 @@ const AdminDashboard: React.FC = () => {
     }
   }, [activeTab, sortOrder]);
 
-  // God View Debounce Search
+  // Student Audit Debounce Search
   useEffect(() => {
-    if (activeTab !== 'godview' || !godSearchTerm.trim()) {
-      setGodSearchResults([]);
+    if (activeTab !== 'audit' || !auditSearchTerm.trim()) {
+      setAuditSearchResults([]);
       return;
     }
 
     const timer = setTimeout(async () => {
-      setGodSearchLoading(true);
+      setAuditSearchLoading(true);
       try {
         const { data, error } = await supabase
           .from('profiles')
           .select('*')
           .eq('role', 'student')
-          .or(`full_name.ilike.%${godSearchTerm}%,identification_no.ilike.%${godSearchTerm}%,roll_no.ilike.%${godSearchTerm}%`)
+          .or(`full_name.ilike.%${auditSearchTerm}%,identification_no.ilike.%${auditSearchTerm}%,roll_no.ilike.%${auditSearchTerm}%`)
           .limit(10);
 
         if (error) throw error;
-        setGodSearchResults(data || []);
+        setAuditSearchResults(data || []);
       } catch (err: any) {
         showToast(err.message || 'Search failed', 'error');
       } finally {
-        setGodSearchLoading(false);
+        setAuditSearchLoading(false);
       }
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [godSearchTerm, activeTab]);
+  }, [auditSearchTerm, activeTab]);
 
   const fetchStudentHistory = async (studentId: string) => {
     if (expandedStudentId === studentId) {
@@ -663,10 +663,10 @@ const AdminDashboard: React.FC = () => {
               <Lock size={14} className="inline mr-2" /> Locks
             </button>
             <button 
-              onClick={() => setActiveTab('godview')}
-              className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'godview' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+              onClick={() => setActiveTab('audit')}
+              className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'audit' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
             >
-              <Eye size={14} className="inline mr-2" /> God View
+              <Eye size={14} className="inline mr-2" /> Student Audit
             </button>
             <button 
               onClick={() => setActiveTab('deletions')}
@@ -1115,11 +1115,11 @@ const AdminDashboard: React.FC = () => {
                   </div>
                 </div>
               )}
-              {activeTab === 'godview' && (
+              {activeTab === 'audit' && (
                 <div className="p-8 space-y-8">
                   <div className="mb-8">
                     <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight flex items-center gap-3">
-                      <FileSearch className="text-blueprint-blue" size={24} /> Student God View
+                      <FileSearch className="text-blueprint-blue" size={24} /> Student Audit Log
                     </h3>
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Full chronological OD history across all years</p>
                   </div>
@@ -1129,11 +1129,11 @@ const AdminDashboard: React.FC = () => {
                     <input 
                       type="text"
                       placeholder="Search by Student Name, Reg No, or Roll No..."
-                      value={godSearchTerm}
-                      onChange={(e) => setGodSearchTerm(e.target.value)}
+                      value={auditSearchTerm}
+                      onChange={(e) => setAuditSearchTerm(e.target.value)}
                       className="w-full pl-12 pr-4 py-4 bg-slate-50 border rounded-2xl outline-none focus:border-blueprint-blue shadow-sm text-sm"
                     />
-                    {godSearchLoading && (
+                    {auditSearchLoading && (
                       <div className="absolute right-4 top-1/2 -translate-y-1/2">
                         <Loader2 className="animate-spin text-blueprint-blue" size={18} />
                       </div>
@@ -1141,13 +1141,13 @@ const AdminDashboard: React.FC = () => {
                   </div>
 
                   <div className="space-y-4">
-                    {godSearchResults.length === 0 && godSearchTerm.trim() !== '' && !godSearchLoading && (
+                    {auditSearchResults.length === 0 && auditSearchTerm.trim() !== '' && !auditSearchLoading && (
                       <div className="text-center py-10 bg-slate-50 rounded-3xl border border-dashed">
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">No students found matching "{godSearchTerm}"</p>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">No students found matching "{auditSearchTerm}"</p>
                       </div>
                     )}
 
-                    {godSearchResults.map((student) => (
+                    {auditSearchResults.map((student) => (
                       <div key={student.id} className="bg-white border rounded-[2rem] overflow-hidden shadow-sm hover:shadow-md transition-all">
                         <button 
                           onClick={() => fetchStudentHistory(student.id)}

@@ -5,6 +5,7 @@ import { Loader2, Phone, AlertCircle, Upload, Image as ImageIcon, FileText, Cred
 import { SubmissionFormData, Profile, TeamMember, ODRequest } from '../types';
 import { generateODDocument } from '../services/pdfService';
 import { logAudit } from '../services/auditService';
+import SearchableSelect from './SearchableSelect';
 
 interface SubmissionFormProps {
   onSuccess: () => void;
@@ -521,19 +522,17 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
             </div>
           </div>
           <div className="space-y-2">
-            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Organization Location</label>
-            <select
-              name="organization_location"
-              required
+            <SearchableSelect
+              label="Organization Location"
+              options={TAMIL_NADU_DISTRICTS}
               value={formData.organization_location}
-              onChange={handleInputChange}
-              className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none shadow-sm"
-            >
-              <option value="">Select District</option>
-              {TAMIL_NADU_DISTRICTS.map(d => (
-                <option key={d} value={d}>{d}</option>
-              ))}
-            </select>
+              onChange={(val) => {
+                handleInputChange({
+                  target: { name: 'organization_location', value: val }
+                } as any);
+              }}
+              placeholder="Select District"
+            />
             {formData.organization_location === 'Other' && (
               <input 
                 type="text"

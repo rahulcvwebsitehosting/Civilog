@@ -176,7 +176,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
 
       // Fetch all counts for stats in parallel
       const getCount = (status: ODStatus | 'History') => {
-        let q = supabase.from('od_requests').select('*, profiles!inner(department)', { count: 'exact', head: true });
+        let q = supabase.from('od_requests').select('*', { count: 'exact', head: true });
         
         if (status === 'History') {
           q = q.neq('status', 'Archived');
@@ -186,8 +186,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
 
         if (role !== 'admin') {
           if (dept) {
-            const trimmedDept = dept.trim();
-            q = q.or(`department.ilike.${trimmedDept},and(department.is.null,profiles.department.ilike.${trimmedDept})`);
+            q = q.ilike('department', dept.trim());
           } else {
             q = q.eq('department', 'NON_EXISTENT_DEPARTMENT_FALLBACK');
           }
@@ -808,25 +807,6 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-20 relative">
-      {/* Profile Incomplete Banner */}
-      {facultyProfile && !facultyProfile.department && (
-        <motion.div 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-red-50 border-2 border-red-100 p-6 rounded-[2rem] flex items-center gap-4 shadow-sm"
-        >
-          <div className="w-12 h-12 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center shrink-0">
-            <AlertCircle size={24} />
-          </div>
-          <div>
-            <h3 className="text-sm font-black text-red-900 uppercase tracking-tight">Profile Incomplete</h3>
-            <p className="text-xs text-red-600 font-medium mt-1">
-              Please set your department in <Link to="/settings" className="underline font-black hover:text-red-700">Settings</Link> to view and manage OD requests for your department.
-            </p>
-          </div>
-        </motion.div>
-      )}
-
       {/* Approval Confirmation Modal */}
       <AnimatePresence>
         {confirmApprovalRequest && (

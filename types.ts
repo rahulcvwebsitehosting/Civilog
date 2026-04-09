@@ -1,6 +1,6 @@
 
-export type ODStatus = 'Pending Advisor' | 'Pending HOD' | 'Approved' | 'Rejected' | 'Completed' | 'Archived' | 'Pending';
-export type UserRole = 'student' | 'advisor' | 'hod' | 'admin' | 'faculty';
+export type ODStatus = 'Pending Coordinator' | 'Pending HOD' | 'Approved' | 'Rejected' | 'Completed' | 'Archived' | 'Pending';
+export type UserRole = 'student' | 'coordinator' | 'hod' | 'admin' | 'faculty';
 
 export interface Notification {
   id: string;
@@ -60,9 +60,9 @@ export interface ODRequest {
   event_poster_url: string | null;
   od_letter_url: string | null;
   achievement_details: string | null;
-  advisor_id?: string | null;
+  coordinator_id?: string | null;
   hod_id?: string | null;
-  advisor_approved_at?: string | null;
+  coordinator_approved_at?: string | null;
   hod_approved_at?: string | null;
   // Legacy single fields (kept for compatibility)
   geotag_photo_url: string | null;

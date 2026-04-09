@@ -2,7 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { Profile } from '../types';
-import { Loader2, User, Fingerprint, Briefcase, GraduationCap, Building2, CheckCircle2, AlertCircle, Save, PenTool, Upload, FileImage, Trash2, Info } from 'lucide-react';
+import { Loader2, User, Fingerprint, Briefcase, GraduationCap, Building2, CheckCircle2, AlertCircle, Save, PenTool, Upload, FileImage, Trash2, Info, Lock, Clock } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { DEPARTMENTS } from '../constants';
 
 interface ProfilePageProps {
@@ -17,10 +18,45 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ profile, onUpdate }) => {
   const [deletionReason, setDeletionReason] = useState('');
   const [hasPendingRequest, setHasPendingRequest] = useState(false);
   const [requestingDeletion, setRequestingDeletion] = useState(false);
+  const [isProfileLocked, setIsProfileLocked] = useState(false);
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [requestReason, setRequestReason] = useState('');
+  const [pendingProfileRequest, setPendingProfileRequest] = useState<any>(null);
+  const [requestLoading, setRequestLoading] = useState(false);
   
   useEffect(() => {
     checkPendingDeletion();
-  }, [profile.id]);
+    fetchLockStatus();
+    fetchPendingProfileRequest();
+  }, [profile.id, profile.department]);
+
+  const fetchLockStatus = async () => {
+    if (!profile.department) return;
+    try {
+      const { data } = await supabase
+        .from('registration_locks')
+        .select('profile_locked')
+        .eq('department', profile.department)
+        .single();
+      if (data) setIsProfileLocked(data.profile_locked);
+    } catch (err) {
+      console.error("Error fetching lock status:", err);
+    }
+  };
+
+  const fetchPendingProfileRequest = async () => {
+    try {
+      const { data } = await supabase
+        .from('profile_update_requests')
+        .select('*')
+        .eq('user_id', profile.id)
+        .eq('status', 'pending')
+        .single();
+      if (data) setPendingProfileRequest(data);
+    } catch (err) {
+      // Ignore
+    }
+  };
 
   const checkPendingDeletion = async () => {
     try {
@@ -78,6 +114,12 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ profile, onUpdate }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (isProfileLocked && profile.role !== 'admin') {
+      setShowRequestModal(true);
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -165,8 +207,99 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ profile, onUpdate }) => {
     }
   };
 
+  const handleProfileUpdateRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!requestReason.trim()) return;
+
+    setRequestLoading(true);
+    try {
+      const { error } = await supabase.from('profile_update_requests').insert({
+        user_id: profile.id,
+        current_data: {
+          full_name: profile.full_name,
+          identification_no: profile.identification_no,
+          roll_no: profile.roll_no,
+          phone_number: profile.phone_number,
+          year: profile.year,
+          semester: profile.semester,
+          designation: profile.designation,
+          department: profile.department,
+          is_hod: profile.is_hod
+        },
+        requested_data: formData,
+        reason: requestReason,
+        department: profile.department,
+        status: 'pending'
+      });
+
+      if (error) throw error;
+
+      alert("Your profile update request has been submitted for coordinator approval.");
+      setShowRequestModal(false);
+      setRequestReason('');
+      fetchPendingProfileRequest();
+    } catch (err: any) {
+      alert(err.message || "Failed to submit request");
+    } finally {
+      setRequestLoading(false);
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto py-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
+      {/* Profile Update Request Modal */}
+      <AnimatePresence>
+        {showRequestModal && (
+          <div className="fixed inset-0 z-[150] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-[2rem] p-8 max-w-md w-full shadow-2xl border border-slate-200"
+            >
+              <div className="flex flex-col items-center text-center space-y-4">
+                <div className="w-16 h-16 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center">
+                  <Lock size={32} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900 uppercase tracking-tight text-amber-600">Profile Locked</h3>
+                  <p className="text-sm text-slate-500 mt-2">
+                    Direct profile editing is currently locked by the admin. To change your details, please submit a request with a reason for coordinator approval.
+                  </p>
+                </div>
+                <form onSubmit={handleProfileUpdateRequest} className="w-full space-y-4 pt-4">
+                  <textarea 
+                    placeholder="Reason for profile update (e.g., Correction in Roll No)"
+                    value={requestReason}
+                    onChange={(e) => setRequestReason(e.target.value)}
+                    required
+                    rows={3}
+                    className="w-full px-5 py-3.5 rounded-xl bg-slate-50 border outline-none text-sm focus:border-blueprint-blue resize-none"
+                  />
+                  <div className="grid grid-cols-2 gap-4">
+                    <button 
+                      type="button"
+                      onClick={() => setShowRequestModal(false)}
+                      className="px-6 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold uppercase text-xs tracking-widest hover:bg-slate-200 transition-all"
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      type="submit"
+                      disabled={requestLoading || !requestReason.trim()}
+                      className="px-6 py-3 bg-blueprint-blue text-white rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all flex items-center justify-center gap-2"
+                    >
+                      {requestLoading ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                      Submit Request
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       <div className="mb-10 flex flex-col md:flex-row justify-between items-end border-b pb-8">
         <div>
           <h2 className="text-4xl font-black text-blueprint-blue tracking-tighter uppercase italic">System Profile</h2>
@@ -233,9 +366,27 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ profile, onUpdate }) => {
 
               {error && <div className="text-amber-700 text-[10px] font-black uppercase">{error}</div>}
               {success && <div className="text-amber-600 text-[10px] font-black uppercase">Profile Updated</div>}
+              
+              {isProfileLocked && profile.role !== 'admin' && (
+                <div className="p-4 bg-amber-50 border border-amber-100 rounded-2xl flex items-center gap-3 mb-4">
+                  <Lock className="text-amber-600" size={18} />
+                  <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest">
+                    Profile editing is locked. Changes will require coordinator approval.
+                  </p>
+                </div>
+              )}
 
-              <button type="submit" disabled={loading} className="bg-blueprint-blue text-white px-8 py-4 rounded-xl font-black uppercase tracking-widest text-xs flex items-center gap-2 shadow-lg shadow-amber-500/20 hover:bg-goldenrod transition-all">
-                {loading ? <Loader2 className="animate-spin" size={18} /> : 'Save Changes'}
+              {pendingProfileRequest && (
+                <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl flex items-center gap-3 mb-4">
+                  <Clock className="text-blue-600" size={18} />
+                  <p className="text-[10px] font-bold text-blue-700 uppercase tracking-widest">
+                    You have a pending profile update request.
+                  </p>
+                </div>
+              )}
+
+              <button type="submit" disabled={loading || (!!pendingProfileRequest && isProfileLocked)} className="bg-blueprint-blue text-white px-8 py-4 rounded-xl font-black uppercase tracking-widest text-xs flex items-center gap-2 shadow-lg shadow-amber-500/20 hover:bg-goldenrod transition-all disabled:opacity-50">
+                {loading ? <Loader2 className="animate-spin" size={18} /> : isProfileLocked && profile.role !== 'admin' ? 'Request Changes' : 'Save Changes'}
               </button>
             </div>
           </form>

@@ -237,7 +237,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
       const { data: insertedData, error: dbError } = await supabase.from('od_requests').insert([
         {
           ...requestData,
-          status: 'Pending Advisor',
+          status: 'Pending Coordinator',
           registration_proof_url: regUrl,
           payment_proof_url: payUrl,
           event_poster_url: posterUrl,
@@ -284,13 +284,13 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
       if (posterFile && posterPath) startBackgroundUpload(posterFile, posterPath, 'Event Poster');
       if (payFile && payPath) startBackgroundUpload(payFile, payPath, 'Payment Proof');
 
-      // Step 6: Notify Advisor (Background)
+      // Step 6: Notify Coordinator (Background)
       if (insertedData) {
         try {
           const { data: recipients, error: recipientError } = await supabase
             .from('profiles')
             .select('id, email, full_name, role')
-            .eq('role', 'advisor')
+            .eq('role', 'coordinator')
             .eq('department', formData.department);
 
           if (recipientError) {
@@ -320,7 +320,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
                     <p><strong>Organization:</strong> ${formData.organization_name}</p>
                     <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
                     <p>Please log in to your dashboard to review and recommend this request to the HOD.</p>
-                    <a href="${finalUrl}" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 12px 24px; background-color: #003366; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold;">View Advisor Dashboard</a>
+                    <a href="${finalUrl}" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 12px 24px; background-color: #003366; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold;">View Coordinator Dashboard</a>
                     <p style="font-size: 12px; color: #666; margin-top: 30px;">Ref: OD-REQ-${insertedData.id.substring(0, 8)}</p>
                   </div>
                 `;
@@ -341,10 +341,10 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
             // Mark notification as sent
             await supabase.from('od_requests').update({ notification_sent: true }).eq('id', insertedData.id);
           } else {
-            console.warn(`[DEBUG] No Advisors found for department: ${formData.department}`);
+            console.warn(`[DEBUG] No Coordinators found for department: ${formData.department}`);
           }
         } catch (notifyErr) {
-          console.error("[DEBUG] Advisor notification failed:", notifyErr);
+          console.error("[DEBUG] Coordinator notification failed:", notifyErr);
         }
       }
 
@@ -370,8 +370,8 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
           <h1 className="text-3xl font-black text-slate-900 dark:text-gray-100 uppercase tracking-tighter italic leading-none">OD Submission</h1>
           <p className="text-[10px] text-pencil-gray font-technical font-bold uppercase tracking-widest mt-2">Please fill in the details accurately</p>
         </div>
-        <button onClick={onClose} className="text-slate-300 hover:text-red-500 transition-colors p-2 bg-slate-100 rounded-full" type="button">
-          <X size={20} />
+        <button onClick={onClose} className="text-slate-600 hover:text-red-600 transition-all p-2.5 bg-slate-200/50 hover:bg-slate-200 rounded-full" type="button">
+          <X size={20} strokeWidth={3} />
         </button>
       </div>
 

@@ -49,13 +49,13 @@ const MobileNav: React.FC<{ profile: Profile | null }> = ({ profile }) => {
           <Link to={
             profile.role === 'admin' ? '/admin-panel' :
             profile.role === 'hod' ? '/hod-dashboard' :
-            profile.role === 'advisor' ? '/advisor-dashboard' :
+            profile.role === 'coordinator' ? '/coordinator-dashboard' :
             '/student-dashboard'
-          } className={`flex flex-col items-center gap-1 ${isActive('/student-dashboard') || isActive('/advisor-dashboard') || isActive('/hod-dashboard') || isActive('/admin-panel') ? 'text-blueprint-blue' : 'text-slate-400'}`}>
-            <Home size={22} className={isActive('/student-dashboard') || isActive('/advisor-dashboard') || isActive('/hod-dashboard') || isActive('/admin-panel') ? 'fill-blueprint-blue/10' : ''} />
+          } className={`flex flex-col items-center gap-1 ${isActive('/student-dashboard') || isActive('/coordinator-dashboard') || isActive('/hod-dashboard') || isActive('/admin-panel') ? 'text-blueprint-blue' : 'text-slate-400'}`}>
+            <Home size={22} className={isActive('/student-dashboard') || isActive('/coordinator-dashboard') || isActive('/hod-dashboard') || isActive('/admin-panel') ? 'fill-blueprint-blue/10' : ''} />
             <span className="text-[8px] font-black uppercase tracking-tighter">Terminal</span>
           </Link>
-          {(profile.role === 'advisor' || profile.role === 'hod' || profile.role === 'admin') && (
+          {(profile.role === 'coordinator' || profile.role === 'hod' || profile.role === 'admin') && (
             <Link to="/faculty/registry" className={`flex flex-col items-center gap-1 ${isActive('/faculty/registry') ? 'text-blueprint-blue' : 'text-slate-400'}`}>
               <Database size={22} className={isActive('/faculty/registry') ? 'fill-blueprint-blue/10' : ''} />
               <span className="text-[8px] font-black uppercase tracking-tighter">Registry</span>
@@ -119,7 +119,7 @@ const Header: React.FC<{ profile: Profile | null; onLogout: () => void }> = ({ p
                   <NavLink to={
                     profile.role === 'admin' ? '/admin-panel' :
                     profile.role === 'hod' ? '/hod-dashboard' :
-                    '/advisor-dashboard'
+                    '/coordinator-dashboard'
                   } icon={<Settings size={18} />}>Admin</NavLink>
                   <NavLink to="/faculty/registry" icon={<Database size={18} />}>Registry</NavLink>
                 </>
@@ -356,7 +356,7 @@ const App: React.FC = () => {
                   profile.is_profile_complete ? (
                     profile.role === 'admin' ? <Navigate to="/admin-panel" replace /> :
                     profile.role === 'hod' ? <Navigate to="/hod-dashboard" replace /> :
-                    profile.role === 'advisor' ? <Navigate to="/advisor-dashboard" replace /> :
+                    profile.role === 'coordinator' ? <Navigate to="/coordinator-dashboard" replace /> :
                     <Navigate to="/student-dashboard" replace />
                   ) : (
                     <Navigate to="/setup-profile" replace />
@@ -426,9 +426,9 @@ const App: React.FC = () => {
               )
             } />
 
-            <Route path="/advisor-dashboard" element={
-              session && profile?.role === 'advisor' && profile?.is_profile_complete ? (
-                <FacultyAdmin role="advisor" />
+            <Route path="/coordinator-dashboard" element={
+              session && profile?.role === 'coordinator' && profile?.is_profile_complete ? (
+                <FacultyAdmin role="coordinator" />
               ) : (
                 <Navigate to="/" replace />
               )
@@ -469,7 +469,7 @@ const App: React.FC = () => {
             } />
 
             <Route path="/faculty/registry" element={
-              session && (profile?.role === 'advisor' || profile?.role === 'hod' || profile?.role === 'admin') && profile?.is_profile_complete ? (
+              session && (profile?.role === 'coordinator' || profile?.role === 'hod' || profile?.role === 'admin') && profile?.is_profile_complete ? (
                 <FacultyRegistry />
               ) : (
                 <Navigate to="/" replace />
@@ -480,7 +480,7 @@ const App: React.FC = () => {
               session && profile?.is_profile_complete ? (
                 profile.role === 'admin' ? <Navigate to="/admin-panel" replace /> :
                 profile.role === 'hod' ? <Navigate to="/hod-dashboard" replace /> :
-                profile.role === 'advisor' ? <Navigate to="/advisor-dashboard" replace /> :
+                profile.role === 'coordinator' ? <Navigate to="/coordinator-dashboard" replace /> :
                 <Navigate to="/" replace />
               ) : (
                 <Navigate to="/login" replace />

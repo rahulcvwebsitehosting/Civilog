@@ -98,7 +98,7 @@ const DebugProfiles: React.FC = () => {
                         <span className={`px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest border ${
                           p.role === 'admin' ? 'bg-red-50 text-red-600 border-red-100' :
                           p.role === 'hod' ? 'bg-purple-50 text-purple-600 border-purple-100' :
-                          p.role === 'advisor' ? 'bg-blue-50 text-blue-600 border-blue-100' :
+                          p.role === 'coordinator' ? 'bg-blue-50 text-blue-600 border-blue-100' :
                           'bg-slate-50 text-slate-600 border-slate-100'
                         }`}>
                           {p.role}

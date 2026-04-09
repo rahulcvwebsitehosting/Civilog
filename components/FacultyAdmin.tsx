@@ -34,7 +34,7 @@ const formatFancyDate = (dateString: string | null): string => {
 };
 
 interface FacultyAdminProps {
-  role: 'advisor' | 'hod' | 'admin';
+  role: 'coordinator' | 'hod' | 'admin';
 }
 
 const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
@@ -44,8 +44,8 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [monthFilter, setMonthFilter] = useState<string>('');
   const [deptSearch, setDeptSearch] = useState('');
-  const [stats, setStats] = useState({ pendingAdvisor: 0, pendingHOD: 0, approved: 0, completed: 0, archived: 0 });
-  const [activeStatus, setActiveStatus] = useState<ODStatus>('Pending Advisor');
+  const [stats, setStats] = useState({ pendingCoordinator: 0, pendingHOD: 0, approved: 0, completed: 0, archived: 0 });
+  const [activeStatus, setActiveStatus] = useState<ODStatus>('Pending Coordinator');
   const [viewMode, setViewMode] = useState<'registry' | 'inspection' | 'nested'>('nested');
   const [facultyProfile, setFacultyProfile] = useState<Profile | null>(null);
   const [smtpStatus, setSmtpStatus] = useState<{ configured: boolean; user: string | null }>({ configured: false, user: null });
@@ -146,7 +146,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         query = query.eq('status', activeStatus);
       }
 
-      // Role-based filtering: Advisors and HODs only see their own department
+      // Role-based filtering: Coordinators and HODs only see their own department
       // Match using the department field on both od_requests and profiles tables.
       if (role !== 'admin') {
         if (dept) {
@@ -173,14 +173,14 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
 
       const [
         listResult,
-        pendingAdvisorResult,
+        pendingCoordinatorResult,
         pendingHODResult,
         approvedResult,
         completedResult,
         archivedResult
       ] = await Promise.all([
         query,
-        getCount('Pending Advisor'),
+        getCount('Pending Coordinator'),
         getCount('Pending HOD'),
         getCount('Approved'),
         getCount('Completed'),
@@ -191,7 +191,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
 
       if (listResult.data) setRequests(listResult.data as ODRequest[]);
       setStats({ 
-        pendingAdvisor: pendingAdvisorResult.count || 0,
+        pendingCoordinator: pendingCoordinatorResult.count || 0,
         pendingHOD: pendingHODResult.count || 0,
         approved: approvedResult.count || 0, 
         completed: completedResult.count || 0,
@@ -208,8 +208,8 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
   useEffect(() => {
     // Set initial status based on role
     if (role === 'hod') setActiveStatus('Pending HOD');
-    else if (role === 'advisor') setActiveStatus('Pending Advisor');
-    else setActiveStatus('Pending Advisor');
+    else if (role === 'coordinator') setActiveStatus('Pending Coordinator');
+    else setActiveStatus('Pending Coordinator');
   }, [role]);
 
   useEffect(() => {
@@ -225,7 +225,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
   const handleAction = async (request: ODRequest, approve: boolean, confirmed: boolean = false) => {
     // Permission check
     const canPerformAction = 
-      (role === 'advisor' && request.status === 'Pending Advisor') ||
+      (role === 'coordinator' && request.status === 'Pending Coordinator') ||
       (role === 'hod' && request.status === 'Pending HOD');
 
     if (!canPerformAction) {
@@ -243,7 +243,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
     try {
       if (approve) {
         // For admins, we might not have a full facultyProfile if they haven't set it up
-        // but we need an ID for the advisor_id/hod_id fields.
+        // but we need an ID for the coordinator_id/hod_id fields.
         const activeFacultyId = facultyProfile?.id || (await supabase.auth.getUser()).data.user?.id;
         
         if (!activeFacultyId) throw new Error("Authentication session lost. Please reload.");
@@ -344,10 +344,10 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
               read: false
             });
             
-            // Also notify the advisor that their recommendation was finalized
-            if (request.advisor_id) {
+            // Also notify the coordinator that their recommendation was finalized
+            if (request.coordinator_id) {
               await supabase.from('notifications').insert({
-                user_id: request.advisor_id,
+                user_id: request.coordinator_id,
                 message: `The OD request for ${request.student_name} you recommended has been officially sanctioned by HOD.`,
                 type: 'info',
                 read: false
@@ -359,18 +359,18 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
             console.error("Failed to process notifications:", notificationErr);
           }
         } else {
-          // Advisor Approval Logic (or Admin acting as Advisor)
+          // Coordinator Approval Logic (or Admin acting as Coordinator)
           const { error: dbError } = await supabase.from('od_requests').update({ 
             status: 'Pending HOD',
-            advisor_id: activeFacultyId,
-            advisor_approved_at: new Date().toISOString(),
+            coordinator_id: activeFacultyId,
+            coordinator_approved_at: new Date().toISOString(),
             notification_sent: false // Reset for HOD notification
           }).eq('id', request.id);
 
           if (dbError) throw dbError;
 
           // Log Audit
-          await logAudit('APPROVE_ADVISOR', 'od_request', request.id, {
+          await logAudit('APPROVE_COORDINATOR', 'od_request', request.id, {
             student_name: request.student_name,
             event_title: request.event_title,
             department: request.department
@@ -389,7 +389,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
               const emailMessage = `
                 <div style="font-family: sans-serif; line-height: 1.6; color: #333;">
                   <h2 style="color: #003366;">OD Authorization Required</h2>
-                  <p>An OD request for <strong>${request.student_name}</strong> (${request.register_no}) has been <strong>Approved by Advisor</strong> and now requires your final authorization.</p>
+                  <p>An OD request for <strong>${request.student_name}</strong> (${request.register_no}) has been <strong>Approved by Activity Coordinator</strong> and now requires your final authorization.</p>
                   <p><strong>Event:</strong> ${request.event_title}</p>
                   <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
                   <p>Please log in to your dashboard to provide the final authorization.</p>
@@ -402,7 +402,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                 // In-app notification for HOD
                 await supabase.from('notifications').insert({
                   user_id: hod.id,
-                  message: `New OD Authorization required for ${request.student_name} (${request.register_no}). Approved by Advisor.`,
+                  message: `New OD Authorization required for ${request.student_name} (${request.register_no}). Approved by Activity Coordinator.`,
                   type: 'info',
                   read: false
                 });
@@ -413,7 +413,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                       to: hod.email,
-                      subject: `Advisor Approved: ${request.event_title}`,
+                      subject: `Coordinator Approved: ${request.event_title}`,
                       message: emailMessage
                     })
                   });
@@ -433,10 +433,10 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
               await supabase.from('od_requests').update({ notification_sent: true }).eq('id', request.id);
             }
 
-            // Notify Student about Advisor Approval
+            // Notify Student about Coordinator Approval
             await supabase.from('notifications').insert({
               user_id: request.user_id,
-              message: `Your OD request for ${request.event_title} has been approved by your Advisor and is now pending HOD authorization.`,
+              message: `Your OD request for ${request.event_title} has been approved by your Activity Coordinator and is now pending HOD authorization.`,
               type: 'info',
               read: false
             });
@@ -495,7 +495,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
   // Restore from Recycle Bin
   const handleRestore = async (id: string) => {
     try {
-      const { error } = await supabase.from('od_requests').update({ status: 'Pending Advisor' }).eq('id', id);
+      const { error } = await supabase.from('od_requests').update({ status: 'Pending Coordinator' }).eq('id', id);
       if (error) throw error;
 
       // Log Audit
@@ -595,11 +595,11 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
       let message = '';
       let recipientName = '';
 
-      if (request.status === 'Pending Advisor') {
+      if (request.status === 'Pending Coordinator') {
         const { data: recipients } = await supabase
           .from('profiles')
           .select('email, full_name')
-          .in('role', ['advisor', 'hod'])
+          .in('role', ['coordinator', 'hod'])
           .eq('department', request.department);
         if (recipients && recipients.length > 0) {
           targetEmail = recipients[0].email;
@@ -633,7 +633,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
           message = `
             <div style="font-family: sans-serif; padding: 20px; color: #334155; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; border-radius: 12px;">
               <h2 style="color: #1e293b; margin-top: 0;">Hello ${recipientName},</h2>
-              <p>An On-Duty request from <strong>${request.student_name}</strong> has been recommended by the Advisor and requires your final authorization.</p>
+              <p>An On-Duty request from <strong>${request.student_name}</strong> has been recommended by the Activity Coordinator and requires your final authorization.</p>
               <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin: 20px 0;">
                 <p style="margin: 0; font-size: 14px;"><strong>Student:</strong> ${request.student_name} (${request.register_no})</p>
                 <p style="margin: 5px 0 0 0; font-size: 14px;"><strong>Event:</strong> ${request.event_title}</p>
@@ -750,7 +750,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         'End Date': r.event_end_date || r.event_date,
         'Status': r.status,
         'Achievement': r.achievement_details || 'N/A',
-        'Advisor Approved': r.advisor_approved_at ? 'Yes' : 'No',
+        'Coordinator Approved': r.coordinator_approved_at ? 'Yes' : 'No',
         'HOD Approved': r.hod_approved_at ? 'Yes' : 'No',
         'Reg Proof': createLink(r.registration_proof_url, "View Reg Proof"),
         'Pay Proof': createLink(r.payment_proof_url, "View Pay Proof"),
@@ -768,7 +768,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
   };
 
   const canApprove = (request: ODRequest) => {
-    if (role === 'advisor' && request.status === 'Pending Advisor') return true;
+    if (role === 'coordinator' && request.status === 'Pending Coordinator') return true;
     if (role === 'hod' && request.status === 'Pending HOD') return true;
     return false;
   };
@@ -901,7 +901,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
       <div className="flex flex-col md:flex-row justify-between items-center gap-4 relative z-50">
         <div>
           <h2 className="text-3xl font-black text-slate-900 tracking-tight italic uppercase">
-            {role === 'admin' ? 'MASTER TERMINAL' : role === 'hod' ? 'HOD TERMINAL' : 'ADVISOR TERMINAL'}
+            {role === 'admin' ? 'MASTER TERMINAL' : role === 'hod' ? 'HOD TERMINAL' : 'COORDINATOR TERMINAL'}
           </h2>
           <div className="flex items-center gap-2 mt-1">
             <div className={`w-1.5 h-1.5 rounded-full ${smtpStatus.configured ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
@@ -982,11 +982,11 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
 
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <button 
-          onClick={() => setActiveStatus('Pending Advisor')}
-          className={`bg-white border p-5 rounded-[1.5rem] flex items-center gap-4 shadow-sm transition-all text-left ${activeStatus === 'Pending Advisor' ? 'border-amber-400 ring-2 ring-amber-400/20' : 'hover:border-slate-300'}`}
+          onClick={() => setActiveStatus('Pending Coordinator')}
+          className={`bg-white border p-5 rounded-[1.5rem] flex items-center gap-4 shadow-sm transition-all text-left ${activeStatus === 'Pending Coordinator' ? 'border-amber-400 ring-2 ring-amber-400/20' : 'hover:border-slate-300'}`}
         >
-          <div className={`p-3 rounded-xl ${activeStatus === 'Pending Advisor' ? 'bg-amber-500 text-white' : 'bg-amber-100 text-amber-600'}`}><Clock size={20}/></div>
-          <div><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Advisor Pending</p><p className="text-2xl font-black">{stats.pendingAdvisor}</p></div>
+          <div className={`p-3 rounded-xl ${activeStatus === 'Pending Coordinator' ? 'bg-amber-500 text-white' : 'bg-amber-100 text-amber-600'}`}><Clock size={20}/></div>
+          <div><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Coordinator Pending</p><p className="text-2xl font-black">{stats.pendingCoordinator}</p></div>
         </button>
 
         <button 

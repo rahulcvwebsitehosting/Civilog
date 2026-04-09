@@ -345,29 +345,35 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleToggleLock = async (dept: string, currentLockState: boolean) => {
-    setProcessingId(dept);
+  const handleToggleLock = async (dept: string, type: 'registration' | 'profile', currentLockState: boolean) => {
+    const processingKey = `${dept}_${type}`;
+    setProcessingId(processingKey);
     try {
-      const { error } = await supabase.from('registration_locks').upsert({
+      const updateData: any = {
         department: dept,
-        locked: !currentLockState,
-        locked_by: adminProfile?.id,
-        locked_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
-      }, { onConflict: 'department' });
+      };
+      
+      if (type === 'registration') {
+        updateData.locked = !currentLockState;
+        updateData.locked_by = adminProfile?.id;
+        updateData.locked_at = new Date().toISOString();
+      } else {
+        updateData.profile_locked = !currentLockState;
+      }
+
+      const { error } = await supabase.from('registration_locks').upsert(updateData, { onConflict: 'department' });
 
       if (error) throw error;
 
-      showToast(`${dept} registration ${!currentLockState ? 'locked' : 'unlocked'} successfully`, "success");
+      showToast(`${dept} ${type} ${!currentLockState ? 'locked' : 'unlocked'} successfully`, "success");
       
       // Update local state
       setRegistrationLocks(prev => ({
         ...prev,
         [dept]: {
-          ...prev[dept],
-          department: dept,
-          locked: !currentLockState,
-          locked_at: new Date().toISOString()
+          ...(prev[dept] || { department: dept }),
+          ...updateData
         }
       }));
     } catch (err: any) {
@@ -488,7 +494,7 @@ const AdminDashboard: React.FC = () => {
     if (act.includes('DELETE')) return <Trash2 className="text-red-500" size={16} />;
     
     switch (act) {
-      case 'ADVISOR_APPROVE': return <CheckCircle2 className="text-amber-500" size={16} />;
+      case 'APPROVE_COORDINATOR': return <CheckCircle2 className="text-amber-500" size={16} />;
       case 'HOD_APPROVE': return <CheckCircle2 className="text-green-500" size={16} />;
       case 'REJECT_OD': return <XCircle className="text-red-500" size={16} />;
       default: return <History className="text-slate-400" size={16} />;
@@ -707,7 +713,7 @@ const AdminDashboard: React.FC = () => {
               >
                 <option value="all">All Roles</option>
                 <option value="student">Students</option>
-                <option value="advisor">Advisors</option>
+                <option value="coordinator">Activity Coordinators</option>
                 <option value="hod">HODs</option>
                 <option value="admin">Admins</option>
               </select>
@@ -807,7 +813,7 @@ const AdminDashboard: React.FC = () => {
                           <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border ${
                             p.role === 'admin' ? 'bg-red-50 text-red-600 border-red-100' :
                             p.role === 'hod' ? 'bg-purple-50 text-purple-600 border-purple-100' :
-                            p.role === 'advisor' ? 'bg-blue-50 text-blue-600 border-blue-100' :
+                            p.role === 'coordinator' ? 'bg-blue-50 text-blue-600 border-blue-100' :
                             'bg-slate-50 text-slate-600 border-slate-100'
                           }`}>
                             {p.role}
@@ -942,10 +948,10 @@ const AdminDashboard: React.FC = () => {
                               <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
                               <span className="text-[9px] font-bold text-slate-500 uppercase">Created: {new Date(r.created_at).toLocaleDateString()}</span>
                             </div>
-                            {r.advisor_approved_at && (
+                            {r.coordinator_approved_at && (
                               <div className="flex items-center gap-2">
                                 <div className="w-1.5 h-1.5 rounded-full bg-amber-500"></div>
-                                <span className="text-[9px] font-bold text-slate-500 uppercase">Advisor: {new Date(r.advisor_approved_at).toLocaleDateString()}</span>
+                                <span className="text-[9px] font-bold text-slate-500 uppercase">Coordinator: {new Date(r.coordinator_approved_at).toLocaleDateString()}</span>
                               </div>
                             )}
                             {r.hod_approved_at && (
@@ -1074,44 +1080,54 @@ const AdminDashboard: React.FC = () => {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {DEPARTMENTS.map(dept => {
-                      const lock = registrationLocks[dept];
-                      const isLocked = lock?.locked || false;
-                      return (
-                        <div key={dept} className="p-6 bg-slate-50 rounded-3xl border border-slate-200 flex flex-col justify-between gap-4 hover:shadow-md transition-all">
-                          <div>
-                            <h4 className="text-xs font-black text-slate-900 uppercase tracking-tight leading-tight">{dept}</h4>
-                            <div className="mt-2 flex items-center gap-2">
-                              <div className={`w-2 h-2 rounded-full ${isLocked ? 'bg-red-500' : 'bg-green-500'}`}></div>
-                              <span className={`text-[10px] font-black uppercase tracking-widest ${isLocked ? 'text-red-600' : 'text-green-600'}`}>
-                                {isLocked ? 'Locked' : 'Unlocked'}
-                              </span>
+                      {DEPARTMENTS.map(dept => {
+                        const lock = registrationLocks[dept];
+                        const isRegLocked = lock?.locked || false;
+                        const isProfileLocked = lock?.profile_locked || false;
+                        return (
+                          <div key={dept} className="p-6 bg-slate-50 rounded-3xl border border-slate-200 flex flex-col justify-between gap-6 hover:shadow-md transition-all">
+                            <div>
+                              <h4 className="text-xs font-black text-slate-900 uppercase tracking-tight leading-tight mb-4">{dept}</h4>
+                              
+                              <div className="space-y-4">
+                                {/* Registration Lock */}
+                                <div className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-100">
+                                  <div className="flex items-center gap-2">
+                                    <div className={`w-2 h-2 rounded-full ${isRegLocked ? 'bg-red-500' : 'bg-green-500'}`}></div>
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Registration</span>
+                                  </div>
+                                  <button
+                                    onClick={() => handleToggleLock(dept, 'registration', isRegLocked)}
+                                    disabled={processingId === `${dept}_registration`}
+                                    className={`px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all ${
+                                      isRegLocked ? 'bg-green-50 text-green-600 hover:bg-green-100' : 'bg-red-50 text-red-600 hover:bg-red-100'
+                                    } disabled:opacity-50`}
+                                  >
+                                    {processingId === `${dept}_registration` ? <RefreshCw size={10} className="animate-spin" /> : isRegLocked ? 'Unlock' : 'Lock'}
+                                  </button>
+                                </div>
+
+                                {/* Profile Lock */}
+                                <div className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-100">
+                                  <div className="flex items-center gap-2">
+                                    <div className={`w-2 h-2 rounded-full ${isProfileLocked ? 'bg-red-500' : 'bg-green-500'}`}></div>
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Profile Edits</span>
+                                  </div>
+                                  <button
+                                    onClick={() => handleToggleLock(dept, 'profile', isProfileLocked)}
+                                    disabled={processingId === `${dept}_profile`}
+                                    className={`px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all ${
+                                      isProfileLocked ? 'bg-green-50 text-green-600 hover:bg-green-100' : 'bg-red-50 text-red-600 hover:bg-red-100'
+                                    } disabled:opacity-50`}
+                                  >
+                                    {processingId === `${dept}_profile` ? <RefreshCw size={10} className="animate-spin" /> : isProfileLocked ? 'Unlock' : 'Lock'}
+                                  </button>
+                                </div>
+                              </div>
                             </div>
-                            {isLocked && lock.locked_at && (
-                              <p className="text-[8px] text-slate-400 uppercase mt-1">Locked on: {new Date(lock.locked_at).toLocaleString()}</p>
-                            )}
                           </div>
-                          
-                          <button
-                            onClick={() => handleToggleLock(dept, isLocked)}
-                            disabled={processingId === dept}
-                            className={`w-full py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
-                              isLocked 
-                                ? 'bg-green-600 text-white hover:bg-green-700 shadow-lg shadow-green-500/20' 
-                                : 'bg-red-600 text-white hover:bg-red-700 shadow-lg shadow-red-500/20'
-                            } disabled:opacity-50`}
-                          >
-                            {processingId === dept ? (
-                              <RefreshCw size={14} className="animate-spin" />
-                            ) : isLocked ? (
-                              <><Unlock size={14} /> Unlock Registration</>
-                            ) : (
-                              <><Lock size={14} /> Lock Registration</>
-                            )}
-                          </button>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
                   </div>
                 </div>
               )}
@@ -1245,10 +1261,10 @@ const AdminDashboard: React.FC = () => {
                                               <div className="text-left sm:text-right">
                                                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Event Date</p>
                                                 <p className="text-[10px] font-mono text-slate-700">{h.event_date} {h.event_end_date && h.event_end_date !== h.event_date ? `to ${h.event_end_date}` : ''}</p>
-                                                {(h.advisor_approved_at || h.hod_approved_at) && (
+                                                {(h.coordinator_approved_at || h.hod_approved_at) && (
                                                   <div className="mt-2 flex flex-wrap sm:justify-end gap-2">
-                                                    {h.advisor_approved_at && (
-                                                      <span className="text-[8px] font-bold text-slate-400 uppercase bg-slate-50 px-2 py-1 rounded border">Advisor Recommended</span>
+                                                    {h.coordinator_approved_at && (
+                                                      <span className="text-[8px] font-bold text-slate-400 uppercase bg-slate-50 px-2 py-1 rounded border">Coordinator Recommended</span>
                                                     )}
                                                     {h.hod_approved_at && (
                                                       <span className="text-[8px] font-bold text-slate-400 uppercase bg-slate-50 px-2 py-1 rounded border">HOD Approved</span>

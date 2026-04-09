@@ -15,14 +15,14 @@ const Auth: React.FC = () => {
   const [message, setMessage] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  const ADVISOR_PASSWORD = import.meta.env.VITE_ADVISOR_PASSWORD || '';
+  const COORDINATOR_PASSWORD = import.meta.env.VITE_COORDINATOR_PASSWORD || '';
   const HOD_PASSWORD = import.meta.env.VITE_HOD_PASSWORD || '';
   const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || '';
 
   const getRoleFromPassword = (pwd: string) => {
     if (pwd === ADMIN_PASSWORD) return 'admin';
     if (pwd === HOD_PASSWORD) return 'hod';
-    if (pwd === ADVISOR_PASSWORD) return 'advisor';
+    if (pwd === COORDINATOR_PASSWORD) return 'coordinator';
     return 'student';
   };
 

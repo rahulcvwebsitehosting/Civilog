@@ -284,7 +284,7 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
   if (!profile) return null;
 
   const handleDelete = async (request: ODRequest) => {
-    if (request.status === 'Approved' || request.status === 'Completed' || request.status === 'Pending HOD' || request.status === 'Pending Advisor') {
+    if (request.status === 'Approved' || request.status === 'Completed' || request.status === 'Pending HOD' || request.status === 'Pending Coordinator') {
       showToast("System Violation: Authorized or partially authorized logs cannot be deleted.", "error");
       return;
     }

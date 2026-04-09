@@ -36,7 +36,7 @@ const FacultyRegistry: React.FC = () => {
     let query = supabase
       .from('od_requests')
       .select('*')
-      .in('status', ['Approved', 'Completed', 'Pending Advisor', 'Pending HOD'])
+      .in('status', ['Approved', 'Completed', 'Pending Coordinator', 'Pending HOD'])
       .order('created_at', { ascending: false });
 
     const dept = profile?.department || user.user_metadata?.department;
@@ -150,7 +150,7 @@ const FacultyRegistry: React.FC = () => {
   return (
     <div className="max-w-6xl mx-auto space-y-8 pb-20">
       <div className="flex items-center justify-between px-4">
-        <Link to="/faculty" className="text-blueprint-blue font-black uppercase text-[10px] tracking-widest flex items-center gap-1 hover:translate-x-[-4px] transition-transform">
+        <Link to="/faculty-admin" className="text-blueprint-blue font-black uppercase text-[10px] tracking-widest flex items-center gap-1 hover:translate-x-[-4px] transition-transform">
           <ChevronLeft size={16} /> Back to Dashboard
         </Link>
       </div>

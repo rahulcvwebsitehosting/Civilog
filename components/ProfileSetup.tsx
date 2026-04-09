@@ -103,8 +103,8 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ profile, onComplete }) => {
       }
 
       // 3. Lazy Notification Drain
-      if (profile.role === 'advisor' || profile.role === 'hod') {
-        const targetStatus = profile.role === 'advisor' ? 'Pending Advisor' : 'Pending HOD';
+      if (profile.role === 'coordinator' || profile.role === 'hod') {
+        const targetStatus = profile.role === 'coordinator' ? 'Pending Coordinator' : 'Pending HOD';
         const { data: pendingRequests } = await supabase
           .from('od_requests')
           .select('*')

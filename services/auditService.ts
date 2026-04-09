@@ -5,7 +5,7 @@ export type AuditAction =
   | 'CREATE_OD' 
   | 'UPDATE_OD' 
   | 'DELETE_OD' 
-  | 'APPROVE_ADVISOR' 
+  | 'APPROVE_COORDINATOR' 
   | 'APPROVE_HOD' 
   | 'REJECT_OD' 
   | 'RESTORE_OD'

@@ -16,13 +16,13 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!)
 
-    // 1. Handle Student Submission -> Notify Advisor
-    if (type === 'INSERT' && record.status === 'Pending Advisor') {
-      return await notifyAdvisors(supabase, record)
+    // 1. Handle Student Submission -> Notify Coordinator
+    if (type === 'INSERT' && record.status === 'Pending Coordinator') {
+      return await notifyCoordinators(supabase, record)
     }
 
-    // 2. Handle Advisor Approval -> Notify HOD
-    if (type === 'UPDATE' && record.status === 'Pending HOD' && old_record.status === 'Pending Advisor') {
+    // 2. Handle Coordinator Approval -> Notify HOD
+    if (type === 'UPDATE' && record.status === 'Pending HOD' && old_record.status === 'Pending Coordinator') {
       return await notifyHODs(supabase, record)
     }
 
@@ -38,29 +38,29 @@ serve(async (req) => {
   }
 })
 
-async function notifyAdvisors(supabase: any, record: any) {
-  const { data: advisors } = await supabase.from('profiles').select('id, email').eq('role', 'advisor').eq('department', record.department)
-  if (!advisors?.length) return new Response('No advisors', { status: 200 })
+async function notifyCoordinators(supabase: any, record: any) {
+  const { data: coordinators } = await supabase.from('profiles').select('id, email').eq('role', 'coordinator').eq('department', record.department)
+  if (!coordinators?.length) return new Response('No coordinators', { status: 200 })
   
-  for (const advisor of advisors) {
+  for (const coordinator of coordinators) {
     // 1. Email
-    if (advisor.email) {
-      await sendEmail(advisor.email, `New OD: ${record.event_title}`, `
+    if (coordinator.email) {
+      await sendEmail(coordinator.email, `New OD: ${record.event_title}`, `
         <h2>New OD Request</h2>
         <p>Student: ${record.student_name}</p>
         <p>Event: ${record.event_title}</p>
-        <p>Please review in your Advisor Dashboard.</p>
+        <p>Please review in your Coordinator Dashboard.</p>
       `)
     }
     // 2. In-App
     await supabase.from('notifications').insert({
-      user_id: advisor.id,
+      user_id: coordinator.id,
       message: `New OD request from ${record.student_name} for ${record.event_title}`,
       type: 'info',
       read: false
     })
   }
-  return new Response('Advisors notified', { status: 200 })
+  return new Response('Coordinators notified', { status: 200 })
 }
 
 async function notifyHODs(supabase: any, record: any) {
@@ -70,17 +70,17 @@ async function notifyHODs(supabase: any, record: any) {
   for (const hod of hods) {
     // 1. Email
     if (hod.email) {
-      await sendEmail(hod.email, `Advisor Approved: ${record.event_title}`, `
+      await sendEmail(hod.email, `Coordinator Approved: ${record.event_title}`, `
         <h2>OD Authorization Required</h2>
         <p>Student: ${record.student_name}</p>
         <p>Event: ${record.event_title}</p>
-        <p>Advisor has approved. Final authorization required in HOD Dashboard.</p>
+        <p>Coordinator has approved. Final authorization required in HOD Dashboard.</p>
       `)
     }
     // 2. In-App
     await supabase.from('notifications').insert({
       user_id: hod.id,
-      message: `OD for ${record.student_name} approved by Advisor. Final authorization needed.`,
+      message: `OD for ${record.student_name} approved by Activity Coordinator. Final authorization needed.`,
       type: 'info',
       read: false
     })

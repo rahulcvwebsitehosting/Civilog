@@ -9,9 +9,9 @@ ADD COLUMN IF NOT EXISTS registration_proof_url TEXT,
 ADD COLUMN IF NOT EXISTS payment_proof_url TEXT,
 ADD COLUMN IF NOT EXISTS event_poster_url TEXT,
 ADD COLUMN IF NOT EXISTS achievement_details TEXT,
-ADD COLUMN IF NOT EXISTS advisor_id UUID,
+ADD COLUMN IF NOT EXISTS coordinator_id UUID,
 ADD COLUMN IF NOT EXISTS hod_id UUID,
-ADD COLUMN IF NOT EXISTS advisor_approved_at TIMESTAMPTZ,
+ADD COLUMN IF NOT EXISTS coordinator_approved_at TIMESTAMPTZ,
 ADD COLUMN IF NOT EXISTS hod_approved_at TIMESTAMPTZ;
 
 -- Ensure types are correct

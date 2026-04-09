@@ -34,6 +34,8 @@ const FacultyDashboard: React.FC = () => {
   const [facultyProfile, setFacultyProfile] = useState<Profile | null>(null);
   const [confirmApprovalRequest, setConfirmApprovalRequest] = useState<ODRequest | null>(null);
   const [confirmRejectRequest, setConfirmRejectRequest] = useState<ODRequest | null>(null);
+  const [profileRequests, setProfileRequests] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<'od' | 'profile'>('od');
 
   const fetchRequests = async () => {
     setLoading(true);
@@ -67,26 +69,39 @@ const FacultyDashboard: React.FC = () => {
     const profile = dbProfile as Profile;
     setFacultyProfile(profile);
 
-    const isAdvisor = profile.role === 'advisor';
-    const targetStatus = isAdvisor ? 'Pending Advisor' : 'Pending HOD';
+    // Fetch OD Requests
+    const isCoordinator = profile.role === 'coordinator';
+    const targetStatus = isCoordinator ? 'Pending Coordinator' : 'Pending HOD';
 
-    let query = supabase
+    let odQuery = supabase
       .from('od_requests')
       .select('*')
       .eq('status', targetStatus)
       .order('created_at', { ascending: false });
 
     if (profile.department) {
-      query = query.eq('department', profile.department);
+      odQuery = odQuery.eq('department', profile.department);
     } else {
-      query = query.eq('department', 'NON_EXISTENT_FALLBACK');
+      odQuery = odQuery.eq('department', 'NON_EXISTENT_FALLBACK');
     }
 
-    const { data, error } = await query;
+    const { data: odData } = await odQuery;
+    if (odData) setRequests(odData as ODRequest[]);
 
-    if (!error && data) {
-      setRequests(data as ODRequest[]);
+    // Fetch Profile Update Requests
+    let profileQuery = supabase
+      .from('profile_update_requests')
+      .select('*, profiles(full_name, identification_no)')
+      .eq('status', 'pending')
+      .order('requested_at', { ascending: false });
+
+    if (profile.department) {
+      profileQuery = profileQuery.eq('department', profile.department);
     }
+
+    const { data: profileData } = await profileQuery;
+    if (profileData) setProfileRequests(profileData);
+
     setLoading(false);
   };
 
@@ -138,8 +153,8 @@ const FacultyDashboard: React.FC = () => {
           .from('od-files')
           .getPublicUrl(`od_letters/${fileName}`);
 
-        const isAdvisor = facultyProfile?.role === 'advisor';
-        const newStatus = isAdvisor ? 'Pending HOD' : 'Approved';
+        const isCoordinator = facultyProfile?.role === 'coordinator';
+        const newStatus = isCoordinator ? 'Pending HOD' : 'Approved';
 
         const { error: dbError } = await supabase
           .from('od_requests')
@@ -147,17 +162,17 @@ const FacultyDashboard: React.FC = () => {
             status: newStatus, 
             od_letter_url: publicUrl, 
             notification_sent: true,
-            advisor_id: isAdvisor ? facultyProfile.id : undefined,
-            advisor_approved_at: isAdvisor ? new Date().toISOString() : undefined,
-            hod_id: !isAdvisor ? facultyProfile?.id : undefined,
-            hod_approved_at: !isAdvisor ? new Date().toISOString() : undefined
+            coordinator_id: isCoordinator ? facultyProfile.id : undefined,
+            coordinator_approved_at: isCoordinator ? new Date().toISOString() : undefined,
+            hod_id: !isCoordinator ? facultyProfile?.id : undefined,
+            hod_approved_at: !isCoordinator ? new Date().toISOString() : undefined
           })
           .eq('id', request.id);
           
         if (dbError) throw dbError;
 
-        // Notify HOD if this was an advisor approval
-        if (isAdvisor) {
+        // Notify HOD if this was a coordinator approval
+        if (isCoordinator) {
           const { data: hods } = await supabase
             .from('profiles')
             .select('id')
@@ -168,7 +183,7 @@ const FacultyDashboard: React.FC = () => {
             for (const hod of hods) {
               await supabase.from('notifications').insert({
                 user_id: hod.id,
-                message: `New OD Authorization required for ${request.student_name}. Approved by Advisor.`,
+                message: `New OD Authorization required for ${request.student_name}. Approved by Activity Coordinator.`,
                 type: 'info',
                 read: false
               });
@@ -209,6 +224,69 @@ const FacultyDashboard: React.FC = () => {
       }
       setRequests(prev => prev.filter(r => r.id !== request.id));
       showToast(`Request ${approve ? 'approved' : 'rejected'} successfully`, "success");
+    } catch (err: any) {
+      console.error(err);
+      showToast(err.message || 'Error processing request', "error");
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleProfileApproval = async (request: any, approve: boolean) => {
+    setProcessingId(request.id);
+    try {
+      if (approve) {
+        // Update profile with requested data
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({ ...request.requested_data, updated_at: new Date().toISOString() })
+          .eq('id', request.user_id);
+
+        if (profileError) throw profileError;
+
+        // Update request status
+        const { error: requestError } = await supabase
+          .from('profile_update_requests')
+          .update({ 
+            status: 'approved', 
+            resolved_at: new Date().toISOString(),
+            resolved_by: facultyProfile?.id
+          })
+          .eq('id', request.id);
+
+        if (requestError) throw requestError;
+
+        // Notify student
+        await supabase.from('notifications').insert({
+          user_id: request.user_id,
+          message: `Your profile update request has been approved and your profile has been updated.`,
+          type: 'success',
+          read: false
+        });
+      } else {
+        // Reject request
+        const { error: requestError } = await supabase
+          .from('profile_update_requests')
+          .update({ 
+            status: 'rejected', 
+            resolved_at: new Date().toISOString(),
+            resolved_by: facultyProfile?.id
+          })
+          .eq('id', request.id);
+
+        if (requestError) throw requestError;
+
+        // Notify student
+        await supabase.from('notifications').insert({
+          user_id: request.user_id,
+          message: `Your profile update request has been rejected.`,
+          type: 'error',
+          read: false
+        });
+      }
+
+      setProfileRequests(prev => prev.filter(r => r.id !== request.id));
+      showToast(`Profile request ${approve ? 'approved' : 'rejected'} successfully`, "success");
     } catch (err: any) {
       console.error(err);
       showToast(err.message || 'Error processing request', "error");
@@ -304,15 +382,31 @@ const FacultyDashboard: React.FC = () => {
       <div className="flex justify-between items-center relative z-50">
         <div>
           <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Faculty Dashboard</h2>
-          <p className="text-slate-500 mt-1">Review and manage pending On-Duty requests.</p>
+          <p className="text-slate-500 mt-1">Review and manage pending requests.</p>
         </div>
-        <button 
-          onClick={fetchRequests} 
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-all"
-        >
-          <RefreshCw size={16} />
-          Refresh
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
+            <button 
+              onClick={() => setActiveTab('od')}
+              className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${activeTab === 'od' ? 'bg-white text-blueprint-blue shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              OD Requests ({requests.length})
+            </button>
+            <button 
+              onClick={() => setActiveTab('profile')}
+              className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${activeTab === 'profile' ? 'bg-white text-blueprint-blue shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              Profile Updates ({profileRequests.length})
+            </button>
+          </div>
+          <button 
+            onClick={fetchRequests} 
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-all"
+          >
+            <RefreshCw size={16} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
@@ -321,112 +415,187 @@ const FacultyDashboard: React.FC = () => {
             <Loader2 className="animate-spin text-blue-600" size={48} />
             <p className="text-slate-500 font-medium">Loading requests...</p>
           </div>
-        ) : requests.length === 0 ? (
-          <div className="p-12 text-center">
-            <div className="bg-slate-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-400">
-              <CheckCircle size={32} />
+        ) : activeTab === 'od' ? (
+          requests.length === 0 ? (
+            <div className="p-12 text-center">
+              <div className="bg-slate-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-400">
+                <CheckCircle size={32} />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900">All Clear!</h3>
+              <p className="text-slate-500 mt-2">There are no pending OD requests for approval.</p>
             </div>
-            <h3 className="text-xl font-bold text-slate-900">All Clear!</h3>
-            <p className="text-slate-500 mt-2">There are no pending OD requests for approval.</p>
-          </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead className="bg-slate-50 border-b border-slate-200">
+                  <tr>
+                    <th className="px-6 py-4 text-sm font-bold text-slate-700 uppercase tracking-wider">Student Details</th>
+                    <th className="px-6 py-4 text-sm font-bold text-slate-700 uppercase tracking-wider">Event Information</th>
+                    <th className="px-6 py-4 text-sm font-bold text-slate-700 uppercase tracking-wider">Evidence Docs</th>
+                    <th className="px-6 py-4 text-sm font-bold text-slate-700 uppercase tracking-wider text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {requests.map((request) => {
+                    const formattedEventDate = formatFancyDate(request.event_date);
+                    const formattedEventEndDate = formatFancyDate(request.event_end_date);
+                    const dateDisplay = (request.event_end_date && request.event_end_date !== request.event_date)
+                      ? `${formattedEventDate} - ${formattedEventEndDate}`
+                      : formattedEventDate;
+                    return (
+                      <tr key={request.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="font-bold text-slate-900">{request.student_name}</div>
+                          <div className="text-sm text-slate-500 font-mono">{request.register_no}</div>
+                          <div className="text-xs text-blue-600 font-medium">{request.year} Yr / {request.roll_no}</div>
+                          {request.phone_number && (
+                            <div className="text-[10px] text-slate-400 font-bold mt-0.5 flex items-center gap-1">
+                              <Phone size={10} /> {request.phone_number}
+                            </div>
+                          )}
+                          {request.team_members && request.team_members.length > 0 && (
+                            <div className="mt-1.5 pt-1.5 border-t border-slate-100">
+                              <div className="text-[9px] font-black text-blue-600 uppercase tracking-widest">Team ({request.team_members.length})</div>
+                              <div className="text-[9px] text-slate-500 truncate max-w-[150px]">
+                                {request.team_members.map(m => m.name).join(', ')}
+                              </div>
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="font-semibold text-slate-900">{request.event_title}</div>
+                          <div className="text-sm text-slate-500">{request.organization_name}</div>
+                          <div className="text-xs mt-1 inline-block px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full font-bold">{dateDisplay}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col gap-1.5">
+                            {request.registration_proof_url && (
+                              <a 
+                                href={request.registration_proof_url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1.5 text-blue-600 hover:text-blue-800 text-[11px] font-bold uppercase"
+                              >
+                                <Paperclip size={12} /> Reg Proof
+                              </a>
+                            )}
+                            {request.payment_proof_url && (
+                              <a 
+                                href={request.payment_proof_url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1.5 text-indigo-600 hover:text-indigo-800 text-[11px] font-bold uppercase"
+                              >
+                                <CreditCard size={12} /> Pay Proof
+                              </a>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          {processingId === request.id ? (
+                            <div className="flex justify-end items-center gap-2 text-blue-600 font-bold">
+                              <Loader2 className="animate-spin" size={18} />
+                              Processing...
+                            </div>
+                          ) : (
+                            <div className="flex justify-end gap-3">
+                              <button
+                                onClick={() => handleApproval(request, false)}
+                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                title="Reject"
+                              >
+                                <XCircle size={24} />
+                              </button>
+                              <button
+                                onClick={() => handleApproval(request, true)}
+                                className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-all"
+                                title="Approve & Generate Letter"
+                              >
+                                <CheckCircle size={24} />
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr>
-                  <th className="px-6 py-4 text-sm font-bold text-slate-700 uppercase tracking-wider">Student Details</th>
-                  <th className="px-6 py-4 text-sm font-bold text-slate-700 uppercase tracking-wider">Event Information</th>
-                  <th className="px-6 py-4 text-sm font-bold text-slate-700 uppercase tracking-wider">Evidence Docs</th>
-                  <th className="px-6 py-4 text-sm font-bold text-slate-700 uppercase tracking-wider text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {requests.map((request) => {
-                  const formattedEventDate = formatFancyDate(request.event_date);
-                  const formattedEventEndDate = formatFancyDate(request.event_end_date);
-                  const dateDisplay = (request.event_end_date && request.event_end_date !== request.event_date)
-                    ? `${formattedEventDate} - ${formattedEventEndDate}`
-                    : formattedEventDate;
-                  return (
+          profileRequests.length === 0 ? (
+            <div className="p-12 text-center">
+              <div className="bg-slate-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-400">
+                <CheckCircle size={32} />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900">No Profile Requests</h3>
+              <p className="text-slate-500 mt-2">There are no pending profile update requests in your department.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead className="bg-slate-50 border-b border-slate-200">
+                  <tr>
+                    <th className="px-6 py-4 text-sm font-bold text-slate-700 uppercase tracking-wider">Student</th>
+                    <th className="px-6 py-4 text-sm font-bold text-slate-700 uppercase tracking-wider">Changes Requested</th>
+                    <th className="px-6 py-4 text-sm font-bold text-slate-700 uppercase tracking-wider">Reason</th>
+                    <th className="px-6 py-4 text-sm font-bold text-slate-700 uppercase tracking-wider text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {profileRequests.map((request) => (
                     <tr key={request.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-4">
-                        <div className="font-bold text-slate-900">{request.student_name}</div>
-                        <div className="text-sm text-slate-500 font-mono">{request.register_no}</div>
-                        <div className="text-xs text-blue-600 font-medium">{request.year} Yr / {request.roll_no}</div>
-                        {request.phone_number && (
-                          <div className="text-[10px] text-slate-400 font-bold mt-0.5 flex items-center gap-1">
-                            <Phone size={10} /> {request.phone_number}
-                          </div>
-                        )}
-                        {request.team_members && request.team_members.length > 0 && (
-                          <div className="mt-1.5 pt-1.5 border-t border-slate-100">
-                            <div className="text-[9px] font-black text-blue-600 uppercase tracking-widest">Team ({request.team_members.length})</div>
-                            <div className="text-[9px] text-slate-500 truncate max-w-[150px]">
-                              {request.team_members.map(m => m.name).join(', ')}
-                            </div>
-                          </div>
-                        )}
+                        <div className="font-bold text-slate-900">{request.profiles?.full_name}</div>
+                        <div className="text-xs text-slate-500 font-mono">{request.profiles?.identification_no}</div>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="font-semibold text-slate-900">{request.event_title}</div>
-                        <div className="text-sm text-slate-500">{request.organization_name}</div>
-                        <div className="text-xs mt-1 inline-block px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full font-bold">{dateDisplay}</div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col gap-1.5">
-                          {request.registration_proof_url && (
-                            <a 
-                              href={request.registration_proof_url} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-1.5 text-blue-600 hover:text-blue-800 text-[11px] font-bold uppercase"
-                            >
-                              <Paperclip size={12} /> Reg Proof
-                            </a>
-                          )}
-                          {request.payment_proof_url && (
-                            <a 
-                              href={request.payment_proof_url} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-1.5 text-indigo-600 hover:text-indigo-800 text-[11px] font-bold uppercase"
-                            >
-                              <CreditCard size={12} /> Pay Proof
-                            </a>
-                          )}
+                        <div className="space-y-1">
+                          {Object.keys(request.requested_data).map(key => {
+                            if (request.requested_data[key] !== request.current_data[key]) {
+                              return (
+                                <div key={key} className="text-[10px] flex items-center gap-2">
+                                  <span className="font-black text-slate-400 uppercase tracking-tighter w-20">{key.replace('_', ' ')}:</span>
+                                  <span className="text-red-500 line-through">{String(request.current_data[key])}</span>
+                                  <span className="text-slate-400">→</span>
+                                  <span className="text-green-600 font-bold">{String(request.requested_data[key])}</span>
+                                </div>
+                              );
+                            }
+                            return null;
+                          })}
                         </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="text-xs text-slate-600 italic">"{request.reason}"</p>
                       </td>
                       <td className="px-6 py-4 text-right">
                         {processingId === request.id ? (
-                          <div className="flex justify-end items-center gap-2 text-blue-600 font-bold">
-                            <Loader2 className="animate-spin" size={18} />
-                            Processing...
-                          </div>
+                          <Loader2 className="animate-spin text-blue-600 ml-auto" size={18} />
                         ) : (
-                          <div className="flex justify-end gap-3">
+                          <div className="flex justify-end gap-2">
                             <button
-                              onClick={() => handleApproval(request, false)}
-                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                              title="Reject"
+                              onClick={() => handleProfileApproval(request, false)}
+                              className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-red-100 transition-all"
                             >
-                              <XCircle size={24} />
+                              Reject
                             </button>
                             <button
-                              onClick={() => handleApproval(request, true)}
-                              className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-all"
-                              title="Approve & Generate Letter"
+                              onClick={() => handleProfileApproval(request, true)}
+                              className="px-3 py-1.5 bg-green-50 text-green-600 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-green-100 transition-all"
                             >
-                              <CheckCircle size={24} />
+                              Approve
                             </button>
                           </div>
                         )}
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
         )}
       </div>
     </div>

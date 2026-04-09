@@ -100,7 +100,7 @@ const FeedCard: React.FC<FeedCardProps> = ({
   const getStatusColor = (status: ODStatus) => {
     switch (status) {
       case 'Approved': return 'text-emerald-700 bg-emerald-400';
-      case 'Pending Advisor': return 'text-amber-600 bg-amber-100 border border-amber-200';
+      case 'Pending Coordinator': return 'text-amber-600 bg-amber-100 border border-amber-200';
       case 'Pending HOD': return 'text-amber-700 bg-amber-200 border border-amber-300';
       case 'Pending': return 'text-amber-600 bg-amber-200';
       case 'Rejected': return 'text-slate-900 bg-amber-100 border border-amber-200';
@@ -172,7 +172,7 @@ const FeedCard: React.FC<FeedCardProps> = ({
     ? `${formattedEventDate} - ${formattedEventEndDate}`
     : formattedEventDate;
 
-  const canDelete = !isFaculty && currentUserId === request.user_id && (request.status === 'Pending Advisor' || request.status === 'Rejected');
+  const canDelete = !isFaculty && currentUserId === request.user_id && (request.status === 'Pending Coordinator' || request.status === 'Rejected');
 
   // Dynamic grid configuration to avoid blank sections
   const gridColsClass = previews.length === 1 ? 'grid-cols-1' : 
@@ -557,7 +557,7 @@ const FeedCard: React.FC<FeedCardProps> = ({
           </div>
 
           <div className="flex items-center gap-4 shrink-0 w-full sm:w-auto justify-between sm:justify-end">
-            {!isAdminView && isFaculty && (request.status === 'Pending Advisor' || request.status === 'Pending HOD') && onApprove && onReject ? (
+            {!isAdminView && isFaculty && (request.status === 'Pending Coordinator' || request.status === 'Pending HOD') && onApprove && onReject ? (
               <div className="flex items-center gap-2">
                 {isProcessing ? (
                   <div className="flex items-center gap-2 text-blueprint-blue text-[10px] font-black uppercase tracking-widest">

@@ -8,6 +8,7 @@ import {
   ChevronRight, Calendar, Clock, User, 
   CheckCircle2, XCircle, Trash2, Info,
   GraduationCap, Briefcase, Building2,
+  FileText, CreditCard,
   ArrowUpDown, Download, LayoutDashboard,
   ArrowUp, ArrowDown, RefreshCw, Mail,
   AlertCircle, Check, X, Loader2, Send,
@@ -242,7 +243,8 @@ const AdminDashboard: React.FC = () => {
       } else if (activeTab === 'analytics') {
         const { data } = await supabase
           .from('od_requests')
-          .select('id, department, year, event_title, organization_name, event_type, status, student_name, roll_no, register_no, event_date, event_end_date, coordinator_id, hod_id');
+          .select('id, department, year, event_title, organization_name, event_type, status, student_name, roll_no, register_no, event_date, event_end_date, coordinator_id, hod_id, phone_number, semester, hod_approved_at, registration_proof_url, payment_proof_url, event_start_time')
+          .or('status.eq.Approved,and(hod_id.not.is.null,coordinator_id.not.is.null)');
         setAnalyticsData(data || []);
       }
     } catch (err) {
@@ -1539,7 +1541,7 @@ const AdminDashboard: React.FC = () => {
                     const filteredData = analyticsData.filter(r => 
                       r.department === selectedAnalyticsDept && 
                       (selectedAnalyticsYear === 'Overall' ? true : r.year === selectedAnalyticsYear.charAt(0)) &&
-                      r.coordinator_id !== null && r.hod_id !== null
+                      (r.status === 'Approved' || (r.hod_id !== null && r.coordinator_id !== null))
                     );
                     
                     const categoryCounts = EVENT_CATEGORIES.map(category => {
@@ -1554,7 +1556,7 @@ const AdminDashboard: React.FC = () => {
                         <div className="p-8 border-b bg-slate-50/50">
                           <div className="flex justify-between items-center">
                             <div>
-                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Approved Registrations</p>
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Approved Participations</p>
                               <h4 className="text-3xl font-black text-slate-900 tracking-tighter">
                                 {filteredData.length}
                               </h4>
@@ -1601,7 +1603,7 @@ const AdminDashboard: React.FC = () => {
                     const filteredData = analyticsData.filter(r => 
                       r.department === selectedAnalyticsDept && 
                       (selectedAnalyticsYear === 'Overall' ? true : r.year === selectedAnalyticsYear.charAt(0)) &&
-                      r.coordinator_id !== null && r.hod_id !== null &&
+                      (r.status === 'Approved' || (r.hod_id !== null && r.coordinator_id !== null)) &&
                       (r.event_type?.startsWith(selectedAnalyticsCategory) || r.event_type === selectedAnalyticsCategory)
                     );
 
@@ -1625,14 +1627,16 @@ const AdminDashboard: React.FC = () => {
                             <thead>
                               <tr className="bg-slate-50/50 border-b">
                                 <th className="px-8 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Student Info</th>
-                                <th className="px-8 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Event Details</th>
-                                <th className="px-8 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Organization</th>
+                                <th className="px-8 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Period Details</th>
+                                <th className="px-8 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Event Specifics</th>
+                                <th className="px-8 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Proofs</th>
+                                <th className="px-8 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Audit Info</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y">
                               {filteredData.length === 0 ? (
                                 <tr>
-                                  <td colSpan={3} className="px-8 py-12 text-center">
+                                  <td colSpan={5} className="px-8 py-12 text-center">
                                     <p className="text-xs font-bold text-slate-400 uppercase tracking-widest italic">No approved registrations found for this category.</p>
                                   </td>
                                 </tr>
@@ -1647,23 +1651,60 @@ const AdminDashboard: React.FC = () => {
                                         <div>
                                           <p className="font-bold text-slate-900 text-sm uppercase tracking-tight">{student.student_name}</p>
                                           <p className="text-[10px] font-mono text-slate-400 uppercase">Roll: {student.roll_no || 'N/A'}</p>
+                                          <p className="text-[10px] font-mono text-slate-400 uppercase">Phone: {student.phone_number || 'N/A'}</p>
+                                          <p className="text-[10px] font-mono text-blueprint-blue uppercase font-black">Sem: {student.semester || 'N/A'}</p>
                                         </div>
                                       </div>
                                     </td>
                                     <td className="px-8 py-6">
                                       <div className="flex items-center gap-2 mb-1">
-                                        <Info size={12} className="text-blueprint-blue" />
-                                        <p className="font-bold text-slate-700 text-xs uppercase tracking-tight">{student.event_title}</p>
+                                        <Calendar size={12} className="text-blueprint-blue" />
+                                        <p className="text-[10px] font-mono text-slate-700 uppercase font-bold">
+                                          {student.event_date} {student.event_end_date && student.event_end_date !== student.event_date ? `to ${student.event_end_date}` : ''}
+                                        </p>
                                       </div>
                                       <div className="flex items-center gap-2">
-                                        <Calendar size={12} className="text-slate-400" />
+                                        <Clock size={12} className="text-slate-400" />
                                         <p className="text-[10px] font-mono text-slate-500 uppercase">
-                                          {student.event_date} {student.event_end_date && student.event_end_date !== student.event_date ? `to ${student.event_end_date}` : ''}
+                                          {student.event_start_time || 'Day Event'}
                                         </p>
                                       </div>
                                     </td>
                                     <td className="px-8 py-6">
-                                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{student.organization_name}</p>
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <Building2 size={12} className="text-slate-400" />
+                                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{student.organization_name}</p>
+                                      </div>
+                                      <p className="text-[9px] font-bold text-blueprint-blue uppercase italic">{student.event_type}</p>
+                                    </td>
+                                    <td className="px-8 py-6">
+                                      <div className="flex items-center justify-center gap-4">
+                                        {student.registration_proof_url ? (
+                                          <a href={student.registration_proof_url} target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-blueprint-blue transition-colors" title="Registration Proof">
+                                            <FileText size={16} />
+                                          </a>
+                                        ) : (
+                                          <FileText size={16} className="text-slate-200" />
+                                        )}
+                                        {student.payment_proof_url ? (
+                                          <a href={student.payment_proof_url} target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-blueprint-blue transition-colors" title="Payment Proof">
+                                            <CreditCard size={16} />
+                                          </a>
+                                        ) : (
+                                          <CreditCard size={16} className="text-slate-200" />
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td className="px-8 py-6">
+                                      <div className="flex items-center gap-2">
+                                        <CheckCircle2 size={12} className="text-emerald-500" />
+                                        <div>
+                                          <p className="text-[10px] font-black text-slate-400 uppercase">Sanctioned At</p>
+                                          <p className="text-[10px] font-mono text-slate-600">
+                                            {student.hod_approved_at ? new Date(student.hod_approved_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'N/A'}
+                                          </p>
+                                        </div>
+                                      </div>
                                     </td>
                                   </tr>
                                 ))

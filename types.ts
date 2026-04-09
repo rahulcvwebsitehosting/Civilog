@@ -55,6 +55,7 @@ export interface ODRequest {
   event_type: string;
   event_date: string;
   event_end_date: string | null;
+  event_start_time?: string | null;
   status: ODStatus;
   registration_proof_url: string | null;
   payment_proof_url: string | null;

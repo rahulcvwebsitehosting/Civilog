@@ -180,6 +180,13 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
     setLoading(true);
     setError(null);
 
+    // Step -1: Validate Department against DEPARTMENTS constant
+    if (!DEPARTMENTS.includes(formData.department)) {
+      setError(`Invalid Department: "${formData.department}". Please select a valid department from the list.`);
+      setLoading(false);
+      return;
+    }
+
     try {
       
       // Step 0: Ensure profile exists in DB (Resiliency check)

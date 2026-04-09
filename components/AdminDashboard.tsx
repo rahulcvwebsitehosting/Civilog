@@ -21,12 +21,13 @@ import { DEPARTMENTS, EVENT_CATEGORIES } from '../constants';
 
 const AdminDashboard: React.FC = () => {
   const { showToast } = useToast();
-  const [activeTab, setActiveTab] = useState<'users' | 'requests' | 'feed' | 'system' | 'mail' | 'locks' | 'audit' | 'deletions' | 'analytics'>('feed');
+  const [activeTab, setActiveTab] = useState<'users' | 'requests' | 'feed' | 'system' | 'mail' | 'locks' | 'audit' | 'deletions' | 'analytics'>('analytics');
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [requests, setRequests] = useState<ODRequest[]>([]);
   const [analyticsData, setAnalyticsData] = useState<any[]>([]);
   const [selectedAnalyticsDept, setSelectedAnalyticsDept] = useState<string | null>(null);
   const [selectedAnalyticsYear, setSelectedAnalyticsYear] = useState<string | null>(null);
+  const [selectedAnalyticsCategory, setSelectedAnalyticsCategory] = useState<string | null>(null);
   const [registrationLocks, setRegistrationLocks] = useState<Record<string, any>>({});
   const [deletionRequests, setDeletionRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -241,7 +242,7 @@ const AdminDashboard: React.FC = () => {
       } else if (activeTab === 'analytics') {
         const { data } = await supabase
           .from('od_requests')
-          .select('id, department, year, event_type, status, student_name');
+          .select('id, department, year, event_title, organization_name, event_type, status, student_name, roll_no, register_no, event_date, event_end_date, coordinator_id, hod_id');
         setAnalyticsData(data || []);
       }
     } catch (err) {
@@ -647,16 +648,16 @@ const AdminDashboard: React.FC = () => {
           
           <div className="flex bg-white p-1 rounded-2xl border shadow-sm overflow-x-auto">
             <button 
-              onClick={() => setActiveTab('feed')}
-              className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'feed' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
-            >
-              <LayoutDashboard size={14} className="inline mr-2" /> Global Feed
-            </button>
-            <button 
               onClick={() => setActiveTab('analytics')}
               className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'analytics' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
             >
               <BarChart3 size={14} className="inline mr-2" /> Analytics
+            </button>
+            <button 
+              onClick={() => setActiveTab('feed')}
+              className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'feed' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              <LayoutDashboard size={14} className="inline mr-2" /> Global Feed
             </button>
             <button 
               onClick={() => setActiveTab('users')}
@@ -1450,14 +1451,21 @@ const AdminDashboard: React.FC = () => {
                                 <span className="text-blueprint-blue">{selectedAnalyticsYear}</span>
                               </>
                             )}
+                            {selectedAnalyticsCategory && (
+                              <>
+                                <ChevronRight size={12} />
+                                <span className="text-blueprint-blue">{selectedAnalyticsCategory}</span>
+                              </>
+                            )}
                           </span>
                         ) : "Drill down into department-wise OD statistics"}
                       </p>
                     </div>
-                    {(selectedAnalyticsDept || selectedAnalyticsYear) && (
+                    {(selectedAnalyticsDept || selectedAnalyticsYear || selectedAnalyticsCategory) && (
                       <button 
                         onClick={() => {
-                          if (selectedAnalyticsYear) setSelectedAnalyticsYear(null);
+                          if (selectedAnalyticsCategory) setSelectedAnalyticsCategory(null);
+                          else if (selectedAnalyticsYear) setSelectedAnalyticsYear(null);
                           else setSelectedAnalyticsDept(null);
                         }}
                         className="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all flex items-center gap-2"
@@ -1527,10 +1535,11 @@ const AdminDashboard: React.FC = () => {
                   )}
 
                   {/* Level 3: Event Breakdown */}
-                  {selectedAnalyticsDept && selectedAnalyticsYear && (() => {
+                  {selectedAnalyticsDept && selectedAnalyticsYear && !selectedAnalyticsCategory && (() => {
                     const filteredData = analyticsData.filter(r => 
                       r.department === selectedAnalyticsDept && 
-                      (selectedAnalyticsYear === 'Overall' ? true : r.year === selectedAnalyticsYear.charAt(0))
+                      (selectedAnalyticsYear === 'Overall' ? true : r.year === selectedAnalyticsYear.charAt(0)) &&
+                      r.coordinator_id !== null && r.hod_id !== null
                     );
                     
                     const categoryCounts = EVENT_CATEGORIES.map(category => {
@@ -1538,16 +1547,14 @@ const AdminDashboard: React.FC = () => {
                         (r.event_type?.startsWith(category.value) || r.event_type === category.value)
                       ).length;
                       return { ...category, count };
-                    })
-                    .filter(c => c.count > 0)
-                    .sort((a, b) => b.count - a.count);
+                    });
 
                     return (
                       <div className="bg-white border rounded-[2rem] shadow-sm overflow-hidden">
                         <div className="p-8 border-b bg-slate-50/50">
                           <div className="flex justify-between items-center">
                             <div>
-                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Registrations</p>
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Approved Registrations</p>
                               <h4 className="text-3xl font-black text-slate-900 tracking-tighter">
                                 {filteredData.length}
                               </h4>
@@ -1560,7 +1567,11 @@ const AdminDashboard: React.FC = () => {
                         </div>
                         <div className="divide-y">
                           {categoryCounts.map(category => (
-                            <div key={category.value} className="p-6 flex justify-between items-center hover:bg-slate-50 transition-colors">
+                            <button 
+                              key={category.value} 
+                              onClick={() => setSelectedAnalyticsCategory(category.value)}
+                              className="w-full p-6 flex justify-between items-center hover:bg-slate-50 transition-colors text-left"
+                            >
                               <div className="flex items-center gap-4">
                                 <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500">
                                   <BarChart3 size={18} />
@@ -1571,15 +1582,94 @@ const AdminDashboard: React.FC = () => {
                                 <div className="h-2 w-32 bg-slate-100 rounded-full overflow-hidden hidden sm:block">
                                   <div 
                                     className="h-full bg-blueprint-blue transition-all duration-1000"
-                                    style={{ width: `${(category.count / filteredData.length) * 100}%` }}
+                                    style={{ width: filteredData.length > 0 ? `${(category.count / filteredData.length) * 100}%` : '0%' }}
                                   ></div>
                                 </div>
                                 <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-lg text-[10px] font-black uppercase tracking-widest min-w-[60px] text-center">
                                   {category.count}
                                 </span>
                               </div>
-                            </div>
+                            </button>
                           ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Level 4: Approved Students List */}
+                  {selectedAnalyticsDept && selectedAnalyticsYear && selectedAnalyticsCategory && (() => {
+                    const filteredData = analyticsData.filter(r => 
+                      r.department === selectedAnalyticsDept && 
+                      (selectedAnalyticsYear === 'Overall' ? true : r.year === selectedAnalyticsYear.charAt(0)) &&
+                      r.coordinator_id !== null && r.hod_id !== null &&
+                      (r.event_type?.startsWith(selectedAnalyticsCategory) || r.event_type === selectedAnalyticsCategory)
+                    );
+
+                    return (
+                      <div className="bg-white border rounded-[2rem] shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <div className="p-8 border-b bg-slate-50/50 flex justify-between items-center">
+                          <div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Approved Students</p>
+                            <h4 className="text-2xl font-black text-slate-900 tracking-tighter uppercase italic">
+                              {selectedAnalyticsCategory}
+                            </h4>
+                          </div>
+                          <div className="text-right">
+                            <span className="px-4 py-2 bg-blueprint-blue text-white rounded-xl text-[10px] font-black uppercase tracking-widest">
+                              {filteredData.length} Students
+                            </span>
+                          </div>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse">
+                            <thead>
+                              <tr className="bg-slate-50/50 border-b">
+                                <th className="px-8 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Student Info</th>
+                                <th className="px-8 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Event Details</th>
+                                <th className="px-8 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Organization</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y">
+                              {filteredData.length === 0 ? (
+                                <tr>
+                                  <td colSpan={3} className="px-8 py-12 text-center">
+                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest italic">No approved registrations found for this category.</p>
+                                  </td>
+                                </tr>
+                              ) : (
+                                filteredData.map((student) => (
+                                  <tr key={student.id} className="hover:bg-slate-50/50 transition-colors">
+                                    <td className="px-8 py-6">
+                                      <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 rounded-lg bg-blueprint-blue/10 flex items-center justify-center text-blueprint-blue">
+                                          <User size={16} />
+                                        </div>
+                                        <div>
+                                          <p className="font-bold text-slate-900 text-sm uppercase tracking-tight">{student.student_name}</p>
+                                          <p className="text-[10px] font-mono text-slate-400 uppercase">Roll: {student.roll_no || 'N/A'}</p>
+                                        </div>
+                                      </div>
+                                    </td>
+                                    <td className="px-8 py-6">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <Info size={12} className="text-blueprint-blue" />
+                                        <p className="font-bold text-slate-700 text-xs uppercase tracking-tight">{student.event_title}</p>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <Calendar size={12} className="text-slate-400" />
+                                        <p className="text-[10px] font-mono text-slate-500 uppercase">
+                                          {student.event_date} {student.event_end_date && student.event_end_date !== student.event_date ? `to ${student.event_end_date}` : ''}
+                                        </p>
+                                      </div>
+                                    </td>
+                                    <td className="px-8 py-6">
+                                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{student.organization_name}</p>
+                                    </td>
+                                  </tr>
+                                ))
+                              )}
+                            </tbody>
+                          </table>
                         </div>
                       </div>
                     );

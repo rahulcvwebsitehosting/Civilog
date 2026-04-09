@@ -225,7 +225,7 @@ const AdminDashboard: React.FC = () => {
       } else if (activeTab === 'deletions') {
         const { data } = await supabase
           .from('deletion_requests')
-          .select('*')
+          .select('*, profiles(role, department)')
           .eq('status', 'pending')
           .order('requested_at', { ascending: true });
         setDeletionRequests(data || []);
@@ -1363,14 +1363,29 @@ const AdminDashboard: React.FC = () => {
                                   <User size={24} />
                                 </div>
                                 <div>
-                                  <h4 className="font-bold text-slate-900 text-sm uppercase tracking-tight">{req.user_name}</h4>
+                                  <h4 className="font-bold text-slate-900 text-sm uppercase tracking-tight flex items-center gap-2">
+                                    {req.user_name}
+                                    {req.profiles?.role && (
+                                      <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest border ${
+                                        req.profiles.role === 'hod' ? 'bg-purple-50 text-purple-600 border-purple-100' : 
+                                        req.profiles.role === 'coordinator' ? 'bg-blue-50 text-blue-600 border-blue-100' : 
+                                        'bg-slate-50 text-slate-600 border-slate-100'
+                                      }`}>
+                                        {req.profiles.role}
+                                      </span>
+                                    )}
+                                  </h4>
                                   <p className="text-[10px] font-mono text-slate-400 uppercase">{req.user_email}</p>
                                 </div>
                               </div>
                               
                               <div className="bg-slate-50 p-6 rounded-2xl border">
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Reason for Deletion</p>
-                                <p className="text-sm text-slate-700 leading-relaxed">{req.reason}</p>
+                                {req.reason ? (
+                                  <p className="text-sm text-slate-700 leading-relaxed">{req.reason}</p>
+                                ) : (
+                                  <p className="text-sm text-slate-400 italic">No reason provided</p>
+                                )}
                               </div>
 
                               <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase">

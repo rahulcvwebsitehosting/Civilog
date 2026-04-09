@@ -409,52 +409,54 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ profile, onUpdate }) => {
           </form>
 
           {/* Danger Zone: Account Deletion */}
-          <div className="mt-12 bg-red-50 rounded-[2rem] border border-red-100 p-8 shadow-sm">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 bg-red-100 text-red-600 rounded-xl flex items-center justify-center">
-                <Trash2 size={20} />
-              </div>
-              <div>
-                <h3 className="text-lg font-black text-red-900 uppercase tracking-tight">Danger Zone</h3>
-                <p className="text-[10px] font-bold text-red-400 uppercase tracking-widest">Request Account Deletion</p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <p className="text-xs text-red-700 leading-relaxed">
-                Deleting your account is permanent. All your profile data will be removed. 
-                Your OD requests will be preserved for institutional audit records but will no longer be linked to your profile.
-              </p>
-
-              {hasPendingRequest ? (
-                <div className="p-4 bg-white border border-red-200 rounded-2xl flex items-center gap-3">
-                  <CheckCircle2 className="text-green-500" size={18} />
-                  <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">
-                    Your deletion request has been submitted and is pending admin review.
-                  </p>
+          {(profile.role === 'student' || profile.role === 'coordinator' || profile.role === 'hod') && (
+            <div className="mt-12 bg-red-50 rounded-[2rem] border border-red-100 p-8 shadow-sm">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-red-100 text-red-600 rounded-xl flex items-center justify-center">
+                  <Trash2 size={20} />
                 </div>
-              ) : (
-                <form onSubmit={handleRequestDeletion} className="space-y-4">
-                  <textarea 
-                    placeholder="Please provide a reason for account deletion..."
-                    value={deletionReason}
-                    onChange={(e) => setDeletionReason(e.target.value)}
-                    required
-                    rows={3}
-                    className="w-full px-5 py-3.5 rounded-xl bg-white border border-red-100 outline-none text-sm focus:border-red-500 resize-none"
-                  />
-                  <button 
-                    type="submit" 
-                    disabled={requestingDeletion || !deletionReason.trim()}
-                    className="bg-red-600 text-white px-8 py-3.5 rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center gap-2 shadow-lg shadow-red-500/20 hover:bg-red-700 transition-all disabled:opacity-50"
-                  >
-                    {requestingDeletion ? <Loader2 className="animate-spin" size={16} /> : <Trash2 size={16} />}
-                    Submit Deletion Request
-                  </button>
-                </form>
-              )}
+                <div>
+                  <h3 className="text-lg font-black text-red-900 uppercase tracking-tight">Danger Zone</h3>
+                  <p className="text-[10px] font-bold text-red-400 uppercase tracking-widest">Request Account Deletion</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <p className="text-xs text-red-700 leading-relaxed">
+                  Deleting your account is permanent. All your profile data will be removed. 
+                  Your OD requests will be preserved for institutional audit records but will no longer be linked to your profile.
+                </p>
+
+                {hasPendingRequest ? (
+                  <div className="p-4 bg-white border border-red-200 rounded-2xl flex items-center gap-3">
+                    <CheckCircle2 className="text-green-500" size={18} />
+                    <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">
+                      Your deletion request has been submitted and is pending admin review.
+                    </p>
+                  </div>
+                ) : (
+                  <form onSubmit={handleRequestDeletion} className="space-y-4">
+                    <textarea 
+                      placeholder={profile.role === 'student' ? "Please provide a reason for account deletion..." : "Optional: provide a reason for account deletion"}
+                      value={deletionReason}
+                      onChange={(e) => setDeletionReason(e.target.value)}
+                      required={profile.role === 'student'}
+                      rows={3}
+                      className="w-full px-5 py-3.5 rounded-xl bg-white border border-red-100 outline-none text-sm focus:border-red-500 resize-none"
+                    />
+                    <button 
+                      type="submit" 
+                      disabled={requestingDeletion || (profile.role === 'student' && !deletionReason.trim())}
+                      className="bg-red-600 text-white px-8 py-3.5 rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center gap-2 shadow-lg shadow-red-500/20 hover:bg-red-700 transition-all disabled:opacity-50"
+                    >
+                      {requestingDeletion ? <Loader2 className="animate-spin" size={16} /> : <Trash2 size={16} />}
+                      Submit Deletion Request
+                    </button>
+                  </form>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

@@ -17,13 +17,16 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import FeedCard from './FeedCard';
 import { useToast } from '../contexts/ToastContext';
-import { DEPARTMENTS } from '../constants';
+import { DEPARTMENTS, EVENT_CATEGORIES } from '../constants';
 
 const AdminDashboard: React.FC = () => {
   const { showToast } = useToast();
-  const [activeTab, setActiveTab] = useState<'users' | 'requests' | 'feed' | 'system' | 'mail' | 'locks' | 'audit' | 'deletions'>('feed');
+  const [activeTab, setActiveTab] = useState<'users' | 'requests' | 'feed' | 'system' | 'mail' | 'locks' | 'audit' | 'deletions' | 'analytics'>('feed');
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [requests, setRequests] = useState<ODRequest[]>([]);
+  const [analyticsData, setAnalyticsData] = useState<any[]>([]);
+  const [selectedAnalyticsDept, setSelectedAnalyticsDept] = useState<string | null>(null);
+  const [selectedAnalyticsYear, setSelectedAnalyticsYear] = useState<string | null>(null);
   const [registrationLocks, setRegistrationLocks] = useState<Record<string, any>>({});
   const [deletionRequests, setDeletionRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -235,6 +238,11 @@ const AdminDashboard: React.FC = () => {
           .select('*')
           .order('created_at', { ascending: sortOrder === 'asc' });
         setRequests(data || []);
+      } else if (activeTab === 'analytics') {
+        const { data } = await supabase
+          .from('od_requests')
+          .select('id, department, year, event_type, status, student_name');
+        setAnalyticsData(data || []);
       }
     } catch (err) {
       console.error("Fetch Error:", err);
@@ -643,6 +651,12 @@ const AdminDashboard: React.FC = () => {
               className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'feed' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
             >
               <LayoutDashboard size={14} className="inline mr-2" /> Global Feed
+            </button>
+            <button 
+              onClick={() => setActiveTab('analytics')}
+              className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'analytics' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              <BarChart3 size={14} className="inline mr-2" /> Analytics
             </button>
             <button 
               onClick={() => setActiveTab('users')}
@@ -1417,6 +1431,159 @@ const AdminDashboard: React.FC = () => {
                       ))}
                     </div>
                   )}
+                </div>
+              )}
+              {activeTab === 'analytics' && (
+                <div className="p-8 space-y-8">
+                  <div className="mb-8 flex justify-between items-end">
+                    <div>
+                      <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight flex items-center gap-3">
+                        <BarChart3 className="text-blueprint-blue" size={24} /> Department Analytics
+                      </h3>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
+                        {selectedAnalyticsDept ? (
+                          <span className="flex items-center gap-2">
+                            <span className="text-blueprint-blue">{selectedAnalyticsDept}</span>
+                            {selectedAnalyticsYear && (
+                              <>
+                                <ChevronRight size={12} />
+                                <span className="text-blueprint-blue">{selectedAnalyticsYear}</span>
+                              </>
+                            )}
+                          </span>
+                        ) : "Drill down into department-wise OD statistics"}
+                      </p>
+                    </div>
+                    {(selectedAnalyticsDept || selectedAnalyticsYear) && (
+                      <button 
+                        onClick={() => {
+                          if (selectedAnalyticsYear) setSelectedAnalyticsYear(null);
+                          else setSelectedAnalyticsDept(null);
+                        }}
+                        className="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all flex items-center gap-2"
+                      >
+                        <History size={14} /> Back
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Level 1: Department Grid */}
+                  {!selectedAnalyticsDept && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {DEPARTMENTS.map(dept => {
+                        const count = analyticsData.filter(r => r.department === dept).length;
+                        return (
+                          <button 
+                            key={dept}
+                            onClick={() => setSelectedAnalyticsDept(dept)}
+                            className="bg-white border rounded-[2rem] p-8 shadow-sm hover:shadow-md transition-all text-left group"
+                          >
+                            <div className="flex justify-between items-start mb-4">
+                              <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover:text-blueprint-blue transition-colors">
+                                <Building2 size={24} />
+                              </div>
+                              <span className="px-3 py-1 bg-blueprint-blue/10 text-blueprint-blue rounded-full text-[10px] font-black uppercase tracking-widest">
+                                {count} Requests
+                              </span>
+                            </div>
+                            <h4 className="font-bold text-slate-900 text-sm uppercase tracking-tight leading-tight">{dept}</h4>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Level 2: Year Breakdown */}
+                  {selectedAnalyticsDept && !selectedAnalyticsYear && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {['1st Year', '2nd Year', '3rd Year', '4th Year', '5th Year', 'Overall'].map(year => {
+                        const yearNum = year.charAt(0);
+                        const filtered = analyticsData.filter(r => 
+                          r.department === selectedAnalyticsDept && 
+                          (year === 'Overall' ? true : r.year === yearNum)
+                        );
+                        
+                        if (year === '5th Year' && filtered.length === 0) return null;
+
+                        return (
+                          <button 
+                            key={year}
+                            onClick={() => setSelectedAnalyticsYear(year)}
+                            className="bg-white border rounded-[2rem] p-8 shadow-sm hover:shadow-md transition-all text-left group"
+                          >
+                            <div className="flex justify-between items-start mb-4">
+                              <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover:text-blueprint-blue transition-colors">
+                                <GraduationCap size={24} />
+                              </div>
+                              <span className="px-3 py-1 bg-blueprint-blue/10 text-blueprint-blue rounded-full text-[10px] font-black uppercase tracking-widest">
+                                {filtered.length} Requests
+                              </span>
+                            </div>
+                            <h4 className="font-bold text-slate-900 text-sm uppercase tracking-tight leading-tight">{year}</h4>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Level 3: Event Breakdown */}
+                  {selectedAnalyticsDept && selectedAnalyticsYear && (() => {
+                    const filteredData = analyticsData.filter(r => 
+                      r.department === selectedAnalyticsDept && 
+                      (selectedAnalyticsYear === 'Overall' ? true : r.year === selectedAnalyticsYear.charAt(0))
+                    );
+                    
+                    const categoryCounts = EVENT_CATEGORIES.map(category => {
+                      const count = filteredData.filter(r => 
+                        (r.event_type?.startsWith(category.value) || r.event_type === category.value)
+                      ).length;
+                      return { ...category, count };
+                    })
+                    .filter(c => c.count > 0)
+                    .sort((a, b) => b.count - a.count);
+
+                    return (
+                      <div className="bg-white border rounded-[2rem] shadow-sm overflow-hidden">
+                        <div className="p-8 border-b bg-slate-50/50">
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Registrations</p>
+                              <h4 className="text-3xl font-black text-slate-900 tracking-tighter">
+                                {filteredData.length}
+                              </h4>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Scope</p>
+                              <p className="text-xs font-bold text-blueprint-blue uppercase tracking-tight">{selectedAnalyticsDept} • {selectedAnalyticsYear}</p>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="divide-y">
+                          {categoryCounts.map(category => (
+                            <div key={category.value} className="p-6 flex justify-between items-center hover:bg-slate-50 transition-colors">
+                              <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500">
+                                  <BarChart3 size={18} />
+                                </div>
+                                <span className="text-sm font-bold text-slate-700 uppercase tracking-tight">{category.label}</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <div className="h-2 w-32 bg-slate-100 rounded-full overflow-hidden hidden sm:block">
+                                  <div 
+                                    className="h-full bg-blueprint-blue transition-all duration-1000"
+                                    style={{ width: `${(category.count / filteredData.length) * 100}%` }}
+                                  ></div>
+                                </div>
+                                <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-lg text-[10px] font-black uppercase tracking-widest min-w-[60px] text-center">
+                                  {category.count}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
               {activeTab === 'system' && (

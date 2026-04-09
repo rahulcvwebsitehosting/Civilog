@@ -41,3 +41,71 @@ export const TAMIL_NADU_DISTRICTS = [
   'Tirupathur', 'Tiruppur', 'Tiruvallur', 'Tiruvannamalai', 'Tiruvarur',
   'Vellore', 'Viluppuram', 'Virudhunagar', 'Other'
 ];
+
+export const EVENT_CATEGORIES = [
+  {
+    label: 'Hackathon',
+    value: 'Hackathon',
+    subcategories: []
+  },
+  {
+    label: 'Paper Presentation',
+    value: 'Paper Presentation',
+    subcategories: []
+  },
+  {
+    label: 'Poster Presentation',
+    value: 'Poster Presentation',
+    subcategories: []
+  },
+  {
+    label: 'Technical Event',
+    value: 'Technical Event',
+    subcategories: ['Quiz', 'Project Contest', 'Other']
+  },
+  {
+    label: 'Workshop',
+    value: 'Workshop',
+    subcategories: ['Seminar', 'Webinar', 'Other']
+  },
+  {
+    label: 'Sports',
+    value: 'Sports',
+    subcategories: []
+  },
+  {
+    label: 'Extra Curricular',
+    value: 'Extra Curricular',
+    subcategories: ['NCC', 'NSS', 'Other']
+  },
+  {
+    label: 'Culturals',
+    value: 'Culturals',
+    subcategories: []
+  },
+  {
+    label: 'NPTEL',
+    value: 'NPTEL',
+    subcategories: []
+  },
+  {
+    label: 'Internship',
+    value: 'Internship',
+    subcategories: []
+  },
+  {
+    label: 'Symposium',
+    value: 'Symposium',
+    subcategories: []
+  },
+  {
+    label: 'FDP',
+    value: 'FDP',
+    subcategories: []
+  },
+  {
+    label: 'Conference',
+    value: 'Conference',
+    subcategories: []
+  }
+];

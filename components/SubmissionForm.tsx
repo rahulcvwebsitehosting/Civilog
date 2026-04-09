@@ -16,7 +16,7 @@ interface SubmissionFormProps {
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
 
-import { DEPARTMENTS, BASE_URL, TAMIL_NADU_DISTRICTS } from '../constants';
+import { DEPARTMENTS, BASE_URL, TAMIL_NADU_DISTRICTS, EVENT_CATEGORIES } from '../constants';
 
 const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, profile }) => {
   const initialYear = profile?.year || '2';
@@ -36,13 +36,15 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
     event_title: '',
     organization_name: '',
     organization_location: '',
-    event_type: 'Symposium',
+    event_type: '',
     event_date: '',
     event_end_date: '',
     team_members: [],
   });
 
-  const [customEventType, setCustomEventType] = useState('');
+  const [eventCategorySearch, setEventCategorySearch] = useState('');
+  const [eventSubType, setEventSubType] = useState('');
+  const [customSubType, setCustomSubType] = useState('');
   const [customLocation, setCustomLocation] = useState('');
   const [regFile, setRegFile] = useState<File | null>(null);
   const [payFile, setPayFile] = useState<File | null>(null);
@@ -170,6 +172,11 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!formData.event_type) {
+      setError("Please select an event category.");
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -207,7 +214,15 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
       const posterUrl = posterPath ? supabase.storage.from('od-files').getPublicUrl(posterPath).data.publicUrl : null;
       const payUrl = payPath ? supabase.storage.from('od-files').getPublicUrl(payPath).data.publicUrl : null;
 
-      const finalEventType = formData.event_type === 'Others' ? customEventType : formData.event_type;
+      let finalEventType = formData.event_type;
+      if (eventSubType) {
+        if (eventSubType === 'Other' && customSubType) {
+          finalEventType = `${formData.event_type} - Other: ${customSubType}`;
+        } else {
+          finalEventType = `${formData.event_type} - ${eventSubType}`;
+        }
+      }
+
       const finalLocation = formData.organization_location === 'Other' ? customLocation : formData.organization_location;
 
       // Step 2: Prepare Database Data
@@ -464,33 +479,53 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
               placeholder="Ex. Seismic Analysis of High-Rise Structures" 
             />
           </div>
-          <div className="grid grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div className="space-y-2">
-              <select name="event_type" value={formData.event_type} onChange={handleInputChange} className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none shadow-sm">
-                <option value="Conference">Conference</option>
-                <option value="Culturals">Culturals</option>
-                <option value="FDP">FDP</option>
-                <option value="Hackathon">Hackathon</option>
-                <option value="NSS/NCC">NSS/NCC</option>
-                <option value="Paper Presentation">Paper Presentation</option>
-                <option value="Project Contest">Project Contest</option>
-                <option value="Quiz Event">Quiz Event</option>
-                <option value="Seminar">Seminar</option>
-                <option value="Sports / Games">Sports / Games</option>
-                <option value="Symposium">Symposium</option>
-                <option value="Webinar">Webinar</option>
-                <option value="Workshop">Workshop</option>
-                <option value="Others">Others</option>
-              </select>
-              {formData.event_type === 'Others' && (
-                <input 
-                  type="text"
-                  placeholder="Specify Event Type"
-                  value={customEventType}
-                  onChange={(e) => setCustomEventType(e.target.value)}
-                  className="w-full bg-white dark:bg-gray-700 text-sm px-5 py-3 rounded-xl border-2 border-blueprint-blue outline-none animate-in slide-in-from-top-1 duration-200"
-                  required
-                />
+              <SearchableSelect
+                label="Event Category"
+                options={EVENT_CATEGORIES.map(c => c.label)}
+                value={formData.event_type}
+                onChange={(val) => {
+                  setFormData(prev => ({ ...prev, event_type: val }));
+                  setEventSubType('');
+                  setCustomSubType('');
+                }}
+                placeholder="Search Event Category"
+              />
+              
+              {formData.event_type && (
+                <>
+                  {EVENT_CATEGORIES.find(c => c.value === formData.event_type)?.subcategories.length! > 0 && (
+                    <div className="space-y-1.5 animate-in slide-in-from-top-1 duration-200">
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Select Sub-Category</label>
+                      <select 
+                        value={eventSubType}
+                        onChange={(e) => {
+                          setEventSubType(e.target.value);
+                          if (e.target.value !== 'Other') setCustomSubType('');
+                        }}
+                        className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none shadow-sm"
+                        required
+                      >
+                        <option value="">Choose Sub-Category</option>
+                        {EVENT_CATEGORIES.find(c => c.value === formData.event_type)?.subcategories.map(sub => (
+                          <option key={sub} value={sub}>{sub}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {eventSubType === 'Other' && (
+                    <input 
+                      type="text"
+                      placeholder="Specify Sub-Category"
+                      value={customSubType}
+                      onChange={(e) => setCustomSubType(e.target.value)}
+                      className="w-full bg-white dark:bg-gray-700 text-sm px-5 py-3 rounded-xl border-2 border-blueprint-blue outline-none animate-in slide-in-from-top-1 duration-200"
+                      required
+                    />
+                  )}
+                </>
               )}
             </div>
             <input name="organization_name" required value={formData.organization_name} onChange={handleInputChange} className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none shadow-sm h-fit" placeholder="Organization (Ex. ESEC)" />

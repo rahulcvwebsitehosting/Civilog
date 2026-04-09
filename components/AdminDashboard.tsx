@@ -212,7 +212,7 @@ const AdminDashboard: React.FC = () => {
       if (activeTab === 'users' || activeTab === 'mail') {
         const { data } = await supabase
           .from('profiles')
-          .select('id, full_name, email, role, department, is_profile_complete, identification_no, phone_number, roll_no, year, designation, is_blacklisted, blacklist_reason')
+          .select('id, full_name, email, role, department, is_profile_complete, identification_no, phone_number, roll_no, year, designation, is_blacklisted, blacklist_reason, is_profile_locked')
           .order('full_name');
         setProfiles(data || []);
       } else if (activeTab === 'locks') {
@@ -840,59 +840,110 @@ const AdminDashboard: React.FC = () => {
                           </div>
                         </td>
                         <td className="p-6 text-right">
-                          {p.role === 'student' && (
-                            <div className="flex flex-col items-end gap-2">
-                              {p.is_blacklisted ? (
-                                <div className="flex items-center gap-2">
-                                  <span className="px-2 py-1 bg-red-100 text-red-600 rounded text-[8px] font-black uppercase tracking-widest border border-red-200">Blacklisted</span>
-                                  <button 
-                                    onClick={() => handleUnblock(p.id)}
-                                    disabled={processingId === p.id}
-                                    className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-green-700 transition-all disabled:opacity-50"
-                                  >
-                                    {processingId === p.id ? <RefreshCw size={10} className="animate-spin" /> : 'Unblock'}
-                                  </button>
-                                </div>
-                              ) : (
-                                <>
-                                  {blacklistingUserId === p.id ? (
-                                    <div className="flex flex-col gap-2 w-48">
-                                      <input 
-                                        type="text"
-                                        placeholder="Reason for blacklist..."
-                                        value={blacklistReason}
-                                        onChange={(e) => setBlacklistReason(e.target.value)}
-                                        className="px-3 py-2 bg-slate-50 border rounded-lg text-[10px] outline-none focus:border-red-500"
-                                        autoFocus
-                                      />
-                                      <div className="flex gap-2">
-                                        <button 
-                                          onClick={() => { setBlacklistingUserId(null); setBlacklistReason(''); }}
-                                          className="flex-1 px-2 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all"
-                                        >
-                                          Cancel
-                                        </button>
-                                        <button 
-                                          onClick={() => handleBlacklist(p.id)}
-                                          disabled={processingId === p.id}
-                                          className="flex-1 px-2 py-1.5 bg-red-600 text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-red-700 transition-all disabled:opacity-50"
-                                        >
-                                          {processingId === p.id ? <RefreshCw size={10} className="animate-spin" /> : 'Confirm'}
-                                        </button>
-                                      </div>
-                                    </div>
-                                  ) : (
+                          <div className="flex flex-col items-end gap-2">
+                            {p.role === 'student' && (
+                              <div className="flex flex-col items-end gap-2">
+                                {p.is_blacklisted ? (
+                                  <div className="flex items-center gap-2">
+                                    <span className="px-2 py-1 bg-red-100 text-red-600 rounded text-[8px] font-black uppercase tracking-widest border border-red-200">Blacklisted</span>
                                     <button 
-                                      onClick={() => setBlacklistingUserId(p.id)}
-                                      className="px-3 py-1.5 bg-red-50 text-red-600 border border-red-100 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-red-100 transition-all"
+                                      onClick={() => handleUnblock(p.id)}
+                                      disabled={processingId === p.id}
+                                      className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-green-700 transition-all disabled:opacity-50"
                                     >
-                                      Blacklist
+                                      {processingId === p.id ? <RefreshCw size={10} className="animate-spin" /> : 'Unblock'}
                                     </button>
-                                  )}
-                                </>
-                              )}
-                            </div>
-                          )}
+                                  </div>
+                                ) : (
+                                  <>
+                                    {blacklistingUserId === p.id ? (
+                                      <div className="flex flex-col gap-2 w-48">
+                                        <input 
+                                          type="text"
+                                          placeholder="Reason for blacklist..."
+                                          value={blacklistReason}
+                                          onChange={(e) => setBlacklistReason(e.target.value)}
+                                          className="px-3 py-2 bg-slate-50 border rounded-lg text-[10px] outline-none focus:border-red-500"
+                                          autoFocus
+                                        />
+                                        <div className="flex gap-2">
+                                          <button 
+                                            onClick={() => { setBlacklistingUserId(null); setBlacklistReason(''); }}
+                                            className="flex-1 px-2 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all"
+                                          >
+                                            Cancel
+                                          </button>
+                                          <button 
+                                            onClick={() => handleBlacklist(p.id)}
+                                            disabled={processingId === p.id}
+                                            className="flex-1 px-2 py-1.5 bg-red-600 text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-red-700 transition-all disabled:opacity-50"
+                                          >
+                                            {processingId === p.id ? <RefreshCw size={10} className="animate-spin" /> : 'Confirm'}
+                                          </button>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <button 
+                                        onClick={() => setBlacklistingUserId(p.id)}
+                                        className="px-3 py-1.5 bg-red-50 text-red-600 border border-red-100 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-red-100 transition-all"
+                                      >
+                                        Blacklist
+                                      </button>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            )}
+
+                            {(p.role === 'student' || p.role === 'coordinator' || p.role === 'hod') && (
+                              <div className="flex items-center gap-2">
+                                {p.is_profile_locked ? (
+                                  <>
+                                    <span className="px-2 py-1 bg-amber-100 text-amber-600 rounded text-[8px] font-black uppercase tracking-widest border border-amber-200">Locked</span>
+                                    <button 
+                                      onClick={async () => {
+                                        setProcessingId(p.id);
+                                        try {
+                                          const { error } = await supabase.from('profiles').update({ is_profile_locked: false }).eq('id', p.id);
+                                          if (error) throw error;
+                                          showToast("Profile unlocked successfully", "success");
+                                          fetchData();
+                                        } catch (err: any) {
+                                          showToast(err.message || "Failed to unlock profile", "error");
+                                        } finally {
+                                          setProcessingId(null);
+                                        }
+                                      }}
+                                      disabled={processingId === p.id}
+                                      className="px-3 py-1.5 bg-slate-600 text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-slate-700 transition-all disabled:opacity-50"
+                                    >
+                                      {processingId === p.id ? <RefreshCw size={10} className="animate-spin" /> : 'Unlock'}
+                                    </button>
+                                  </>
+                                ) : (
+                                  <button 
+                                    onClick={async () => {
+                                      setProcessingId(p.id);
+                                      try {
+                                        const { error } = await supabase.from('profiles').update({ is_profile_locked: true }).eq('id', p.id);
+                                        if (error) throw error;
+                                        showToast("Profile locked successfully", "success");
+                                        fetchData();
+                                      } catch (err: any) {
+                                        showToast(err.message || "Failed to lock profile", "error");
+                                      } finally {
+                                        setProcessingId(null);
+                                      }
+                                    }}
+                                    disabled={processingId === p.id}
+                                    className="px-3 py-1.5 bg-slate-100 text-slate-600 border border-slate-200 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all disabled:opacity-50"
+                                  >
+                                    {processingId === p.id ? <RefreshCw size={10} className="animate-spin" /> : 'Lock Profile'}
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}

@@ -27,6 +27,7 @@ export interface Profile {
   is_profile_complete?: boolean;
   is_blacklisted?: boolean;
   blacklist_reason?: string;
+  is_profile_locked?: boolean;
 }
 
 export interface TeamMember {

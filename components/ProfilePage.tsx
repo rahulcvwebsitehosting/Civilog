@@ -33,14 +33,29 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ profile, onUpdate }) => {
   }, [profile.id, profile.department]);
 
   const fetchLockStatus = async () => {
-    if (!profile.department) return;
     try {
-      const { data } = await supabase
-        .from('registration_locks')
-        .select('profile_locked')
-        .eq('department', profile.department)
+      let isLocked = false;
+      
+      // Individual lock check (all roles)
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('is_profile_locked')
+        .eq('id', profile.id)
         .single();
-      if (data) setIsProfileLocked(data.profile_locked);
+      
+      if (profileData?.is_profile_locked) isLocked = true;
+
+      // Department lock check for students
+      if (profile.role === 'student' && profile.department) {
+        const { data: lockData } = await supabase
+          .from('registration_locks')
+          .select('profile_locked')
+          .eq('department', profile.department)
+          .single();
+        if (lockData?.profile_locked) isLocked = true;
+      }
+
+      setIsProfileLocked(isLocked);
     } catch (err) {
       console.error("Error fetching lock status:", err);
     }

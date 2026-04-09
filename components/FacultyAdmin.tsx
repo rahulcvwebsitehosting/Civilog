@@ -146,7 +146,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
       // Fetch list based on active status
       let query = supabase
         .from('od_requests')
-        .select('*, profiles!inner(department)')
+        .select('*')
         .order('created_at', { ascending: false });
 
       if (requestId) {
@@ -167,9 +167,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         if (role !== 'admin') {
           if (dept) {
             // Use ilike for case-insensitive matching and trim to be safe
-            // Fallback to student profile department if request department is null
-            const trimmedDept = dept.trim();
-            query = query.or(`department.ilike.${trimmedDept},and(department.is.null,profiles.department.ilike.${trimmedDept})`);
+            query = query.ilike('department', dept.trim());
           } else {
             query = query.eq('department', 'NON_EXISTENT_DEPARTMENT_FALLBACK');
           }
@@ -215,6 +213,12 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         getCount('History')
       ]);
 
+      console.log('Fetch Diagnostic:', {
+        count: listResult.data?.length,
+        error: listResult.error,
+        dept: profile.department
+      });
+
       if (listResult.error) throw listResult.error;
 
       if (listResult.data) setRequests(listResult.data as ODRequest[]);
@@ -249,7 +253,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
 
   useEffect(() => {
     fetchRequests();
-  }, [activeStatus, role, requestId, monthFilter, debouncedSearch]);
+  }, [activeStatus, role, requestId, monthFilter, debouncedSearch, facultyProfile?.department]);
 
   const handleAction = async (request: ODRequest, approve: boolean, confirmed: boolean = false) => {
     // Permission check

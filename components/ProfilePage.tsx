@@ -5,6 +5,7 @@ import { Profile } from '../types';
 import { Loader2, User, Fingerprint, Briefcase, GraduationCap, Building2, CheckCircle2, AlertCircle, Save, PenTool, Upload, FileImage, Trash2, Info, Lock, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DEPARTMENTS } from '../constants';
+import { useToast } from '../contexts/ToastContext';
 
 interface ProfilePageProps {
   profile: Profile;
@@ -12,6 +13,7 @@ interface ProfilePageProps {
 }
 
 const ProfilePage: React.FC<ProfilePageProps> = ({ profile, onUpdate }) => {
+  const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -199,7 +201,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ profile, onUpdate }) => {
       setSuccess(true);
       setError(null);
       // We can reuse success state or add a specific one, user request says "show success message"
-      alert("Your deletion request has been submitted. The admin will review it shortly.");
+      showToast("Your deletion request has been submitted. The admin will review it shortly.", "success");
     } catch (err: any) {
       setError(err.message || "Failed to submit deletion request.");
     } finally {
@@ -234,12 +236,12 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ profile, onUpdate }) => {
 
       if (error) throw error;
 
-      alert("Your profile update request has been submitted for coordinator approval.");
+      showToast("Profile updated successfully.", "success");
       setShowRequestModal(false);
       setRequestReason('');
       fetchPendingProfileRequest();
     } catch (err: any) {
-      alert(err.message || "Failed to submit request");
+      showToast(err.message || "Failed to submit request", "error");
     } finally {
       setRequestLoading(false);
     }

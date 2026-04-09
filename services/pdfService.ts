@@ -111,7 +111,7 @@ export const generateODDocument = async (request: ODRequest, studentProfile: Pro
   doc.setFont('times', 'bold');
   doc.text('To:', MARGIN, currentY); currentY += 7;
   doc.setFont('times', 'normal');
-  doc.text('The Advisor,', MARGIN, currentY); currentY += 6;
+  doc.text('The Activity Coordinator,', MARGIN, currentY); currentY += 6;
   doc.text(`${departmentName},`, MARGIN, currentY); currentY += 6;
   doc.text('Erode Sengunthar Engineering College.', MARGIN, currentY); currentY += 15;
 
@@ -193,7 +193,7 @@ export const generateODDocument = async (request: ODRequest, studentProfile: Pro
     currentY += 5;
     doc.setFontSize(10);
     doc.setFont('times', 'normal');
-    doc.text('Faculty Advisor / HOD', signatureX, currentY);
+    doc.text('Activity Coordinator / HOD', signatureX, currentY);
 
     // Approval Stamp
     doc.setFontSize(24);
@@ -205,7 +205,7 @@ export const generateODDocument = async (request: ODRequest, studentProfile: Pro
     // Placeholder for Requisition phase
     doc.setFontSize(10);
     doc.text('__________________________', signatureX, currentY + 20);
-    doc.text('Faculty Advisor', signatureX, currentY + 25);
+    doc.text('Activity Coordinator', signatureX, currentY + 25);
   }
 
   // --- Footer Metadata ---

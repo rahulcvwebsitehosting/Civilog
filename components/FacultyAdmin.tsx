@@ -42,10 +42,19 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 500);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
   const [monthFilter, setMonthFilter] = useState<string>('');
   const [deptSearch, setDeptSearch] = useState('');
-  const [stats, setStats] = useState({ pendingCoordinator: 0, pendingHOD: 0, approved: 0, completed: 0, archived: 0 });
-  const [activeStatus, setActiveStatus] = useState<ODStatus>('Pending Coordinator');
+  const [stats, setStats] = useState({ pendingCoordinator: 0, pendingHOD: 0, approved: 0, completed: 0, archived: 0, history: 0 });
+  const [activeStatus, setActiveStatus] = useState<ODStatus | 'History'>(
+    role === 'hod' ? 'Pending HOD' : 'Pending Coordinator'
+  );
   const [viewMode, setViewMode] = useState<'registry' | 'inspection' | 'nested'>('nested');
   const [facultyProfile, setFacultyProfile] = useState<Profile | null>(null);
   const [smtpStatus, setSmtpStatus] = useState<{ configured: boolean; user: string | null }>({ configured: false, user: null });
@@ -142,28 +151,42 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
 
       if (requestId) {
         query = query.eq('id', requestId);
+      } else if (debouncedSearch && debouncedSearch.length >= 5 && !isNaN(Number(debouncedSearch.charAt(0)))) {
+        // If search term looks like a register number (starts with digit, length >= 5)
+        // Bypass department filter to help find requests with department mismatches
+        query = query.ilike('register_no', `%${debouncedSearch}%`);
       } else {
-        query = query.eq('status', activeStatus);
-      }
-
-      // Role-based filtering: Coordinators and HODs only see their own department
-      // Match using the department field on both od_requests and profiles tables.
-      if (role !== 'admin') {
-        if (dept) {
-          query = query.eq('department', dept);
+        if (activeStatus === 'History') {
+          // History shows everything except Archived
+          query = query.neq('status', 'Archived');
         } else {
-          // If no department is set for the faculty, they should see zero requests
-          // This prevents cross-department leaks if metadata is missing.
-          query = query.eq('department', 'NON_EXISTENT_DEPARTMENT_FALLBACK');
+          query = query.eq('status', activeStatus);
+        }
+
+        // Role-based filtering: Coordinators and HODs only see their own department
+        if (role !== 'admin') {
+          if (dept) {
+            // Use ilike for case-insensitive matching and trim to be safe
+            query = query.ilike('department', dept.trim());
+          } else {
+            query = query.eq('department', 'NON_EXISTENT_DEPARTMENT_FALLBACK');
+          }
         }
       }
 
       // Fetch all counts for stats in parallel
-      const getCount = (status: ODStatus) => {
-        let q = supabase.from('od_requests').select('*', { count: 'exact', head: true }).eq('status', status);
+      const getCount = (status: ODStatus | 'History') => {
+        let q = supabase.from('od_requests').select('*', { count: 'exact', head: true });
+        
+        if (status === 'History') {
+          q = q.neq('status', 'Archived');
+        } else {
+          q = q.eq('status', status);
+        }
+
         if (role !== 'admin') {
           if (dept) {
-            q = q.eq('department', dept);
+            q = q.ilike('department', dept.trim());
           } else {
             q = q.eq('department', 'NON_EXISTENT_DEPARTMENT_FALLBACK');
           }
@@ -177,14 +200,16 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         pendingHODResult,
         approvedResult,
         completedResult,
-        archivedResult
+        archivedResult,
+        historyResult
       ] = await Promise.all([
         query,
         getCount('Pending Coordinator'),
         getCount('Pending HOD'),
         getCount('Approved'),
         getCount('Completed'),
-        getCount('Archived')
+        getCount('Archived'),
+        getCount('History')
       ]);
 
       if (listResult.error) throw listResult.error;
@@ -195,7 +220,8 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         pendingHOD: pendingHODResult.count || 0,
         approved: approvedResult.count || 0, 
         completed: completedResult.count || 0,
-        archived: archivedResult.count || 0
+        archived: archivedResult.count || 0,
+        history: historyResult.count || 0
       });
     } catch (err) {
       console.error("Fetch Error:", err);
@@ -220,7 +246,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
 
   useEffect(() => {
     fetchRequests();
-  }, [activeStatus, role, requestId, monthFilter]);
+  }, [activeStatus, role, requestId, monthFilter, debouncedSearch]);
 
   const handleAction = async (request: ODRequest, approve: boolean, confirmed: boolean = false) => {
     // Permission check
@@ -877,6 +903,21 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         </div>
       )}
 
+      {/* Department Warning */}
+      {facultyProfile && !facultyProfile.department && !loading && (
+        <div className="bg-amber-50 border-2 border-amber-200 p-6 rounded-[2rem] flex items-start gap-4 shadow-sm mb-6">
+          <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center shrink-0">
+            <AlertCircle size={24} />
+          </div>
+          <div>
+            <h3 className="text-lg font-black text-slate-900 uppercase italic">Department Not Set</h3>
+            <p className="text-xs text-slate-500 font-medium mt-1">
+              Your profile does not have a department assigned. You will not be able to see any requests until you update your profile in the settings.
+            </p>
+          </div>
+        </div>
+      )}
+
       {facultyProfile && !facultyProfile.is_profile_complete && (
         <div className="bg-amber-50 border-2 border-amber-200 p-8 rounded-[2rem] text-center space-y-4 shadow-sm animate-in fade-in slide-in-from-top-4 duration-500">
           <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center mx-auto">
@@ -903,11 +944,18 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
           <h2 className="text-3xl font-black text-slate-900 tracking-tight italic uppercase">
             {role === 'admin' ? 'MASTER TERMINAL' : role === 'hod' ? 'HOD TERMINAL' : 'COORDINATOR TERMINAL'}
           </h2>
-          <div className="flex items-center gap-2 mt-1">
-            <div className={`w-1.5 h-1.5 rounded-full ${smtpStatus.configured ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
-            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">
-              Email Service: {smtpStatus.configured ? 'Active' : `Offline (${smtpStatus.user || 'Check Settings'})`}
-            </span>
+          <div className="flex items-center gap-3 mt-1">
+            <div className="flex items-center gap-2">
+              <div className={`w-1.5 h-1.5 rounded-full ${smtpStatus.configured ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
+              <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">
+                Email Service: {smtpStatus.configured ? 'Active' : `Offline (${smtpStatus.user || 'Check Settings'})`}
+              </span>
+            </div>
+            {facultyProfile?.department && (
+              <div className="flex items-center gap-2 px-2 py-0.5 bg-slate-100 rounded-md border border-slate-200">
+                <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Dept: {facultyProfile.department}</span>
+              </div>
+            )}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -980,7 +1028,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <button 
           onClick={() => setActiveStatus('Pending Coordinator')}
           className={`bg-white border p-5 rounded-[1.5rem] flex items-center gap-4 shadow-sm transition-all text-left ${activeStatus === 'Pending Coordinator' ? 'border-amber-400 ring-2 ring-amber-400/20' : 'hover:border-slate-300'}`}
@@ -1011,6 +1059,14 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         >
           <div className={`p-3 rounded-xl ${activeStatus === 'Completed' ? 'bg-goldenrod text-white' : 'bg-amber-50 text-goldenrod'}`}><BarChart3 size={20}/></div>
           <div><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Cycle Closed</p><p className="text-2xl font-black">{stats.completed}</p></div>
+        </button>
+
+        <button 
+          onClick={() => setActiveStatus('History')}
+          className={`bg-white border p-5 rounded-[1.5rem] flex items-center gap-4 shadow-sm transition-all text-left ${activeStatus === 'History' ? 'border-blueprint-blue ring-2 ring-blueprint-blue/20' : 'hover:border-slate-300'}`}
+        >
+          <div className={`p-3 rounded-xl ${activeStatus === 'History' ? 'bg-blueprint-blue text-white' : 'bg-blue-50 text-blueprint-blue'}`}><FileText size={20}/></div>
+          <div><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Dept History</p><p className="text-2xl font-black">{stats.history}</p></div>
         </button>
 
         <button 
@@ -1065,6 +1121,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
             <thead className="bg-slate-50 border-b">
               <tr>
                 <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Lead Student</th>
+                <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Department</th>
                 <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Activity</th>
                 <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Type</th>
                 <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Assets</th>
@@ -1075,7 +1132,17 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
             <tbody className="divide-y divide-slate-100 font-display">
               {filteredRequests.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-8 py-12 text-center text-slate-400 uppercase text-[10px] font-black tracking-widest italic">No matching logs found in this sector</td>
+                  <td colSpan={7} className="px-8 py-12 text-center">
+                    <div className="flex flex-col items-center gap-2">
+                      <p className="text-slate-400 uppercase text-[10px] font-black tracking-widest italic">No matching logs found in this sector</p>
+                      {facultyProfile?.department && (
+                        <p className="text-[9px] text-slate-400 font-medium">
+                          Filtering by department: <span className="text-blueprint-blue font-bold">{facultyProfile.department}</span>. 
+                          If you expect to see requests, ensure the student's department matches exactly.
+                        </p>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               ) : (
                 filteredRequests.map((request) => {
@@ -1104,6 +1171,9 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                             </div>
                           </div>
                         )}
+                      </td>
+                      <td className="px-8 py-6">
+                        <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">{request.department}</p>
                       </td>
                       <td className="px-8 py-6">
                         <p className="font-black text-blueprint-blue uppercase text-sm tracking-tighter italic">{request.event_title}</p>

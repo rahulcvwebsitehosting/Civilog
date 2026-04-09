@@ -80,7 +80,7 @@ const FacultyDashboard: React.FC = () => {
       .order('created_at', { ascending: false });
 
     if (profile.department) {
-      odQuery = odQuery.eq('department', profile.department);
+      odQuery = odQuery.ilike('department', profile.department.trim());
     } else {
       odQuery = odQuery.eq('department', 'NON_EXISTENT_FALLBACK');
     }

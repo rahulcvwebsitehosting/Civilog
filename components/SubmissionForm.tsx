@@ -233,7 +233,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
         roll_no: formData.roll_no,
         phone_number: formData.phone_number,
         year: formData.year,
-        department: profile.department || formData.department,
+        department: formData.department, // Use form data department to ensure consistency with notification recipients
         semester: formData.semester,
         event_title: formData.event_title,
         organization_name: formData.organization_name,
@@ -306,7 +306,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
             .from('profiles')
             .select('id, email, full_name, role')
             .eq('role', 'coordinator')
-            .eq('department', formData.department);
+            .ilike('department', formData.department.trim());
 
           if (recipientError) {
             console.error("[DEBUG] Recipient fetch error:", recipientError);

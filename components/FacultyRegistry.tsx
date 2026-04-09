@@ -42,7 +42,7 @@ const FacultyRegistry: React.FC = () => {
     const dept = profile?.department || user.user_metadata?.department;
 
     if (role !== 'admin' && dept) {
-      query = query.eq('department', dept);
+      query = query.ilike('department', dept.trim());
     }
 
     const { data, error } = await query;

@@ -193,7 +193,8 @@ export const generateODDocument = async (request: ODRequest, studentProfile: Pro
     currentY += 5;
     doc.setFontSize(10);
     doc.setFont('times', 'normal');
-    doc.text('Activity Coordinator / HOD', signatureX, currentY);
+    const roleTitle = facultyProfile.role === 'hod' ? 'Head of Department' : 'Faculty Advisor';
+    doc.text(roleTitle, signatureX, currentY);
 
     // Approval Stamp
     doc.setFontSize(24);

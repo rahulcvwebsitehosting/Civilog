@@ -2,17 +2,24 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { ODRequest, Profile, ODStatus } from '../types';
-import { Loader2, RefreshCw, Search, BarChart3, Clock, CheckCircle2, LayoutList, BookOpen, AlertCircle, ChevronLeft, Terminal, FileText, Download, ExternalLink, Database, Trash2, Archive, RefreshCcw, Lock, X, Folder, Bell, Filter, FileSpreadsheet, UserCheck, GraduationCap, Mail, Check, User, Phone } from 'lucide-react';
+import { Loader2, RefreshCw, Search, BarChart3, Clock, CheckCircle2, LayoutList, BookOpen, AlertCircle, ChevronLeft, Terminal, FileText, Download, ExternalLink, Database, Trash2, Archive, RefreshCcw, Lock, X, Folder, Bell, Filter, FileSpreadsheet, UserCheck, GraduationCap, Mail, Check, User, Phone, Building2, Calendar } from 'lucide-react';
 import { generateODDocument } from '../services/pdfService';
 import { Link, useSearchParams } from 'react-router-dom';
 import { logAudit } from '../services/auditService';
 import FeedCard from './FeedCard';
 import NestedFolderView from './NestedFolderView';
 import { motion, AnimatePresence } from 'motion/react';
-import * as XLSX from 'xlsx';
 import { useToast } from '../contexts/ToastContext';
+import { exportODRequestsToExcel } from '../services/excelService';
 
 import { DEPARTMENTS, BASE_URL } from '../constants';
+
+// Utility function to get ordinal suffix
+const getOrdinalSuffix = (n: number): string => {
+  const s = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return s[(v - 20) % 10] || s[v] || s[0];
+};
 
 // Utility function to format date as "01st October, 2026"
 const formatFancyDate = (dateString: string | null): string => {
@@ -55,7 +62,9 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
   const [activeStatus, setActiveStatus] = useState<ODStatus | 'History'>(
     role === 'hod' ? 'Pending HOD' : 'Pending Coordinator'
   );
-  const [viewMode, setViewMode] = useState<'registry' | 'inspection' | 'nested'>('nested');
+  const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  const [yearStats, setYearStats] = useState<{ [key: number]: number }>({ 1: 0, 2: 0, 3: 0, 4: 0 });
+  const [viewMode, setViewMode] = useState<'registry' | 'inspection' | 'nested'>('registry');
   const [facultyProfile, setFacultyProfile] = useState<Profile | null>(null);
   const [smtpStatus, setSmtpStatus] = useState<{ configured: boolean; user: string | null }>({ configured: false, user: null });
 
@@ -82,7 +91,6 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
 
   // Admin Filters
   const [selectedDept, setSelectedDept] = useState<string>('');
-  const [selectedYear, setSelectedYear] = useState<string>('');
 
   // Approval Confirmation
   const [confirmApprovalRequest, setConfirmApprovalRequest] = useState<ODRequest | null>(null);
@@ -163,6 +171,10 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
           query = query.eq('status', activeStatus);
         }
 
+        if (selectedYear) {
+          query = query.eq('year', selectedYear.toString());
+        }
+
         // Role-based filtering: Coordinators and HODs only see their own department
         if (role !== 'admin') {
           if (dept) {
@@ -175,13 +187,17 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
       }
 
       // Fetch all counts for stats in parallel
-      const getCount = (status: ODStatus | 'History') => {
+      const getCount = (status: ODStatus | 'History', year?: number) => {
         let q = supabase.from('od_requests').select('*', { count: 'exact', head: true });
         
         if (status === 'History') {
           q = q.neq('status', 'Archived');
         } else {
           q = q.eq('status', status);
+        }
+
+        if (year) {
+          q = q.eq('year', year.toString());
         }
 
         if (role !== 'admin') {
@@ -194,6 +210,8 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         return q;
       };
 
+      const pendingStatus = role === 'hod' ? 'Pending HOD' : 'Pending Coordinator';
+
       const [
         listResult,
         pendingCoordinatorResult,
@@ -201,7 +219,11 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         approvedResult,
         completedResult,
         archivedResult,
-        historyResult
+        historyResult,
+        y1Result,
+        y2Result,
+        y3Result,
+        y4Result
       ] = await Promise.all([
         query,
         getCount('Pending Coordinator'),
@@ -209,7 +231,11 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         getCount('Approved'),
         getCount('Completed'),
         getCount('Archived'),
-        getCount('History')
+        getCount('History'),
+        getCount(pendingStatus, 1),
+        getCount(pendingStatus, 2),
+        getCount(pendingStatus, 3),
+        getCount(pendingStatus, 4)
       ]);
 
       console.log('Fetch Diagnostic:', {
@@ -228,6 +254,12 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         completed: completedResult.count || 0,
         archived: archivedResult.count || 0,
         history: historyResult.count || 0
+      });
+      setYearStats({
+        1: y1Result.count || 0,
+        2: y2Result.count || 0,
+        3: y3Result.count || 0,
+        4: y4Result.count || 0
       });
     } catch (err) {
       console.error("Fetch Error:", err);
@@ -252,7 +284,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
 
   useEffect(() => {
     fetchRequests();
-  }, [activeStatus, role, requestId, monthFilter, debouncedSearch, facultyProfile?.department]);
+  }, [activeStatus, role, requestId, monthFilter, debouncedSearch, facultyProfile?.department, selectedYear]);
 
   const handleAction = async (request: ODRequest, approve: boolean, confirmed: boolean = false) => {
     // Permission check
@@ -743,60 +775,13 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                          r.register_no.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          r.event_title.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesDept = selectedDept ? r.department === selectedDept : true;
-    const matchesYear = selectedYear ? r.year === selectedYear : true;
+    const matchesYear = selectedYear ? r.year === selectedYear.toString() : true;
     const matchesMonth = monthFilter ? new Date(r.event_date).getMonth() === parseInt(monthFilter) : true;
     return matchesSearch && matchesDept && matchesYear && matchesMonth;
   });
 
   const exportToExcel = () => {
-    const dataToExport = filteredRequests.map(r => {
-      const teamMembersRaw = r.team_members;
-      const teamMembers: any[] = Array.isArray(teamMembersRaw) 
-        ? teamMembersRaw 
-        : (typeof teamMembersRaw === 'string' ? JSON.parse(teamMembersRaw) : []);
-      
-      // Helper for hyperlink formulas
-      const createLink = (url: string | null, label: string) => 
-        url ? { t: 's', f: `=HYPERLINK("${url}", "${label}")`, v: label } : 'N/A';
-
-      // Helper to aggregate arrays of links
-      const formatUrls = (urls: string[] | null) => {
-        if (!urls || !Array.isArray(urls) || urls.length === 0) return 'N/A';
-        return urls[0] ? { t: 's', f: `=HYPERLINK("${urls[0]}", "View Evidence (1/${urls.length})")`, v: `View Evidence (1/${urls.length})` } : 'N/A';
-      };
-
-      return {
-        'Student Name': r.student_name,
-        'Register No': r.register_no,
-        'Roll No': r.roll_no,
-        'Phone': r.phone_number || 'N/A',
-        'Department': r.department,
-        'Year': r.year,
-        'Semester': r.semester,
-        'Team Members': teamMembers.map(m => `${m.name} (${m.register_no})`).join('; ') || 'None',
-        'Event Title': r.event_title,
-        'Organization': r.organization_name,
-        'Location': r.organization_location || 'N/A',
-        'Event Type': r.event_type,
-        'Start Date': r.event_date,
-        'End Date': r.event_end_date || r.event_date,
-        'Status': r.status,
-        'Achievement': r.achievement_details || 'N/A',
-        'Coordinator Approved': r.coordinator_approved_at ? 'Yes' : 'No',
-        'HOD Approved': r.hod_approved_at ? 'Yes' : 'No',
-        'Reg Proof': createLink(r.registration_proof_url, "View Reg Proof"),
-        'Pay Proof': createLink(r.payment_proof_url, "View Pay Proof"),
-        'Event Poster': createLink(r.event_poster_url, "View Poster"),
-        'OD Letter': createLink(r.od_letter_url, "View OD Letter"),
-        'Geotagged Photos': formatUrls(r.geotag_photo_urls),
-        'Certificates': formatUrls(r.certificate_urls)
-      };
-    });
-
-    const ws = XLSX.utils.json_to_sheet(dataToExport);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'OD Requests');
-    XLSX.writeFile(wb, `ESEC_OD_Registry_${activeStatus}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    exportODRequestsToExcel(filteredRequests, facultyProfile?.department);
   };
 
   const canApprove = (request: ODRequest) => {
@@ -1008,12 +993,12 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
               <div className="relative w-32 mr-2">
                 <GraduationCap className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                 <select 
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(e.target.value)}
+                  value={selectedYear || ''}
+                  onChange={(e) => setSelectedYear(e.target.value ? parseInt(e.target.value) : null)}
                   className="w-full pl-10 pr-4 py-2 bg-white border rounded-xl text-xs outline-none focus:border-blueprint-blue appearance-none"
                 >
                   <option value="">All Years</option>
-                  {[1, 2, 3, 4, 5].map(y => <option key={y} value={y.toString()}>{y} Year</option>)}
+                  {[1, 2, 3, 4, 5].map(y => <option key={y} value={y}>{y} Year</option>)}
                 </select>
               </div>
             </>
@@ -1084,6 +1069,53 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         </button>
       </div>
 
+      <div className="space-y-4">
+        <div className="flex items-center justify-between px-2">
+          <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
+            <Filter size={12} /> Year-wise Distribution
+          </h3>
+          {selectedYear && (
+            <button 
+              onClick={() => setSelectedYear(null)}
+              className="text-[9px] font-black text-blueprint-blue uppercase tracking-widest hover:underline"
+            >
+              Clear Filter
+            </button>
+          )}
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((year) => (
+            <button
+              key={year}
+              onClick={() => setSelectedYear(year)}
+              className={`relative bg-white border p-6 rounded-[2rem] text-left transition-all group ${
+                selectedYear === year 
+                  ? 'border-blueprint-blue ring-4 ring-blueprint-blue/10 shadow-lg shadow-blueprint-blue/5' 
+                  : 'hover:border-slate-300 shadow-sm'
+              }`}
+            >
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Year</p>
+                  <h4 className="text-3xl font-black text-slate-900 tracking-tighter italic">{year}<span className="text-xs ml-0.5 uppercase not-italic">{getOrdinalSuffix(year)}</span></h4>
+                </div>
+                <div className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${
+                  yearStats[year] > 0 ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'
+                }`}>
+                  {yearStats[year]} Pending
+                </div>
+              </div>
+              {selectedYear === year && (
+                <motion.div 
+                  layoutId="activeYear"
+                  className="absolute inset-0 border-2 border-blueprint-blue rounded-[2rem] pointer-events-none shadow-[0_0_20px_rgba(3,105,161,0.2)]"
+                />
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="bg-white border border-slate-200 rounded-[2rem] p-4 flex flex-wrap items-center justify-center gap-2 shadow-sm">
         <button 
           onClick={() => setMonthFilter('')}
@@ -1122,167 +1154,138 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
           processingId={processingId}
         />
       ) : viewMode === 'registry' ? (
-        <div className="bg-white rounded-[2rem] border shadow-xl overflow-hidden">
-          <table className="w-full text-left">
-            <thead className="bg-slate-50 border-b">
-              <tr>
-                <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Lead Student</th>
-                <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Department</th>
-                <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Activity</th>
-                <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Type</th>
-                <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Assets</th>
-                <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Alerts</th>
-                <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 font-display">
-              {filteredRequests.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-8 py-12 text-center">
-                    <div className="flex flex-col items-center gap-2">
-                      <p className="text-slate-400 uppercase text-[10px] font-black tracking-widest italic">No matching logs found in this sector</p>
-                      {facultyProfile?.department && (
-                        <p className="text-[9px] text-slate-400 font-medium">
-                          Filtering by department: <span className="text-blueprint-blue font-bold">{facultyProfile.department}</span>. 
-                          If you expect to see requests, ensure the student's department matches exactly.
-                        </p>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                filteredRequests.map((request) => {
-                  const formattedEventDate = formatFancyDate(request.event_date);
-                  const formattedEventEndDate = formatFancyDate(request.event_end_date);
-                  const dateDisplay = (request.event_end_date && request.event_end_date !== request.event_date)
-                    ? `${formattedEventDate} - ${formattedEventEndDate}`
-                    : formattedEventDate;
-                  return (
-                    <tr key={request.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-8 py-6">
-                        <p className="font-black text-slate-900 uppercase text-xs">{request.student_name}</p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <p className="text-[9px] text-slate-500 font-mono">ID: {request.register_no}</p>
-                          {request.phone_number && (
-                            <p className="text-[9px] text-primary font-black uppercase tracking-tighter flex items-center gap-1">
-                              <Phone size={10} /> {request.phone_number}
-                            </p>
-                          )}
-                        </div>
-                        {request.team_members && request.team_members.length > 0 && (
-                          <div className="mt-1.5 pt-1.5 border-t border-slate-100">
-                            <div className="text-[8px] font-black text-blueprint-blue uppercase tracking-widest">Team ({request.team_members.length})</div>
-                            <div className="text-[9px] text-slate-500 truncate max-w-[150px]">
-                              {request.team_members.map(m => m.name).join(', ')}
-                            </div>
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-8 py-6">
-                        <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">{request.department}</p>
-                      </td>
-                      <td className="px-8 py-6">
-                        <p className="font-black text-blueprint-blue uppercase text-sm tracking-tighter italic">{request.event_title}</p>
-                        <p className="text-[10px] text-slate-500 font-bold uppercase">{request.organization_name}</p>
-                        <p className="text-[9px] text-slate-500 font-technical mt-1">{dateDisplay}</p>
-                      </td>
-                      <td className="px-8 py-6">
-                        <div className="flex flex-wrap gap-1.5">
-                          {request.event_type.split(' ').map((type, i) => (
-                            <span key={i} className="px-2 py-0.5 bg-blueprint-blue/5 text-blueprint-blue rounded-md text-[8px] font-black uppercase tracking-wider border border-blueprint-blue/10">
-                              {type}
-                            </span>
-                          ))}
-                        </div>
-                      </td>
-                      <td className="px-8 py-6">
-                        <div className="flex items-center gap-3">
-                          {request.od_letter_url ? (
-                            <a 
-                              href={request.od_letter_url} 
-                              target="_blank" 
-                              rel="noopener noreferrer" 
-                              className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 transition-colors"
-                              title="View Authorized Letter"
-                            >
-                              <FileText size={18} />
-                            </a>
-                          ) : (
-                            <span className="text-[8px] font-black text-slate-300 uppercase italic">Awaiting Sync</span>
-                          )}
-                          {(Array.isArray(request.geotag_photo_urls) && request.geotag_photo_urls.filter(Boolean).length > 0) && (
-                            <div className="p-2 bg-slate-50 text-slate-400 rounded-lg" title="Field Assets Cached">
-                              <ExternalLink size={18} />
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-8 py-6">
-                        {request.notification_sent ? (
-                          <div className="flex items-center gap-1.5 text-green-600">
-                            <Bell size={12} className="fill-green-600/20" />
-                            <span className="text-[9px] font-black uppercase tracking-widest">Notified</span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1.5 text-slate-300">
-                            <Bell size={12} />
-                            <span className="text-[9px] font-black uppercase tracking-widest">Pending</span>
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-8 py-6 text-right">
-                        <div className="flex justify-end gap-2">
-                           <button 
-                            onClick={() => setViewMode('inspection')} 
-                            className="px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl font-black uppercase text-[9px] tracking-widest hover:bg-slate-50 transition-all flex items-center gap-2"
-                          >
-                            <BookOpen size={14} /> Inspect
-                          </button>
+        <div className="space-y-4">
+          {filteredRequests.length === 0 ? (
+            <div className="bg-white rounded-[2.5rem] border p-20 text-center shadow-sm">
+              <div className="w-20 h-20 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                <CheckCircle2 size={40} />
+              </div>
+              <h3 className="text-xl font-black text-slate-900 uppercase italic tracking-tight">All caught up!</h3>
+              <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-2">
+                No pending logs found {selectedYear ? `for ${selectedYear}${getOrdinalSuffix(selectedYear)} Year` : 'in this sector'}.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4">
+              {filteredRequests.map((request) => {
+                const formattedEventDate = formatFancyDate(request.event_date);
+                const formattedEventEndDate = formatFancyDate(request.event_end_date);
+                const isOneDay = !request.event_end_date || request.event_end_date === request.event_date;
+                const dateDisplay = isOneDay
+                  ? `1 Day: ${formattedEventDate}`
+                  : `${formattedEventDate} - ${formattedEventEndDate}`;
 
-                          <button
-                            onClick={() => sendManualNotification(request)}
-                            disabled={processingId === request.id}
-                            className={`px-3 py-2 border rounded-xl transition-all flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest ${request.notification_sent ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-100'}`}
-                            title={request.notification_sent ? "Resend Notification" : "Send Initial Notification"}
-                          >
-                            {processingId === request.id ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
-                            {request.notification_sent ? "Resend" : "Notify"}
-                          </button>
-                          
-                          {activeStatus === 'Archived' ? (
-                            <>
-                              <button
-                                onClick={() => handleRestore(request.id)}
-                                className="px-3 py-2 bg-amber-50 text-amber-600 border border-amber-200 rounded-xl hover:bg-amber-100 transition-all"
-                                title="Restore to Pending"
-                              >
-                                <RefreshCcw size={16} />
-                              </button>
-                              <button
-                                onClick={() => initiateHardDelete(request.id)}
-                                className="px-3 py-2 bg-amber-50 text-amber-700 border border-amber-300 rounded-xl hover:bg-amber-100 transition-all"
-                                title="Delete Permanently"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </>
-                          ) : (
-                            <button
-                              onClick={() => setSoftDeleteCandidateId(request.id)}
-                              className="px-3 py-2 bg-slate-50 text-slate-400 border border-slate-200 rounded-xl hover:bg-red-50 hover:text-red-500 hover:border-red-200 transition-all"
-                              title="Move to Recycle Bin"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          )}
+                return (
+                  <motion.div 
+                    layout
+                    key={request.id}
+                    className="bg-white border border-slate-200 rounded-[2.5rem] p-8 shadow-sm hover:shadow-xl hover:border-blueprint-blue/30 transition-all group"
+                  >
+                    <div className="flex flex-col lg:flex-row gap-8">
+                      {/* Student Panel */}
+                      <div className="flex-1 space-y-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-2xl bg-blueprint-blue/10 flex items-center justify-center text-blueprint-blue">
+                            <User size={24} />
+                          </div>
+                          <div>
+                            <h4 className="text-xl font-black text-slate-900 uppercase tracking-tight leading-none">{request.student_name}</h4>
+                            <p className="text-[10px] font-black text-blueprint-blue uppercase tracking-[0.2em] mt-1">Semester {request.semester}</p>
+                          </div>
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+                        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
+                          <div>
+                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Roll No</p>
+                            <p className="text-xs font-mono font-bold text-slate-700">{request.roll_no}</p>
+                          </div>
+                          <div>
+                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Register No</p>
+                            <p className="text-xs font-mono font-bold text-slate-700">{request.register_no}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Event Panel */}
+                      <div className="flex-[1.5] space-y-3 lg:border-x lg:px-8 border-slate-100">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded text-[8px] font-black uppercase tracking-widest">
+                            {request.event_type}
+                          </span>
+                        </div>
+                        <div>
+                          <h5 className="text-lg font-black text-blueprint-blue uppercase tracking-tight italic leading-tight">
+                            {request.event_title}
+                          </h5>
+                          <div className="flex items-center gap-4 mt-2">
+                            <div className="flex items-center gap-1.5">
+                              <Building2 size={14} className="text-slate-400" />
+                              <p className="text-[10px] font-bold text-slate-600 uppercase">{request.organization_name}</p>
+                            </div>
+                            {request.organization_location && (
+                              <div className="flex items-center gap-1.5">
+                                <Filter size={12} className="text-slate-400" />
+                                <p className="text-[10px] font-bold text-slate-500 uppercase">{request.organization_location}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Period Panel */}
+                      <div className="flex-1 space-y-4">
+                        <div className="space-y-1">
+                          <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Event Period</p>
+                          <div className="flex items-center gap-2">
+                            <Calendar size={16} className="text-blueprint-blue" />
+                            <p className="text-xs font-black text-slate-700 uppercase tracking-tight">{dateDisplay}</p>
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Start Time</p>
+                          <div className="flex items-center gap-2">
+                            <Clock size={16} className="text-slate-400" />
+                            <p className="text-xs font-mono font-bold text-slate-600">{request.event_start_time || 'Day Event'}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Action Panel */}
+                      <div className="flex flex-row lg:flex-col gap-3 justify-center">
+                        {canApprove(request) ? (
+                          <>
+                            <button 
+                              onClick={() => handleAction(request, true)}
+                              disabled={processingId === request.id}
+                              className="flex-1 lg:w-32 py-4 bg-emerald-500 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all flex items-center justify-center gap-2"
+                            >
+                              {processingId === request.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                              Approve
+                            </button>
+                            <button 
+                              onClick={() => handleAction(request, false)}
+                              disabled={processingId === request.id}
+                              className="flex-1 lg:w-32 py-4 bg-red-50 text-red-500 border border-red-100 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-red-100 transition-all flex items-center justify-center gap-2"
+                            >
+                              <X size={14} />
+                              Reject
+                            </button>
+                          </>
+                        ) : (
+                          <button 
+                            onClick={() => setViewMode('inspection')}
+                            className="flex-1 lg:w-32 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-200 transition-all flex items-center justify-center gap-2"
+                          >
+                            <BookOpen size={14} />
+                            Inspect
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          )}
         </div>
       ) : (
         <div className="max-w-2xl mx-auto space-y-6">

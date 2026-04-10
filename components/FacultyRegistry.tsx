@@ -4,9 +4,9 @@ import { supabase } from '../supabaseClient';
 import { ODRequest } from '../types';
 import { Link } from 'react-router-dom';
 import { Loader2, Download, Search, RefreshCw, Award, Edit3, Save, X, ExternalLink, Trophy, Image as ImageIcon, History, ChevronLeft, Phone } from 'lucide-react';
-import * as XLSX from 'xlsx';
 import { logAudit } from '../services/auditService';
 import { useToast } from '../contexts/ToastContext';
+import { exportODRequestsToExcel } from '../services/excelService';
 
 const FacultyRegistry: React.FC = () => {
   const { showToast } = useToast();
@@ -70,50 +70,7 @@ const FacultyRegistry: React.FC = () => {
   }, []);
 
   const handleExport = () => {
-    // Manually construct the data with formula injections for hyperlinks
-    const data = filteredRequests.map(r => {
-      // Helper for hyperlink formulas
-      const createLink = (url: string | null, label: string) => 
-        url ? { t: 's', f: `=HYPERLINK("${url}", "${label}")`, v: label } : 'N/A';
-
-      // Helper to aggregate arrays of links
-      const formatUrls = (urls: string[] | null) => {
-        if (!urls || !Array.isArray(urls) || urls.length === 0) return 'N/A';
-        // Excel doesn't easily support multiple hyperlinks in one cell via formula.
-        // We'll return the first one as a link, or just text if complex.
-        // For better UX, we'll link the first one.
-        return urls[0] ? { t: 's', f: `=HYPERLINK("${urls[0]}", "View Evidence (1/${urls.length})")`, v: `View Evidence (1/${urls.length})` } : 'N/A';
-      };
-
-      return {
-        'Student Name': r.student_name,
-        'Roll No': r.roll_no,
-        'Register No': r.register_no,
-        'Phone': r.phone_number || 'N/A',
-        'Year': r.year,
-        'Department': r.department || 'ESEC',
-        'Team Members': (Array.isArray(r.team_members) ? r.team_members : (typeof r.team_members === 'string' ? JSON.parse(r.team_members) : [])).map((m: any) => `${m.name} (${m.register_no})`).join('; ') || 'None',
-        'Event Title': r.event_title,
-        'Organization': r.organization_name,
-        'Location': r.organization_location || 'N/A',
-        'Event Type': r.event_type,
-        'Event Date': r.event_date,
-        'Status': r.status,
-        'Achievement': r.achievement_details || 'N/A',
-        'Prize Details': (Array.isArray(r.prize_details) ? r.prize_details : []).map(p => `${p.type} (${p.event})`).join('; ') || 'N/A',
-        'Reg Proof': createLink(r.registration_proof_url, "View Reg Proof"),
-        'Pay Proof': createLink(r.payment_proof_url, "View Pay Proof"),
-        'Event Poster': createLink(r.event_poster_url, "View Poster"),
-        'OD Letter': createLink(r.od_letter_url, "View OD Letter"),
-        'Geotagged Photos': formatUrls(r.geotag_photo_urls),
-        'Certificates': formatUrls(r.certificate_urls)
-      };
-    });
-
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "OD_Registry");
-    XLSX.writeFile(wb, `ESEC_OD_Registry_${new Date().toISOString().split('T')[0]}.xlsx`);
+    exportODRequestsToExcel(filteredRequests);
   };
 
   const handleUpdateAchievement = async (id: string) => {

@@ -19,6 +19,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import FeedCard from './FeedCard';
 import { useToast } from '../contexts/ToastContext';
 import { DEPARTMENTS, EVENT_CATEGORIES } from '../constants';
+import { exportODRequestsToExcel } from '../services/excelService';
 
 const AdminDashboard: React.FC = () => {
   const { showToast } = useToast();
@@ -243,7 +244,7 @@ const AdminDashboard: React.FC = () => {
       } else if (activeTab === 'analytics') {
         const { data } = await supabase
           .from('od_requests')
-          .select('id, department, year, event_title, organization_name, event_type, status, student_name, roll_no, register_no, event_date, event_end_date, coordinator_id, hod_id, phone_number, semester, hod_approved_at, registration_proof_url, payment_proof_url, event_start_time')
+          .select('id, department, year, event_title, organization_name, organization_location, event_type, status, student_name, roll_no, register_no, event_date, event_end_date, coordinator_id, hod_id, phone_number, semester, hod_approved_at, registration_proof_url, payment_proof_url, event_start_time')
           .or('status.eq.Approved,and(hod_id.not.is.null,coordinator_id.not.is.null)');
         setAnalyticsData(data || []);
       }
@@ -643,7 +644,7 @@ const AdminDashboard: React.FC = () => {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h1 className="text-4xl font-black text-slate-900 uppercase italic tracking-tighter flex items-center gap-3">
-              <Shield className="text-blueprint-blue" size={36} /> Central Command
+              <Shield className="text-blueprint-blue" size={36} /> Admin Dashboard
             </h1>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mt-1">System Audit & Registry • Read-Only Access</p>
           </div>
@@ -754,6 +755,16 @@ const AdminDashboard: React.FC = () => {
               {sortOrder === 'asc' ? <ArrowUp size={16} /> : <ArrowDown size={16} />}
               {sortOrder === 'asc' ? 'Oldest' : 'Newest'}
             </button>
+
+            {(activeTab === 'requests' || activeTab === 'feed') && (
+              <button 
+                onClick={() => exportODRequestsToExcel(filteredRequests, deptFilter !== 'all' ? deptFilter : undefined)}
+                className="px-5 py-4 bg-emerald-500 text-white rounded-2xl outline-none shadow-lg shadow-emerald-500/20 text-sm font-bold uppercase tracking-tight flex items-center gap-2 hover:bg-emerald-600 transition-all"
+              >
+                <Download size={16} />
+                Download Report
+              </button>
+            )}
 
             <button 
               onClick={fetchData}
@@ -1626,17 +1637,19 @@ const AdminDashboard: React.FC = () => {
                           <table className="w-full text-left border-collapse">
                             <thead>
                               <tr className="bg-slate-50/50 border-b">
-                                <th className="px-8 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Student Info</th>
-                                <th className="px-8 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Period Details</th>
-                                <th className="px-8 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Event Specifics</th>
-                                <th className="px-8 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Proofs</th>
-                                <th className="px-8 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Audit Info</th>
+                                <th className="px-8 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Student Data</th>
+                                {selectedAnalyticsYear === 'Overall' && (
+                                  <th className="px-8 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Year</th>
+                                )}
+                                <th className="px-8 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Event & Location</th>
+                                <th className="px-8 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Period</th>
+                                <th className="px-8 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Audit Sanction</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y">
                               {filteredData.length === 0 ? (
                                 <tr>
-                                  <td colSpan={5} className="px-8 py-12 text-center">
+                                  <td colSpan={selectedAnalyticsYear === 'Overall' ? 5 : 4} className="px-8 py-12 text-center">
                                     <p className="text-xs font-bold text-slate-400 uppercase tracking-widest italic">No approved registrations found for this category.</p>
                                   </td>
                                 </tr>
@@ -1650,49 +1663,48 @@ const AdminDashboard: React.FC = () => {
                                         </div>
                                         <div>
                                           <p className="font-bold text-slate-900 text-sm uppercase tracking-tight">{student.student_name}</p>
-                                          <p className="text-[10px] font-mono text-slate-400 uppercase">Roll: {student.roll_no || 'N/A'}</p>
-                                          <p className="text-[10px] font-mono text-slate-400 uppercase">Phone: {student.phone_number || 'N/A'}</p>
-                                          <p className="text-[10px] font-mono text-blueprint-blue uppercase font-black">Sem: {student.semester || 'N/A'}</p>
+                                          <div className="flex gap-2 mt-0.5">
+                                            <p className="text-[9px] font-mono text-slate-400 uppercase">Reg: {student.register_no || 'N/A'}</p>
+                                            <p className="text-[9px] font-mono text-slate-400 uppercase">Roll: {student.roll_no || 'N/A'}</p>
+                                          </div>
+                                          <p className="text-[9px] font-mono text-blueprint-blue uppercase font-black mt-0.5">Sem: {student.semester || 'N/A'}</p>
                                         </div>
                                       </div>
                                     </td>
+                                    {selectedAnalyticsYear === 'Overall' && (
+                                      <td className="px-8 py-6">
+                                        <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded text-[9px] font-black uppercase tracking-widest">
+                                          {student.year} Year
+                                        </span>
+                                      </td>
+                                    )}
                                     <td className="px-8 py-6">
-                                      <div className="flex items-center gap-2 mb-1">
-                                        <Calendar size={12} className="text-blueprint-blue" />
-                                        <p className="text-[10px] font-mono text-slate-700 uppercase font-bold">
-                                          {student.event_date} {student.event_end_date && student.event_end_date !== student.event_date ? `to ${student.event_end_date}` : ''}
-                                        </p>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        <Clock size={12} className="text-slate-400" />
-                                        <p className="text-[10px] font-mono text-slate-500 uppercase">
-                                          {student.event_start_time || 'Day Event'}
-                                        </p>
+                                      <div className="flex flex-col gap-0.5">
+                                        <p className="font-bold text-slate-900 text-xs uppercase tracking-tight">{student.organization_name}</p>
+                                        <div className="flex items-center gap-1.5">
+                                          <Building2 size={10} className="text-slate-400" />
+                                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">{student.organization_location || 'N/A'}</p>
+                                        </div>
+                                        <p className="text-[9px] font-bold text-blueprint-blue uppercase italic mt-1">{student.event_type}</p>
                                       </div>
                                     </td>
                                     <td className="px-8 py-6">
-                                      <div className="flex items-center gap-2 mb-1">
-                                        <Building2 size={12} className="text-slate-400" />
-                                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{student.organization_name}</p>
-                                      </div>
-                                      <p className="text-[9px] font-bold text-blueprint-blue uppercase italic">{student.event_type}</p>
-                                    </td>
-                                    <td className="px-8 py-6">
-                                      <div className="flex items-center justify-center gap-4">
-                                        {student.registration_proof_url ? (
-                                          <a href={student.registration_proof_url} target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-blueprint-blue transition-colors" title="Registration Proof">
-                                            <FileText size={16} />
-                                          </a>
-                                        ) : (
-                                          <FileText size={16} className="text-slate-200" />
-                                        )}
-                                        {student.payment_proof_url ? (
-                                          <a href={student.payment_proof_url} target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-blueprint-blue transition-colors" title="Payment Proof">
-                                            <CreditCard size={16} />
-                                          </a>
-                                        ) : (
-                                          <CreditCard size={16} className="text-slate-200" />
-                                        )}
+                                      <div className="flex flex-col gap-1">
+                                        <div className="flex items-center gap-2">
+                                          <Calendar size={12} className="text-blueprint-blue" />
+                                          <p className="text-[10px] font-mono text-slate-700 uppercase font-bold">
+                                            {(!student.event_end_date || student.event_date === student.event_end_date) 
+                                              ? `1 Day: ${student.event_date}` 
+                                              : `${student.event_date} to ${student.event_end_date}`
+                                            }
+                                          </p>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <Clock size={12} className="text-slate-400" />
+                                          <p className="text-[10px] font-mono text-slate-500 uppercase">
+                                            {student.event_start_time || 'Day Event'}
+                                          </p>
+                                        </div>
                                       </div>
                                     </td>
                                     <td className="px-8 py-6">

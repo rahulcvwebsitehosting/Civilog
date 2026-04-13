@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { ODRequest, ODStatus, Profile } from '../types';
 import { Plus, XCircle, Loader2, GraduationCap, Terminal, Trophy, RefreshCw, Trash2, AlertCircle, X, ArrowRight } from 'lucide-react';
+import imageCompression from 'browser-image-compression';
 import SubmissionForm from './SubmissionForm';
 import FeedCard from './FeedCard';
 import { Link } from 'react-router-dom';
@@ -333,10 +334,26 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
 
       setUploadState({ id: request.id, type: 'prize', index }); // Indicate file upload is in progress
       try {
-        const fileName = `${Date.now()}_prize_idx${index}_${profile.id}.${file.name.split('.').pop()}`;
+        let uploadFile = file;
+        if (file.type.startsWith('image/')) {
+          const options = {
+            maxSizeMB: 0.8,
+            maxWidthOrHeight: 1280,
+            useWebWorker: true
+          };
+          try {
+            showToast("Compressing image for faster upload...", "info");
+            const compressedBlob = await imageCompression(file, options);
+            uploadFile = new File([compressedBlob], file.name, { type: file.type });
+          } catch (compressErr) {
+            console.warn("Compression failed, uploading original:", compressErr);
+          }
+        }
+
+        const fileName = `${Date.now()}_prize_idx${index}_${profile.id}.${uploadFile.name.split('.').pop()}`;
         const { error: uploadError } = await supabase.storage
           .from('od-files')
-          .upload(`evidence/${fileName}`, file);
+          .upload(`evidence/${fileName}`, uploadFile);
 
         if (uploadError) throw uploadError;
 
@@ -435,10 +452,26 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
 
       setUploadState({ id: request.id, type, index });
       try {
-        const fileName = `${Date.now()}_${type}_idx${index}_${profile.id}.${file.name.split('.').pop()}`;
+        let uploadFile = file;
+        if (file.type.startsWith('image/')) {
+          const options = {
+            maxSizeMB: 0.8,
+            maxWidthOrHeight: 1280,
+            useWebWorker: true
+          };
+          try {
+            showToast("Compressing image for faster upload...", "info");
+            const compressedBlob = await imageCompression(file, options);
+            uploadFile = new File([compressedBlob], file.name, { type: file.type });
+          } catch (compressErr) {
+            console.warn("Compression failed, uploading original:", compressErr);
+          }
+        }
+
+        const fileName = `${Date.now()}_${type}_idx${index}_${profile.id}.${uploadFile.name.split('.').pop()}`;
         const { error: uploadError } = await supabase.storage
           .from('od-files')
-          .upload(`evidence/${fileName}`, file);
+          .upload(`evidence/${fileName}`, uploadFile);
 
         if (uploadError) throw uploadError;
 
@@ -504,10 +537,26 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
 
       setUploadState({ id: request.id, type: 'certificate', index: 0 });
       try {
-        const fileName = `${Date.now()}_certificate_idx0_${profile.id}.${file.name.split('.').pop()}`;
+        let uploadFile = file;
+        if (file.type.startsWith('image/')) {
+          const options = {
+            maxSizeMB: 0.8,
+            maxWidthOrHeight: 1280,
+            useWebWorker: true
+          };
+          try {
+            showToast("Compressing image for faster upload...", "info");
+            const compressedBlob = await imageCompression(file, options);
+            uploadFile = new File([compressedBlob], file.name, { type: file.type });
+          } catch (compressErr) {
+            console.warn("Compression failed, uploading original:", compressErr);
+          }
+        }
+
+        const fileName = `${Date.now()}_certificate_idx0_${profile.id}.${uploadFile.name.split('.').pop()}`;
         const { error: uploadError } = await supabase.storage
           .from('od-files')
-          .upload(`evidence/${fileName}`, file);
+          .upload(`evidence/${fileName}`, uploadFile);
 
         if (uploadError) throw uploadError;
 

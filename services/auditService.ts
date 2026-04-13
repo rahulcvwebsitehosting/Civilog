@@ -13,6 +13,7 @@ export type AuditAction =
   | 'UPDATE_PROFILE'
   | 'UPDATE_ACHIEVEMENT'
   | 'MANUAL_NOTIFICATION'
+  | 'BULK_ACTION'
   | 'LOGIN';
 
 export const logAudit = async (

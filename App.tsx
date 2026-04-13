@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { HashRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
-import { LogOut, Search as SearchIcon, LayoutDashboard, Settings, User, Home, Terminal, Database, LogIn } from 'lucide-react';
+import { LogOut, Search as SearchIcon, LayoutDashboard, Settings, User, Home, Terminal, Database, LogIn, Command as CommandIcon, Calendar, UserCheck, AlertCircle, Loader2 } from 'lucide-react';
+import { Command } from 'cmdk';
+import { motion, AnimatePresence } from 'motion/react';
 import { supabase, configError } from './supabaseClient';
 import Auth from './components/Auth';
 import StudentDashboard from './components/StudentDashboard';
@@ -86,7 +88,7 @@ const MobileNav: React.FC<{ profile: Profile | null }> = ({ profile }) => {
   );
 };
 
-const Header: React.FC<{ profile: Profile | null; onLogout: () => void }> = ({ profile, onLogout }) => (
+const Header: React.FC<{ profile: Profile | null; onLogout: () => void; onOpenSearch: () => void }> = ({ profile, onLogout, onOpenSearch }) => (
   <header className="bg-concrete-gray/80 backdrop-blur-md border-b border-blueprint-blue/20 sticky top-0 z-[60] py-3">
     <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
       <div className="flex items-center gap-4">
@@ -107,6 +109,14 @@ const Header: React.FC<{ profile: Profile | null; onLogout: () => void }> = ({ p
       </div>
       
       <div className="flex items-center gap-4">
+        <button 
+          onClick={onOpenSearch}
+          className="hidden md:flex items-center gap-3 px-4 py-2 bg-white/50 border border-slate-200 rounded-xl text-slate-400 hover:border-blueprint-blue/30 hover:bg-white transition-all group"
+        >
+          <SearchIcon size={16} className="group-hover:text-blueprint-blue transition-colors" />
+          <span className="text-[10px] font-black uppercase tracking-widest">Search Registry...</span>
+        </button>
+
         {profile && <NotificationCenter userId={profile.id} />}
         <nav className="hidden lg:flex items-center gap-2 bg-white/50 p-1.5 rounded-2xl border border-white">
           <NavLink to="/track" icon={<SearchIcon size={18} />}>Track</NavLink>
@@ -162,6 +172,48 @@ const App: React.FC = () => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [showRetry, setShowRetry] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        setSearchOpen((open) => !open);
+      }
+    };
+    document.addEventListener('keydown', down);
+    return () => document.removeEventListener('keydown', down);
+  }, []);
+
+  useEffect(() => {
+    if (!searchQuery || searchQuery.length < 3) {
+      setSearchResults([]);
+      return;
+    }
+    
+    const performSearch = async () => {
+      setSearchLoading(true);
+      try {
+        const { data } = await supabase
+          .from('od_requests')
+          .select('id, student_name, register_no, event_title, status, department')
+          .or(`register_no.ilike.%${searchQuery}%,event_title.ilike.%${searchQuery}%,student_name.ilike.%${searchQuery}%`)
+          .limit(8);
+        setSearchResults(data || []);
+      } catch (err) {
+        console.error("Search Error:", err);
+      } finally {
+        setSearchLoading(false);
+      }
+    };
+    
+    const timer = setTimeout(performSearch, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   const loadingRef = useRef(true);
   const currentUserIdRef = useRef<string | null>(null);
   const sessionRef = useRef<any>(null);
@@ -345,8 +397,8 @@ const App: React.FC = () => {
   return (
     <ToastProvider>
       <HashRouter>
-        <div className="min-h-screen flex flex-col font-display">
-          <Header profile={profile} onLogout={handleLogout} />
+        <div className="min-h-screen flex flex-col font-display bg-drafting-paper dark:bg-slate-950 transition-colors duration-300">
+          <Header profile={profile} onLogout={handleLogout} onOpenSearch={() => setSearchOpen(true)} />
           <main className="flex-1 max-w-7xl mx-auto w-full px-6 py-8 pb-24 lg:pb-8">
             <ErrorBoundary>
               <Routes>
@@ -513,6 +565,109 @@ const App: React.FC = () => {
           </div>
         </div>
       </footer>
+
+      {/* Global Command Palette */}
+      <Command.Dialog 
+        open={searchOpen} 
+        onOpenChange={setSearchOpen} 
+        label="Global Command Menu"
+        className="fixed inset-0 z-[200] flex items-start justify-center pt-[15vh] p-4 bg-slate-900/60 backdrop-blur-sm"
+      >
+        <motion.div 
+          initial={{ scale: 0.95, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-[2rem] shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden"
+        >
+          <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+            <SearchIcon className="text-blueprint-blue" size={20} />
+            <Command.Input 
+              autoFocus
+              value={searchQuery}
+              onValueChange={setSearchQuery}
+              placeholder="Search by Register No, Student Name, or Event..." 
+              className="w-full bg-transparent outline-none text-slate-900 dark:text-white font-bold placeholder:text-slate-400 text-sm"
+            />
+            {searchLoading && <Loader2 className="animate-spin text-slate-400" size={16} />}
+            <button onClick={() => setSearchOpen(false)} className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-600">Esc</button>
+          </div>
+
+          <Command.List className="max-h-[60vh] overflow-y-auto p-4 custom-scrollbar">
+            <Command.Empty className="py-12 text-center">
+              <div className="w-12 h-12 bg-slate-50 dark:bg-slate-800 rounded-2xl flex items-center justify-center mx-auto mb-4 text-slate-300">
+                <SearchIcon size={24} />
+              </div>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">No matching records found</p>
+            </Command.Empty>
+
+            {searchResults.length > 0 && (
+              <Command.Group heading={<span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-2 mb-2 block">Registry Results</span>}>
+                {searchResults.map((item) => (
+                  <Command.Item 
+                    key={item.id} 
+                    onSelect={() => {
+                      setSearchOpen(false);
+                      window.location.hash = `#/track?register_no=${item.register_no}`;
+                    }}
+                    className="flex items-center justify-between p-4 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-all group border border-transparent hover:border-blueprint-blue/20"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-blueprint-blue/10 text-blueprint-blue rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <UserCheck size={20} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">{item.student_name}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[10px] font-mono font-bold text-blueprint-blue">{item.register_no}</span>
+                          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">•</span>
+                          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{item.department}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-black text-slate-900 dark:text-slate-300 uppercase tracking-tight italic">{item.event_title}</p>
+                      <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full mt-1 inline-block ${
+                        item.status === 'Approved' ? 'bg-emerald-100 text-emerald-600' : 
+                        item.status === 'Rejected' ? 'bg-red-100 text-red-600' : 
+                        'bg-amber-100 text-amber-600'
+                      }`}>
+                        {item.status}
+                      </span>
+                    </div>
+                  </Command.Item>
+                ))}
+              </Command.Group>
+            )}
+
+            <Command.Group heading={<span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-2 mt-6 mb-2 block">Quick Navigation</span>}>
+              <Command.Item onSelect={() => { setSearchOpen(false); window.location.hash = '#/track'; }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-all">
+                <SearchIcon size={18} className="text-slate-400" />
+                <span className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-widest">Track OD Status</span>
+              </Command.Item>
+              <Command.Item onSelect={() => { setSearchOpen(false); window.location.hash = '#/profile'; }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-all">
+                <User size={18} className="text-slate-400" />
+                <span className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-widest">My Profile Settings</span>
+              </Command.Item>
+            </Command.Group>
+          </Command.List>
+          
+          <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1.5">
+                <kbd className="px-1.5 py-0.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded text-[9px] font-mono font-bold text-slate-500">↑↓</kbd>
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Navigate</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <kbd className="px-1.5 py-0.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded text-[9px] font-mono font-bold text-slate-500">Enter</kbd>
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Select</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <CommandIcon size={12} className="text-slate-300" />
+              <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest italic">ESEC Terminal v2.6</span>
+            </div>
+          </div>
+        </motion.div>
+      </Command.Dialog>
     </div>
   </HashRouter>
 </ToastProvider>

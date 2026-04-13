@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { Profile } from '../types';
-import { Loader2, User, Fingerprint, Briefcase, GraduationCap, Building2, CheckCircle2, AlertCircle, Save, PenTool, Upload, FileImage, Trash2, Info, Lock, Clock } from 'lucide-react';
+import { Loader2, User, Fingerprint, Briefcase, GraduationCap, Building2, CheckCircle2, AlertCircle, Save, PenTool, Upload, FileImage, Trash2, Info, Lock, Clock, Moon, Sun } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DEPARTMENTS } from '../constants';
 import { useToast } from '../contexts/ToastContext';
@@ -25,7 +25,18 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ profile, onUpdate }) => {
   const [requestReason, setRequestReason] = useState('');
   const [pendingProfileRequest, setPendingProfileRequest] = useState<any>(null);
   const [requestLoading, setRequestLoading] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(() => document.documentElement.classList.contains('dark'));
   
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [isDarkMode]);
+
   useEffect(() => {
     checkPendingDeletion();
     fetchLockStatus();
@@ -321,7 +332,17 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ profile, onUpdate }) => {
         <div>
           <h2 className="text-4xl font-black text-blueprint-blue tracking-tighter uppercase italic">System Profile</h2>
         </div>
-        <div className="px-4 py-1.5 bg-blueprint-blue text-white text-[10px] font-black rounded-full uppercase tracking-widest">{profile.role} Terminal</div>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => setIsDarkMode(!isDarkMode)}
+            className="p-3 rounded-2xl bg-slate-100 dark:bg-gray-800 text-slate-600 dark:text-gray-300 hover:bg-slate-200 dark:hover:bg-gray-700 transition-all shadow-sm flex items-center gap-2 border border-slate-200 dark:border-gray-700"
+            title="Toggle Theme"
+          >
+            {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
+            <span className="text-[10px] font-black uppercase tracking-widest">{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
+          </button>
+          <div className="px-4 py-1.5 bg-blueprint-blue text-white text-[10px] font-black rounded-full uppercase tracking-widest">{profile.role} Terminal</div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

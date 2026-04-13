@@ -136,6 +136,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
   const [deleteCandidateId, setDeleteCandidateId] = useState<string | null>(null);
   const [softDeleteCandidateId, setSoftDeleteCandidateId] = useState<string | null>(null);
   const [adminPasswordInput, setAdminPasswordInput] = useState('');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const { showToast } = useToast();
   
   const fetchRequests = async (signal?: AbortSignal) => {
@@ -319,6 +320,81 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
   useEffect(() => {
     fetchYearStats();
   }, [activeStatus, role, facultyProfile?.department]);
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === filteredRequests.length && filteredRequests.length > 0) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredRequests.map(r => r.id));
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const handleBulkAction = async (approve: boolean) => {
+    if (selectedIds.length === 0 || processingId) return;
+    
+    const requestsToProcess = requests.filter(r => selectedIds.includes(r.id));
+    const unauthorized = requestsToProcess.filter(r => !canApprove(r));
+    
+    if (unauthorized.length > 0) {
+      showToast(`Some selected requests cannot be processed by your role.`, "error");
+      return;
+    }
+
+    setProcessingId('bulk');
+    try {
+      if (approve && role === 'hod') {
+        showToast(`Processing ${selectedIds.length} approvals sequentially...`, "info");
+        for (const req of requestsToProcess) {
+          // We need to call handleAction but it has its own processingId logic
+          // So we'll bypass it and call a more atomic version if needed, 
+          // or just wait for each.
+          // For simplicity, let's use a modified version of handleAction logic here
+          // but that's a lot of code duplication.
+          // Let's just use handleAction and wait.
+          await handleAction(req, true, true);
+        }
+      } else {
+        const status = approve ? (role === 'hod' ? 'Approved' : 'Pending HOD') : 'Rejected';
+        const activeFacultyId = facultyProfile?.id || (await supabase.auth.getUser()).data.user?.id;
+        
+        const updateData: any = { status };
+        if (role === 'hod') {
+          updateData.hod_id = activeFacultyId;
+          updateData.hod_approved_at = new Date().toISOString();
+        } else {
+          updateData.coordinator_id = activeFacultyId;
+          updateData.coordinator_approved_at = new Date().toISOString();
+        }
+
+        const { error } = await supabase
+          .from('od_requests')
+          .update(updateData)
+          .in('id', selectedIds);
+
+        if (error) throw error;
+        
+        await logAudit('BULK_ACTION', 'od_request', 'multiple', {
+          count: selectedIds.length,
+          action: approve ? 'APPROVE' : 'REJECT',
+          role
+        });
+
+        showToast(`Bulk ${approve ? 'approval' : 'rejection'} successful for ${selectedIds.length} requests`, "success");
+      }
+      setSelectedIds([]);
+      fetchRequests();
+    } catch (err: any) {
+      showToast(err.message || "Bulk action failed", "error");
+    } finally {
+      setProcessingId(null);
+    }
+  };
 
   const handleAction = async (request: ODRequest, approve: boolean, confirmed: boolean = false) => {
     if (processingId) return;
@@ -1076,6 +1152,50 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         </div>
       </div>
 
+      {/* Bulk Action Bar */}
+      <AnimatePresence>
+        {selectedIds.length > 0 && (
+          <motion.div 
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] bg-slate-900 text-white px-6 py-4 rounded-[2rem] shadow-2xl flex items-center gap-6 border border-slate-700 backdrop-blur-md"
+          >
+            <div className="flex items-center gap-3 pr-6 border-r border-slate-700">
+              <div className="w-8 h-8 bg-blueprint-blue rounded-full flex items-center justify-center text-[10px] font-black">
+                {selectedIds.length}
+              </div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Selected</p>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={() => handleBulkAction(true)}
+                disabled={!!processingId}
+                className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 disabled:opacity-50"
+              >
+                {processingId === 'bulk' ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                Approve Selection
+              </button>
+              <button 
+                onClick={() => handleBulkAction(false)}
+                disabled={!!processingId}
+                className="px-6 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 disabled:opacity-50"
+              >
+                <X size={14} />
+                Reject Selection
+              </button>
+              <button 
+                onClick={() => setSelectedIds([])}
+                className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+              >
+                Cancel
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <button 
           onClick={() => setActiveStatus('Pending Coordinator')}
@@ -1237,8 +1357,19 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-4">
-              {filteredRequests.map((request) => {
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 px-8 py-4 bg-slate-50 rounded-[1.5rem] border border-slate-100">
+                <input 
+                  type="checkbox" 
+                  checked={selectedIds.length === filteredRequests.length && filteredRequests.length > 0}
+                  onChange={toggleSelectAll}
+                  className="w-5 h-5 rounded-md border-slate-300 text-blueprint-blue focus:ring-blueprint-blue accent-blueprint-blue cursor-pointer"
+                />
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Select All Requests in View</span>
+              </div>
+              
+              <div className="grid grid-cols-1 gap-4">
+                {filteredRequests.map((request) => {
                 const formattedEventDate = formatFancyDate(request.event_date);
                 const formattedEventEndDate = formatFancyDate(request.event_end_date);
                 const isOneDay = !request.event_end_date || request.event_end_date === request.event_date;
@@ -1250,9 +1381,17 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                   <motion.div 
                     layout
                     key={request.id}
-                    className="bg-white border border-slate-200 rounded-[2.5rem] p-8 shadow-sm hover:shadow-xl hover:border-blueprint-blue/30 transition-all group"
+                    className={`bg-white border rounded-[2.5rem] p-8 shadow-sm hover:shadow-xl transition-all group relative ${selectedIds.includes(request.id) ? 'border-blueprint-blue ring-2 ring-blueprint-blue/10 bg-blue-50/30' : 'border-slate-200 hover:border-blueprint-blue/30'}`}
                   >
-                    <div className="flex flex-col lg:flex-row gap-8">
+                    <div className="absolute top-8 left-3">
+                      <input 
+                        type="checkbox" 
+                        checked={selectedIds.includes(request.id)}
+                        onChange={() => toggleSelect(request.id)}
+                        className="w-5 h-5 rounded-md border-slate-300 text-blueprint-blue focus:ring-blueprint-blue accent-blueprint-blue cursor-pointer"
+                      />
+                    </div>
+                    <div className="flex flex-col lg:flex-row gap-8 pl-4">
                       {/* Student Panel */}
                       <div className="flex-1 space-y-3">
                         <div className="flex items-center gap-3">
@@ -1355,6 +1494,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                   </motion.div>
                 );
               })}
+              </div>
             </div>
           )}
         </div>

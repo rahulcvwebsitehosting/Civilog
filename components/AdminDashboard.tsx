@@ -138,7 +138,7 @@ const AdminDashboard: React.FC = () => {
       const data = await res.json();
       setSystemStatus(data);
     } catch (err: any) {
-      if (err.name === 'AbortError') return;
+      if (err.name === 'AbortError' || err.name === 'CanceledError' || err.message?.includes('aborted')) return;
       console.error("Health Check Error:", err);
     }
   };
@@ -272,7 +272,7 @@ const AdminDashboard: React.FC = () => {
         }
       }
     } catch (err: any) {
-      if (err.name === 'AbortError') return;
+      if (err.name === 'AbortError' || err.name === 'CanceledError' || err.message?.includes('aborted')) return;
       console.error("Fetch Error:", err);
       setError(err.message || 'Failed to connect to the administrative server.');
     } finally {

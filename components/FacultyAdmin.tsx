@@ -288,7 +288,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         history: historyResult.count || 0
       });
     } catch (err: any) {
-      if (err.name === 'AbortError') return;
+      if (err.name === 'AbortError' || err.name === 'CanceledError' || err.message?.includes('aborted')) return;
       console.error("Fetch Error:", err);
       setError(err.message || 'Failed to connect to the registry server.');
     } finally {

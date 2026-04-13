@@ -71,10 +71,12 @@ const AdminDashboard: React.FC = () => {
   const [systemStatus, setSystemStatus] = useState<any>(null);
 
   useEffect(() => {
-    fetchData();
+    const controller = new AbortController();
+    fetchData(controller.signal);
     if (activeTab === 'system') {
-      checkSystemStatus();
+      checkSystemStatus(controller.signal);
     }
+    return () => controller.abort();
   }, [activeTab, sortOrder]);
 
   // Student Audit Debounce Search
@@ -130,12 +132,13 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  const checkSystemStatus = async () => {
+  const checkSystemStatus = async (signal?: AbortSignal) => {
     try {
-      const res = await fetch('/api/health');
+      const res = await fetch('/api/health', { signal });
       const data = await res.json();
       setSystemStatus(data);
-    } catch (err) {
+    } catch (err: any) {
+      if (err.name === 'AbortError') return;
       console.error("Health Check Error:", err);
     }
   };
@@ -203,7 +206,7 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  const fetchData = async () => {
+  const fetchData = async (signal?: AbortSignal) => {
     setError(null);
     if (activeTab !== 'analytics') {
       setLoading(true);
@@ -221,44 +224,55 @@ const AdminDashboard: React.FC = () => {
       }
 
       if (activeTab === 'users' || activeTab === 'mail') {
-        const { data } = await supabase
+        let q = supabase
           .from('profiles')
           .select('id, full_name, email, role, department, is_profile_complete, identification_no, phone_number, roll_no, year, designation, is_blacklisted, blacklist_reason, is_profile_locked')
           .order('full_name');
+        if (signal) q = q.abortSignal(signal);
+        const { data } = await q;
         setProfiles(data || []);
       } else if (activeTab === 'locks') {
-        const { data: locks } = await supabase.from('registration_locks').select('*');
+        let q = supabase.from('registration_locks').select('*');
+        if (signal) q = q.abortSignal(signal);
+        const { data: locks } = await q;
         const lockMap = (locks || []).reduce((acc: any, curr: any) => {
           acc[curr.department] = curr;
           return acc;
         }, {});
         setRegistrationLocks(lockMap);
       } else if (activeTab === 'deletions') {
-        const { data } = await supabase
+        let q = supabase
           .from('deletion_requests')
           .select('*, profiles(role, department)')
           .eq('status', 'pending')
           .order('requested_at', { ascending: true });
+        if (signal) q = q.abortSignal(signal);
+        const { data } = await q;
         setDeletionRequests(data || []);
       } else if (activeTab === 'requests' || activeTab === 'feed') {
-        const { data } = await supabase
+        let q = supabase
           .from('od_requests')
           .select('id, student_name, register_no, roll_no, phone_number, year, semester, department, event_title, organization_name, organization_location, event_type, event_date, event_end_date, status, created_at, coordinator_id, hod_id, coordinator_approved_at, hod_approved_at, od_letter_url, notification_sent, team_members, prize_details, geotag_photo_urls, certificate_urls, achievement_details, registration_proof_url, payment_proof_url, event_poster_url, user_id, geotag_photo_url, certificate_url, remarks')
           .order('created_at', { ascending: sortOrder === 'asc' });
+        if (signal) q = q.abortSignal(signal);
+        const { data } = await q;
         setRequests(data || []);
       } else if (activeTab === 'analytics') {
         setAnalyticsLoading(true);
         try {
-          const { data } = await supabase
+          let q = supabase
             .from('od_requests')
             .select('id, department, year, event_title, organization_name, organization_location, event_type, status, student_name, roll_no, register_no, event_date, event_end_date, coordinator_id, hod_id, phone_number, semester, hod_approved_at, registration_proof_url, payment_proof_url, event_start_time')
             .or('status.eq.Approved,and(hod_id.not.is.null,coordinator_id.not.is.null)');
+          if (signal) q = q.abortSignal(signal);
+          const { data } = await q;
           setAnalyticsData(data || []);
         } finally {
           setAnalyticsLoading(false);
         }
       }
     } catch (err: any) {
+      if (err.name === 'AbortError') return;
       console.error("Fetch Error:", err);
       setError(err.message || 'Failed to connect to the administrative server.');
     } finally {
@@ -373,6 +387,7 @@ const AdminDashboard: React.FC = () => {
   };
 
   const handleToggleLock = async (dept: string, type: 'registration' | 'profile', currentLockState: boolean) => {
+    if (processingId) return;
     const processingKey = `${dept}_${type}`;
     setProcessingId(processingKey);
     try {
@@ -411,8 +426,12 @@ const AdminDashboard: React.FC = () => {
   };
 
   const handleApproveDeletion = async (request: any) => {
-    if (!adminProfile) return;
+    if (processingId) return;
     setProcessingId(request.id);
+    if (!adminProfile) {
+      setProcessingId(null);
+      return;
+    }
     try {
       // 1. Update request status
       const { error: updateError } = await supabase
@@ -444,8 +463,12 @@ const AdminDashboard: React.FC = () => {
   };
 
   const handleRejectDeletion = async (requestId: string) => {
-    if (!adminProfile) return;
+    if (processingId) return;
     setProcessingId(requestId);
+    if (!adminProfile) {
+      setProcessingId(null);
+      return;
+    }
     try {
       const { error } = await supabase
         .from('deletion_requests')
@@ -468,11 +491,13 @@ const AdminDashboard: React.FC = () => {
   };
 
   const handleBlacklist = async (userId: string) => {
+    if (processingId) return;
+    setProcessingId(userId);
     if (!blacklistReason.trim()) {
       showToast("Please provide a reason for blacklisting", "error");
+      setProcessingId(null);
       return;
     }
-    setProcessingId(userId);
     try {
       const { error } = await supabase
         .from('profiles')
@@ -493,6 +518,7 @@ const AdminDashboard: React.FC = () => {
   };
 
   const handleUnblock = async (userId: string) => {
+    if (processingId) return;
     setProcessingId(userId);
     try {
       const { error } = await supabase
@@ -529,12 +555,15 @@ const AdminDashboard: React.FC = () => {
   };
 
   const handleApproval = async (request: ODRequest, approve: boolean, confirmed: boolean = false) => {
+    if (processingId) return;
+    setProcessingId(request.id);
+
     if (!approve && !confirmed) {
       setConfirmRejectRequest(request);
+      setProcessingId(null);
       return;
     }
 
-    setProcessingId(request.id);
     setConfirmRejectRequest(null);
     try {
       if (approve) {
@@ -783,7 +812,7 @@ const AdminDashboard: React.FC = () => {
             )}
 
             <button 
-              onClick={fetchData}
+              onClick={() => fetchData()}
               className="p-4 bg-white border rounded-2xl outline-none shadow-sm hover:bg-slate-50 transition-all"
             >
               <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
@@ -799,7 +828,7 @@ const AdminDashboard: React.FC = () => {
               <h3 className="text-lg font-black text-red-700 uppercase">Connection Error</h3>
               <p className="text-xs text-red-500">{error}</p>
               <button 
-                onClick={fetchData}
+                onClick={() => fetchData()}
                 className="px-6 py-3 bg-red-600 text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-red-700 transition-all"
               >
                 Retry Connection
@@ -959,6 +988,7 @@ const AdminDashboard: React.FC = () => {
                                     <span className="px-2 py-1 bg-amber-100 text-amber-600 rounded text-[8px] font-black uppercase tracking-widest border border-amber-200">Locked</span>
                                     <button 
                                       onClick={async () => {
+                                        if (processingId) return;
                                         setProcessingId(p.id);
                                         try {
                                           const { error } = await supabase.from('profiles').update({ is_profile_locked: false }).eq('id', p.id);
@@ -980,6 +1010,7 @@ const AdminDashboard: React.FC = () => {
                                 ) : (
                                   <button 
                                     onClick={async () => {
+                                      if (processingId) return;
                                       setProcessingId(p.id);
                                       try {
                                         const { error } = await supabase.from('profiles').update({ is_profile_locked: true }).eq('id', p.id);
@@ -1874,7 +1905,7 @@ const AdminDashboard: React.FC = () => {
                               <span className="text-xs font-bold text-slate-700 uppercase">Operational</span>
                             </div>
                             <button 
-                              onClick={checkSystemStatus}
+                              onClick={() => checkSystemStatus()}
                               className="p-1.5 hover:bg-slate-50 rounded-lg transition-colors"
                               title="Refresh Status"
                             >

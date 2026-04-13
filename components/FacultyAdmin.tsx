@@ -138,7 +138,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
   const [adminPasswordInput, setAdminPasswordInput] = useState('');
   const { showToast } = useToast();
   
-  const fetchRequests = async () => {
+  const fetchRequests = async (signal?: AbortSignal) => {
     setLoading(true);
     setError(null);
     const timeoutId = setTimeout(() => {
@@ -151,11 +151,14 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
       if (!user) return;
 
       // Fetch profile from DB for source of truth
-      const { data: dbProfile, error: profileError } = await supabase
+      let profileQuery = supabase
         .from('profiles')
         .select('*')
-        .eq('id', user.id)
-        .single();
+        .eq('id', user.id);
+      
+      if (signal) profileQuery = profileQuery.abortSignal(signal);
+      
+      const { data: dbProfile, error: profileError } = await profileQuery.single();
 
       if (profileError || !dbProfile) {
         console.warn("Profile not found or incomplete in database");
@@ -192,6 +195,8 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         .from('od_requests')
         .select('*')
         .order('created_at', { ascending: false });
+      
+      if (signal) query = query.abortSignal(signal);
 
       if (requestId) {
         query = query.eq('id', requestId);
@@ -225,6 +230,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
       // Fetch all counts for stats in parallel
       const getCount = (status: ODStatus | 'History', year?: number) => {
         let q = supabase.from('od_requests').select('*', { count: 'exact', head: true });
+        if (signal) q = q.abortSignal(signal);
         
         if (status === 'History') {
           q = q.neq('status', 'Archived');
@@ -282,6 +288,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         history: historyResult.count || 0
       });
     } catch (err: any) {
+      if (err.name === 'AbortError') return;
       console.error("Fetch Error:", err);
       setError(err.message || 'Failed to connect to the registry server.');
     } finally {
@@ -304,7 +311,9 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
   }, [requestId]);
 
   useEffect(() => {
-    fetchRequests();
+    const controller = new AbortController();
+    fetchRequests(controller.signal);
+    return () => controller.abort();
   }, [activeStatus, role, requestId, monthFilter, debouncedSearch, facultyProfile?.department, selectedYear]);
 
   useEffect(() => {
@@ -312,6 +321,9 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
   }, [activeStatus, role, facultyProfile?.department]);
 
   const handleAction = async (request: ODRequest, approve: boolean, confirmed: boolean = false) => {
+    if (processingId) return;
+    setProcessingId(request.id);
+
     // Permission check
     const canPerformAction = 
       (role === 'coordinator' && request.status === 'Pending Coordinator') ||
@@ -319,15 +331,16 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
 
     if (!canPerformAction) {
       showToast(`As ${role.toUpperCase()}, you are not authorized to ${approve ? 'approve' : 'reject'} requests in '${request.status}' state.`, "error");
+      setProcessingId(null);
       return;
     }
 
     if (approve && !confirmed) {
       setConfirmApprovalRequest(request);
+      setProcessingId(null);
       return;
     }
 
-    setProcessingId(request.id);
     setConfirmApprovalRequest(null);
     try {
       if (approve) {
@@ -691,8 +704,9 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
 
   // Manual Notification Fallback
   const sendManualNotification = async (request: ODRequest) => {
+    if (processingId) return;
+    setProcessingId(request.id);
     try {
-      setProcessingId(request.id);
       let targetEmail = '';
       let subject = '';
       let message = '';
@@ -1058,7 +1072,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
               <BookOpen size={14} /> Detail
             </button>
           </div>
-          <button onClick={fetchRequests} className="p-2.5 bg-white border rounded-xl hover:bg-slate-50 transition-colors shadow-sm"><RefreshCw size={20} className={loading ? 'animate-spin' : ''} /></button>
+          <button onClick={() => fetchRequests()} className="p-2.5 bg-white border rounded-xl hover:bg-slate-50 transition-colors shadow-sm"><RefreshCw size={20} className={loading ? 'animate-spin' : ''} /></button>
         </div>
       </div>
 
@@ -1183,7 +1197,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
           <h3 className="text-lg font-black text-red-700 uppercase">Connection Error</h3>
           <p className="text-xs text-red-500">{error}</p>
           <button 
-            onClick={fetchRequests}
+            onClick={() => fetchRequests()}
             className="px-6 py-3 bg-red-600 text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-red-700 transition-all"
           >
             Retry Connection

@@ -20,37 +20,62 @@ const FacultyRegistry: React.FC = () => {
 
   const fetchRegistry = async () => {
     setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-    // Fetch profile from DB for source of truth
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('department, role')
-      .eq('id', user.id)
-      .single();
-    
-    const role = profile?.role || user.user_metadata?.role;
-    setUserRole(role);
+      // Fetch profile from DB for source of truth
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('department, role')
+        .eq('id', user.id)
+        .single();
+      
+      const role = profile?.role || user.user_metadata?.role;
+      setUserRole(role);
 
-    let query = supabase
-      .from('od_requests')
-      .select('id, student_name, register_no, roll_no, phone_number, year, semester, department, event_title, organization_name, organization_location, event_type, event_date, event_end_date, status, created_at, coordinator_id, hod_id, coordinator_approved_at, hod_approved_at, od_letter_url, notification_sent, team_members, prize_details, geotag_photo_urls, certificate_urls, achievement_details, registration_proof_url, payment_proof_url, event_poster_url, user_id, geotag_photo_url, certificate_url, remarks')
-      .in('status', ['Approved', 'Completed', 'Pending Coordinator', 'Pending HOD'])
-      .order('created_at', { ascending: false });
+      const selectFields = 'id, student_name, register_no, roll_no, phone_number, year, semester, department, event_title, organization_name, organization_location, event_type, event_date, event_end_date, status, created_at, coordinator_id, hod_id, coordinator_approved_at, hod_approved_at, od_letter_url, notification_sent, team_members, prize_details, geotag_photo_urls, certificate_urls, achievement_details, registration_proof_url, payment_proof_url, event_poster_url, user_id, remarks';
 
-    const dept = profile?.department || user.user_metadata?.department;
+      let query = supabase
+        .from('od_requests')
+        .select(selectFields)
+        .in('status', ['Approved', 'Completed', 'Pending Coordinator', 'Pending HOD'])
+        .order('created_at', { ascending: false });
 
-    if (role !== 'admin' && dept) {
-      query = query.ilike('department', dept.trim());
+      const dept = profile?.department || user.user_metadata?.department;
+
+      if (role !== 'admin' && dept) {
+        query = query.ilike('department', dept.trim());
+      }
+
+      let { data, error } = await query;
+
+      if (error) {
+        console.error("Registry Fetch Error (Specific Fields):", error);
+        // Fallback to select(*) if specific fields fail
+        let fallbackQuery = supabase
+          .from('od_requests')
+          .select('*')
+          .in('status', ['Approved', 'Completed', 'Pending Coordinator', 'Pending HOD'])
+          .order('created_at', { ascending: false });
+        
+        if (role !== 'admin' && dept) {
+          fallbackQuery = fallbackQuery.ilike('department', dept.trim());
+        }
+        
+        const { data: fallbackData, error: fallbackError } = await fallbackQuery;
+        data = fallbackData;
+        if (fallbackError) console.error("Registry Fetch Error (Fallback):", fallbackError);
+      }
+
+      if (data) {
+        setRequests(data as ODRequest[]);
+      }
+    } catch (err) {
+      console.error("Registry Fetch Exception:", err);
+    } finally {
+      setLoading(false);
     }
-
-    const { data, error } = await query;
-
-    if (!error && data) {
-      setRequests(data as ODRequest[]);
-    }
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -180,7 +205,7 @@ const FacultyRegistry: React.FC = () => {
                     <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
                       <Search size={32} className="text-slate-200" />
                     </div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No matching authorized logs found</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No Records Found in Registry</p>
                   </td>
                 </tr>
               ) : (

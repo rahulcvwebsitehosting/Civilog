@@ -9,7 +9,7 @@
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
 [![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com/)
 
-[Report a Bug](https://github.com/yourusername/repo/issues) · [Request Feature](https://github.com/yourusername/repo/issues) 
+[Report a Bug](https://github.com/rahulcvwebsitehosting/Civilog/issues) · [Request Feature](https://github.com/rahulcvwebsitehosting/Civilog/issues) 
 
 </div>
 
@@ -67,24 +67,14 @@ graph LR
 
 ---
 
-## 📸 Interface Previews
-
-> **Note to self before publishing:** *Replace these placeholder URLs with screenshots of your actual dashboards!*
-
-| Student Dashboard | Faculty & Analytics View |
-| :---: | :---: |
-| <img src="https://via.placeholder.com/500x300.png?text=Student+Dashboard+Screenshot" alt="Student View"/> | <img src="https://via.placeholder.com/500x300.png?text=Admin+Dashboard+Screenshot" alt="Admin View"/> |
-
----
-
 ## 🛠️ Quick Start & Installation
 
 To run this project locally, follow these steps:
 
 ### 1. Clone the repository
 ```bash
-git clone https://github.com/yourusername/esec-od-system.git
-cd esec-od-system
+git clone https://github.com/rahulcvwebsitehosting/Civilog.git
+cd Civilog
 ```
 
 ### 2. Install dependencies

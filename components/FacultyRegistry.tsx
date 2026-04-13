@@ -35,7 +35,7 @@ const FacultyRegistry: React.FC = () => {
 
     let query = supabase
       .from('od_requests')
-      .select('*')
+      .select('id, student_name, register_no, roll_no, phone_number, year, semester, department, event_title, organization_name, organization_location, event_type, event_date, event_end_date, status, created_at, coordinator_id, hod_id, coordinator_approved_at, hod_approved_at, od_letter_url, notification_sent, team_members, prize_details, geotag_photo_urls, certificate_urls, achievement_details, registration_proof_url, payment_proof_url, event_poster_url, user_id, geotag_photo_url, certificate_url, remarks')
       .in('status', ['Approved', 'Completed', 'Pending Coordinator', 'Pending HOD'])
       .order('created_at', { ascending: false });
 
@@ -70,7 +70,7 @@ const FacultyRegistry: React.FC = () => {
   }, []);
 
   const handleExport = () => {
-    exportODRequestsToExcel(filteredRequests);
+    exportODRequestsToExcel(filteredRequests, undefined, (msg) => showToast(msg, 'error'));
   };
 
   const handleUpdateAchievement = async (id: string) => {

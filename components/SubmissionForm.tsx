@@ -114,6 +114,13 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
+    
+    if (name === 'event_end_date' && formData.event_date && value < formData.event_date) {
+      setError("Warning: End date is before the start date.");
+    } else if (error && (name === 'event_end_date' || name === 'event_date')) {
+      if (error.includes("date")) setError(null);
+    }
+
     setFormData(prev => {
       const newData = { ...prev, [name]: value };
       // Sync end date with start date if end date is empty or was previously synced
@@ -177,6 +184,11 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
       return;
     }
 
+    if (formData.event_end_date && formData.event_date && formData.event_end_date < formData.event_date) {
+      setError("End date cannot be before the start date.");
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -189,24 +201,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
 
     try {
       
-      // Step 0: Ensure profile exists in DB (Resiliency check)
-      const { error: syncError } = await supabase.from('profiles').upsert({
-        id: profile.id,
-        email: profile.email,
-        role: profile.role,
-        full_name: formData.student_name,
-        identification_no: formData.register_no,
-        roll_no: formData.roll_no,
-        year: formData.year,
-        department: formData.department,
-        is_profile_complete: true
-      }, { onConflict: 'id' });
-
-      if (syncError) {
-        console.warn("Profile sync warning (non-fatal):", syncError);
-      }
-
-      // Step 1: Prepare all file paths
+      // Step 0: Prepare all file paths
       const generateUniquePath = (file: File, folder: string) => {
         const ext = file.name.split('.').pop();
         const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}_${file.name}`;
@@ -232,15 +227,15 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
 
       const finalLocation = formData.organization_location === 'Other' ? customLocation : formData.organization_location;
 
-      // Step 2: Prepare Database Data
+      // Step 1: Prepare Database Data
       const requestData = {
         user_id: profile.id,
         student_name: formData.student_name,
         register_no: formData.register_no,
         roll_no: formData.roll_no,
         phone_number: formData.phone_number,
-        year: formData.year,
-        department: formData.department, // Use form data department to ensure consistency with notification recipients
+        year: profile.year || formData.year,
+        department: profile.department || formData.department,
         semester: formData.semester,
         event_title: formData.event_title,
         organization_name: formData.organization_name,
@@ -255,7 +250,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
       const letterFileName = `${Date.now()}_Requisition_${formData.register_no}.pdf`;
       const letterPath = `od_letters/${letterFileName}`;
 
-      // Step 3: Database Insertion (FAST)
+      // Step 2: Database Insertion (FAST)
       const { data: insertedData, error: dbError } = await supabase.from('od_requests').insert([
         {
           ...requestData,
@@ -274,7 +269,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
         throw dbError;
       }
 
-      // Step 4: Success UI (IMMEDIATE)
+      // Step 3: Success UI (IMMEDIATE)
       onSuccess();
 
       // Log Audit
@@ -284,7 +279,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
         department: formData.department
       });
 
-      // Step 5: Background Tasks (PDF, Uploads & Notifications)
+      // Step 4: Background Tasks (PDF, Uploads & Notifications)
       
       // Generate PDF in background
       generateODDocument({ ...requestData, id: insertedData?.id || 'PENDING' } as any, profile).then(blob => {
@@ -306,7 +301,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
       if (posterFile && posterPath) startBackgroundUpload(posterFile, posterPath, 'Event Poster');
       if (payFile && payPath) startBackgroundUpload(payFile, payPath, 'Payment Proof');
 
-      // Step 6: Notify Coordinator (Background)
+      // Step 5: Notify Coordinator (Background)
       if (insertedData) {
         try {
           const { data: recipients, error: recipientError } = await supabase
@@ -347,9 +342,13 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
                   </div>
                 `;
 
+                const { data: { session } } = await supabase.auth.getSession();
                 const emailRes = await fetch('/api/send-email', {
                   method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
+                  headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session?.access_token}`
+                  },
                   body: JSON.stringify({
                     to: recipient.email,
                     subject: `New OD Request for Recommendation: ${formData.event_title}`,
@@ -387,7 +386,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
         ></div>
       </div>
 
-      <div className="relative px-10 pt-12 pb-8 border-b border-slate-200 dark:border-gray-600 flex justify-between items-start">
+      <div className="relative px-4 sm:px-10 pt-12 pb-8 border-b border-slate-200 dark:border-gray-600 flex justify-between items-start">
         <div>
           <h1 className="text-3xl font-black text-slate-900 dark:text-gray-100 uppercase tracking-tighter italic leading-none">OD Submission</h1>
           <p className="text-[10px] text-pencil-gray font-technical font-bold uppercase tracking-widest mt-2">Please fill in the details accurately</p>
@@ -397,7 +396,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
         </button>
       </div>
 
-      <form onSubmit={handleSubmit} className="p-10 space-y-10 max-h-[65vh] overflow-y-auto custom-scrollbar bg-topo">
+      <form onSubmit={handleSubmit} className="px-4 sm:px-10 py-6 space-y-10 max-h-[65vh] overflow-y-auto custom-scrollbar bg-topo">
         <div className="space-y-5">
           <h2 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] font-mono flex items-center gap-2">
             <span className="w-8 h-[1px] bg-slate-200"></span> 01 PERSONAL INFORMATION
@@ -427,7 +426,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
               />
             </div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-5">
             <select 
               name="year" 
               value={formData.year} 
@@ -465,7 +464,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
                ))}
              </select>
           </div>
-          <div className="grid grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
              <input name="register_no" required value={formData.register_no} onChange={handleInputChange} className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none font-mono shadow-sm" placeholder="Reg No (Ex. 2403730410321019)" />
              <input name="roll_no" required value={formData.roll_no} onChange={handleInputChange} className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none font-mono shadow-sm" placeholder="Roll No (Ex. ES24CE19)" />
           </div>

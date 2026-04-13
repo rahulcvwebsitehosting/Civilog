@@ -3,6 +3,11 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import nodemailer from 'nodemailer';
 import 'dotenv/config';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 let transporter: nodemailer.Transporter | null = null;
 
@@ -128,6 +133,16 @@ async function startServer() {
 
   // API routes
   app.post('/api/send-email', async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+    const token = authHeader.split(' ')[1];
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !user) {
+      return res.status(401).json({ success: false, error: 'Invalid session' });
+    }
+
     const { to, subject, message } = req.body;
 
     if (!to || !subject || !message) {

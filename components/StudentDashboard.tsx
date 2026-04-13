@@ -207,6 +207,7 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
   const [isPrizeDetailsSubmitting, setIsPrizeDetailsSubmitting] = useState(false); // For loading state of modal button
   const [tempPrizeUploadUrl, setTempPrizeUploadUrl] = useState<string | null>(null);
   const syncedRequestIds = React.useRef<Set<string>>(new Set());
+  const hasSynced = React.useRef(false);
   const { showToast } = useToast();
 
   const fetchRequests = async () => {
@@ -245,17 +246,19 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
 
   // Sync notifications for earlier approvals that might have been missed
   useEffect(() => {
+    if (hasSynced.current || !profile?.id || requests.length === 0) return;
+    
+    const unsentApprovals = requests.filter(r => 
+      (r.status === 'Approved' || r.status === 'Completed') && 
+      r.notification_sent === false &&
+      !syncedRequestIds.current.has(r.id)
+    );
+
+    if (unsentApprovals.length === 0) return;
+    
+    hasSynced.current = true; // Prevent re-runs
+    
     const syncNotifications = async () => {
-      if (!profile?.id || requests.length === 0) return;
-
-      const unsentApprovals = requests.filter(r => 
-        (r.status === 'Approved' || r.status === 'Completed') && 
-        r.notification_sent === false &&
-        !syncedRequestIds.current.has(r.id)
-      );
-
-      if (unsentApprovals.length === 0) return;
-
       for (const req of unsentApprovals) {
         try {
           syncedRequestIds.current.add(req.id);
@@ -279,7 +282,7 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
     };
 
     syncNotifications();
-  }, [requests, profile?.id]);
+  }, [profile?.id]); // Only re-run if profile changes, NOT on every requests update
 
   if (!profile) return null;
 
@@ -353,7 +356,13 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
       }
     };
     
+    input.style.display = 'none';
+    document.body.appendChild(input);
     input.click();
+    // Cleanup after selection
+    input.addEventListener('change', () => {
+      setTimeout(() => document.body.removeChild(input), 100);
+    }, { once: true });
   };
 
   // This function handles the modal confirmation, using the already uploaded URL
@@ -475,7 +484,13 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
       }
     };
     
+    input.style.display = 'none';
+    document.body.appendChild(input);
     input.click();
+    // Cleanup after selection
+    input.addEventListener('change', () => {
+      setTimeout(() => document.body.removeChild(input), 100);
+    }, { once: true });
   };
 
   const proceedWithCertificateUpload = (request: ODRequest) => {
@@ -526,7 +541,13 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
       }
     };
     
+    input.style.display = 'none';
+    document.body.appendChild(input);
     input.click();
+    // Cleanup after selection
+    input.addEventListener('change', () => {
+      setTimeout(() => document.body.removeChild(input), 100);
+    }, { once: true });
   };
 
   return (
@@ -571,7 +592,13 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
       </div>
 
       {showForm && (
-        <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+        <div 
+          className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
+          onClick={(e) => {
+            // Only close if the click was directly on the backdrop, not on the form itself
+            if (e.target === e.currentTarget) setShowForm(false);
+          }}
+        >
           <SubmissionForm 
             onSuccess={() => { setShowForm(false); fetchRequests(); }} 
             onClose={() => setShowForm(false)}
@@ -582,7 +609,19 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
 
       {showPrizePrompt && (
         <PrizeDetailsPromptModal
-          onClose={() => {
+          onClose={async () => {
+            // If there's an uploaded file URL that was never saved, delete it from storage
+            if (tempPrizeUploadUrl) {
+              try {
+                // Extract the file path from the public URL
+                const urlParts = tempPrizeUploadUrl.split('/od-files/');
+                if (urlParts.length > 1) {
+                  await supabase.storage.from('od-files').remove([urlParts[1]]);
+                }
+              } catch (cleanupErr) {
+                console.warn('Failed to cleanup orphaned prize file:', cleanupErr);
+              }
+            }
             setShowPrizePrompt(false);
             setCurrentPrizeRequest(null);
             setCurrentPrizeIndex(null);
@@ -660,7 +699,7 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
               onDelete={() => handleDelete(request)}
               isUploading={uploadState.id === request.id} // Only use uploadState for FeedCard's isUploading
               uploadType={uploadState.type || undefined}
-              uploadIndex={uploadState.index || undefined}
+              uploadIndex={uploadState.index !== null ? uploadState.index : undefined}
               currentUserId={profile.id}
               currentUserRegNo={profile.identification_no}
             />
@@ -669,16 +708,18 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
       )}
 
       {/* Engineer FAB */}
-      <Link 
-        to="/profile/rahul-shyam" 
-        className="fixed bottom-24 lg:bottom-12 right-6 lg:right-12 w-14 h-14 bg-blueprint-blue text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-110 active:scale-95 transition-all z-[90] group shadow-amber-500/20"
-        title="Engineering Terminal"
-      >
-        <Terminal size={24} className="group-hover:rotate-12 transition-transform" />
-        <div className="absolute right-full mr-4 bg-blueprint-blue text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-xl">
-           ENGINEER PROFILE
-        </div>
-      </Link>
+      {import.meta.env.DEV && (
+        <Link 
+          to="/profile/rahul-shyam" 
+          className="fixed bottom-24 lg:bottom-12 right-6 lg:right-12 w-14 h-14 bg-blueprint-blue text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-110 active:scale-95 transition-all z-[90] group shadow-amber-500/20"
+          title="Engineering Terminal"
+        >
+          <Terminal size={24} className="group-hover:rotate-12 transition-transform" />
+          <div className="absolute right-full mr-4 bg-blueprint-blue text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-xl">
+             ENGINEER PROFILE
+          </div>
+        </Link>
+      )}
     </div>
   );
 };

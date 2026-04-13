@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { ODRequest, Profile, ODStatus } from '../types';
 import { Loader2, RefreshCw, Search, BarChart3, Clock, CheckCircle2, LayoutList, BookOpen, AlertCircle, ChevronLeft, Terminal, FileText, Download, ExternalLink, Database, Trash2, Archive, RefreshCcw, Lock, X, Folder, Bell, Filter, FileSpreadsheet, UserCheck, GraduationCap, Mail, Check, User, Phone, Building2, Calendar } from 'lucide-react';
@@ -23,7 +23,7 @@ const getOrdinalSuffix = (n: number): string => {
 
 // Utility function to format date as "01st October, 2026"
 const formatFancyDate = (dateString: string | null): string => {
-  if (!dateString) return '';
+  if (!dateString) return 'N/A';
   const date = new Date(dateString);
   const day = date.getDate();
   const month = date.toLocaleString('default', { month: 'long' });
@@ -47,12 +47,12 @@ interface FacultyAdminProps {
 const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
   const [requests, setRequests] = useState<ODRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-
+  const [debouncedSearch, setDebouncedSearch] = useState(searchTerm);
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 500);
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 300);
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
@@ -67,6 +67,43 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
   const [viewMode, setViewMode] = useState<'registry' | 'inspection' | 'nested'>('registry');
   const [facultyProfile, setFacultyProfile] = useState<Profile | null>(null);
   const [smtpStatus, setSmtpStatus] = useState<{ configured: boolean; user: string | null }>({ configured: false, user: null });
+
+  const fetchYearStats = useCallback(async () => {
+    if (!facultyProfile?.department && role !== 'admin') return;
+    
+    try {
+      const dept = facultyProfile?.department;
+      const pendingStatus = role === 'hod' ? 'Pending HOD' : 'Pending Coordinator';
+
+      const getCount = (status: ODStatus | 'History', year?: number) => {
+        let q = supabase.from('od_requests').select('*', { count: 'exact', head: true });
+        if (status === 'History') q = q.neq('status', 'Archived');
+        else q = q.eq('status', status);
+        if (year) q = q.eq('year', year.toString());
+        if (role !== 'admin') {
+          if (dept) q = q.ilike('department', dept.trim());
+          else q = q.eq('department', 'NON_EXISTENT_DEPARTMENT_FALLBACK');
+        }
+        return q;
+      };
+
+      const [y1, y2, y3, y4] = await Promise.all([
+        getCount(pendingStatus, 1),
+        getCount(pendingStatus, 2),
+        getCount(pendingStatus, 3),
+        getCount(pendingStatus, 4)
+      ]);
+
+      setYearStats({
+        1: y1.count || 0,
+        2: y2.count || 0,
+        3: y3.count || 0,
+        4: y4.count || 0
+      });
+    } catch (err) {
+      console.error("Year Stats Error:", err);
+    }
+  }, [role, facultyProfile?.department, activeStatus]);
 
   const checkSmtpStatus = async () => {
     try {
@@ -101,10 +138,9 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
   const [adminPasswordInput, setAdminPasswordInput] = useState('');
   const { showToast } = useToast();
   
-  const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || '';
-  
   const fetchRequests = async () => {
     setLoading(true);
+    setError(null);
     const timeoutId = setTimeout(() => {
       setLoading(false);
       console.warn("Registry synchronization timed out");
@@ -210,8 +246,6 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         return q;
       };
 
-      const pendingStatus = role === 'hod' ? 'Pending HOD' : 'Pending Coordinator';
-
       const [
         listResult,
         pendingCoordinatorResult,
@@ -219,11 +253,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         approvedResult,
         completedResult,
         archivedResult,
-        historyResult,
-        y1Result,
-        y2Result,
-        y3Result,
-        y4Result
+        historyResult
       ] = await Promise.all([
         query,
         getCount('Pending Coordinator'),
@@ -231,11 +261,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         getCount('Approved'),
         getCount('Completed'),
         getCount('Archived'),
-        getCount('History'),
-        getCount(pendingStatus, 1),
-        getCount(pendingStatus, 2),
-        getCount(pendingStatus, 3),
-        getCount(pendingStatus, 4)
+        getCount('History')
       ]);
 
       console.log('Fetch Diagnostic:', {
@@ -255,14 +281,9 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         archived: archivedResult.count || 0,
         history: historyResult.count || 0
       });
-      setYearStats({
-        1: y1Result.count || 0,
-        2: y2Result.count || 0,
-        3: y3Result.count || 0,
-        4: y4Result.count || 0
-      });
-    } catch (err) {
+    } catch (err: any) {
       console.error("Fetch Error:", err);
+      setError(err.message || 'Failed to connect to the registry server.');
     } finally {
       clearTimeout(timeoutId);
       setLoading(false);
@@ -285,6 +306,10 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
   useEffect(() => {
     fetchRequests();
   }, [activeStatus, role, requestId, monthFilter, debouncedSearch, facultyProfile?.department, selectedYear]);
+
+  useEffect(() => {
+    fetchYearStats();
+  }, [activeStatus, role, facultyProfile?.department]);
 
   const handleAction = async (request: ODRequest, approve: boolean, confirmed: boolean = false) => {
     // Permission check
@@ -379,9 +404,13 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
             `;
 
             if (studentEmail) {
+              const { data: { session } } = await supabase.auth.getSession();
               const emailRes = await fetch('/api/send-email', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${session?.access_token}`
+                },
                 body: JSON.stringify({
                   to: studentEmail,
                   subject: `OD Sanctioned: ${request.event_title}`,
@@ -472,9 +501,13 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                 });
 
                 if (hod.email) {
+                  const { data: { session } } = await supabase.auth.getSession();
                   const emailRes = await fetch('/api/send-email', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${session?.access_token}`
+                    },
                     body: JSON.stringify({
                       to: hod.email,
                       subject: `Coordinator Approved: ${request.event_title}`,
@@ -581,7 +614,13 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
   // Execute Hard Delete
   const handleHardDelete = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (adminPasswordInput !== ADMIN_PASSWORD) {
+    const verifyRes = await fetch('/api/verify-admin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: adminPasswordInput })
+    });
+    const verifyData = await verifyRes.json();
+    if (!verifyData.success) {
       showToast("Authentication Failed: Incorrect Admin Password.", "error");
       return;
     }
@@ -737,9 +776,13 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         return;
       }
 
+      const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch('/api/send-email', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`
+        },
         body: JSON.stringify({ to: targetEmail, subject, message })
       });
 
@@ -771,17 +814,17 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
   };
 
   const filteredRequests = requests.filter(r => {
-    const matchesSearch = r.student_name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                         r.register_no.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         r.event_title.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = r.student_name.toLowerCase().includes(debouncedSearch.toLowerCase()) || 
+                         r.register_no.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+                         r.event_title.toLowerCase().includes(debouncedSearch.toLowerCase());
     const matchesDept = selectedDept ? r.department === selectedDept : true;
-    const matchesYear = selectedYear ? r.year === selectedYear.toString() : true;
+    const matchesYear = selectedYear ? r.year?.toString() === selectedYear.toString() : true;
     const matchesMonth = monthFilter ? new Date(r.event_date).getMonth() === parseInt(monthFilter) : true;
     return matchesSearch && matchesDept && matchesYear && matchesMonth;
   });
 
   const exportToExcel = () => {
-    exportODRequestsToExcel(filteredRequests, facultyProfile?.department);
+    exportODRequestsToExcel(filteredRequests, facultyProfile?.department, (msg) => showToast(msg, 'error'));
   };
 
   const canApprove = (request: ODRequest) => {
@@ -1077,7 +1120,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
           {selectedYear && (
             <button 
               onClick={() => setSelectedYear(null)}
-              className="text-[9px] font-black text-blueprint-blue uppercase tracking-widest hover:underline"
+              className="text-xs font-black text-blueprint-blue uppercase tracking-widest hover:underline py-2 px-3 bg-blueprint-blue/10 rounded-lg"
             >
               Clear Filter
             </button>
@@ -1097,7 +1140,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Year</p>
-                  <h4 className="text-3xl font-black text-slate-900 tracking-tighter italic">{year}<span className="text-xs ml-0.5 uppercase not-italic">{getOrdinalSuffix(year)}</span></h4>
+                  <h4 className="text-3xl font-black text-slate-900 tracking-tighter italic">{year}<span className="text-sm ml-1 uppercase not-italic">{getOrdinalSuffix(year)}</span></h4>
                 </div>
                 <div className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${
                   yearStats[year] > 0 ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'
@@ -1133,6 +1176,20 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
           </button>
         ))}
       </div>
+
+      {error && requests.length === 0 && (
+        <div className="bg-red-50 border-2 border-red-100 p-8 rounded-[2rem] text-center space-y-4">
+          <AlertCircle className="text-red-500 mx-auto" size={40} />
+          <h3 className="text-lg font-black text-red-700 uppercase">Connection Error</h3>
+          <p className="text-xs text-red-500">{error}</p>
+          <button 
+            onClick={fetchRequests}
+            className="px-6 py-3 bg-red-600 text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-red-700 transition-all"
+          >
+            Retry Connection
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <div className="p-20 flex flex-col items-center justify-center gap-4 bg-white rounded-[2rem] border shadow-sm">

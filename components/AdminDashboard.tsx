@@ -33,6 +33,8 @@ const AdminDashboard: React.FC = () => {
   const [registrationLocks, setRegistrationLocks] = useState<Record<string, any>>({});
   const [deletionRequests, setDeletionRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [confirmRejectRequest, setConfirmRejectRequest] = useState<ODRequest | null>(null);
   const [adminProfile, setAdminProfile] = useState<Profile | null>(null);
@@ -202,7 +204,10 @@ const AdminDashboard: React.FC = () => {
   };
 
   const fetchData = async () => {
-    setLoading(true);
+    setError(null);
+    if (activeTab !== 'analytics') {
+      setLoading(true);
+    }
     try {
       // Fetch admin profile
       const { data: { user } } = await supabase.auth.getUser();
@@ -238,18 +243,24 @@ const AdminDashboard: React.FC = () => {
       } else if (activeTab === 'requests' || activeTab === 'feed') {
         const { data } = await supabase
           .from('od_requests')
-          .select('*')
+          .select('id, student_name, register_no, roll_no, phone_number, year, semester, department, event_title, organization_name, organization_location, event_type, event_date, event_end_date, status, created_at, coordinator_id, hod_id, coordinator_approved_at, hod_approved_at, od_letter_url, notification_sent, team_members, prize_details, geotag_photo_urls, certificate_urls, achievement_details, registration_proof_url, payment_proof_url, event_poster_url, user_id, geotag_photo_url, certificate_url, remarks')
           .order('created_at', { ascending: sortOrder === 'asc' });
         setRequests(data || []);
       } else if (activeTab === 'analytics') {
-        const { data } = await supabase
-          .from('od_requests')
-          .select('id, department, year, event_title, organization_name, organization_location, event_type, status, student_name, roll_no, register_no, event_date, event_end_date, coordinator_id, hod_id, phone_number, semester, hod_approved_at, registration_proof_url, payment_proof_url, event_start_time')
-          .or('status.eq.Approved,and(hod_id.not.is.null,coordinator_id.not.is.null)');
-        setAnalyticsData(data || []);
+        setAnalyticsLoading(true);
+        try {
+          const { data } = await supabase
+            .from('od_requests')
+            .select('id, department, year, event_title, organization_name, organization_location, event_type, status, student_name, roll_no, register_no, event_date, event_end_date, coordinator_id, hod_id, phone_number, semester, hod_approved_at, registration_proof_url, payment_proof_url, event_start_time')
+            .or('status.eq.Approved,and(hod_id.not.is.null,coordinator_id.not.is.null)');
+          setAnalyticsData(data || []);
+        } finally {
+          setAnalyticsLoading(false);
+        }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Fetch Error:", err);
+      setError(err.message || 'Failed to connect to the administrative server.');
     } finally {
       setLoading(false);
     }
@@ -331,9 +342,13 @@ const AdminDashboard: React.FC = () => {
           </div>
         `;
 
+        const { data: { session } } = await supabase.auth.getSession();
         const res = await fetch('/api/send-email', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token}`
+          },
           body: JSON.stringify({ to, subject: mailSubject, message: htmlBody })
         });
         
@@ -648,62 +663,63 @@ const AdminDashboard: React.FC = () => {
             </h1>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mt-1">System Audit & Registry • Read-Only Access</p>
           </div>
-          
-          <div className="flex bg-white p-1 rounded-2xl border shadow-sm overflow-x-auto">
-            <button 
-              onClick={() => setActiveTab('analytics')}
-              className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'analytics' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
-            >
-              <BarChart3 size={14} className="inline mr-2" /> Analytics
-            </button>
-            <button 
-              onClick={() => setActiveTab('feed')}
-              className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'feed' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
-            >
-              <LayoutDashboard size={14} className="inline mr-2" /> Global Feed
-            </button>
-            <button 
-              onClick={() => setActiveTab('users')}
-              className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'users' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
-            >
-              <Users size={14} className="inline mr-2" /> Registry
-            </button>
-            <button 
-              onClick={() => setActiveTab('requests')}
-              className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'requests' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
-            >
-              <Search size={14} className="inline mr-2" /> All Requests
-            </button>
-            <button 
-              onClick={() => setActiveTab('mail')}
-              className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'mail' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
-            >
-              <Mail size={14} className="inline mr-2" /> Mail Center
-            </button>
-            <button 
-              onClick={() => setActiveTab('locks')}
-              className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'locks' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
-            >
-              <Lock size={14} className="inline mr-2" /> Locks
-            </button>
-            <button 
-              onClick={() => setActiveTab('audit')}
-              className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'audit' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
-            >
-              <Eye size={14} className="inline mr-2" /> Student Audit
-            </button>
-            <button 
-              onClick={() => setActiveTab('deletions')}
-              className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'deletions' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
-            >
-              <Trash2 size={14} className="inline mr-2" /> Deletions
-            </button>
-            <button 
-              onClick={() => setActiveTab('system')}
-              className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'system' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
-            >
-              <Shield size={14} className="inline mr-2" /> System
-            </button>
+                   <div className="w-full overflow-x-auto whitespace-nowrap scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0 pb-1">
+            <div className="inline-flex bg-white p-1 rounded-2xl border shadow-sm">
+              <button 
+                onClick={() => setActiveTab('analytics')}
+                className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex-shrink-0 ${activeTab === 'analytics' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+              >
+                <BarChart3 size={14} className="inline mr-2" /> Analytics
+              </button>
+              <button 
+                onClick={() => setActiveTab('feed')}
+                className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex-shrink-0 ${activeTab === 'feed' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+              >
+                <LayoutDashboard size={14} className="inline mr-2" /> Global Feed
+              </button>
+              <button 
+                onClick={() => setActiveTab('users')}
+                className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex-shrink-0 ${activeTab === 'users' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+              >
+                <Users size={14} className="inline mr-2" /> Registry
+              </button>
+              <button 
+                onClick={() => setActiveTab('requests')}
+                className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex-shrink-0 ${activeTab === 'requests' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+              >
+                <Search size={14} className="inline mr-2" /> All Requests
+              </button>
+              <button 
+                onClick={() => setActiveTab('mail')}
+                className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex-shrink-0 ${activeTab === 'mail' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+              >
+                <Mail size={14} className="inline mr-2" /> Mail Center
+              </button>
+              <button 
+                onClick={() => setActiveTab('locks')}
+                className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex-shrink-0 ${activeTab === 'locks' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+              >
+                <Lock size={14} className="inline mr-2" /> Locks
+              </button>
+              <button 
+                onClick={() => setActiveTab('audit')}
+                className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex-shrink-0 ${activeTab === 'audit' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+              >
+                <Eye size={14} className="inline mr-2" /> Student Audit
+              </button>
+              <button 
+                onClick={() => setActiveTab('deletions')}
+                className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex-shrink-0 ${activeTab === 'deletions' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+              >
+                <Trash2 size={14} className="inline mr-2" /> Deletions
+              </button>
+              <button 
+                onClick={() => setActiveTab('system')}
+                className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex-shrink-0 ${activeTab === 'system' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+              >
+                <Shield size={14} className="inline mr-2" /> System
+              </button>
+            </div>
           </div>
         </div>
 
@@ -758,7 +774,7 @@ const AdminDashboard: React.FC = () => {
 
             {(activeTab === 'requests' || activeTab === 'feed') && (
               <button 
-                onClick={() => exportODRequestsToExcel(filteredRequests, deptFilter !== 'all' ? deptFilter : undefined)}
+                onClick={() => exportODRequestsToExcel(filteredRequests, deptFilter !== 'all' ? deptFilter : undefined, (msg) => showToast(msg, 'error'))}
                 className="px-5 py-4 bg-emerald-500 text-white rounded-2xl outline-none shadow-lg shadow-emerald-500/20 text-sm font-bold uppercase tracking-tight flex items-center gap-2 hover:bg-emerald-600 transition-all"
               >
                 <Download size={16} />
@@ -777,6 +793,19 @@ const AdminDashboard: React.FC = () => {
 
         {/* Content Area */}
         <div className="bg-white rounded-[2.5rem] border shadow-2xl overflow-hidden min-h-[600px]">
+          {error && requests.length === 0 && (
+            <div className="bg-red-50 border-2 border-red-100 p-8 rounded-[2rem] text-center space-y-4 m-8">
+              <AlertCircle className="text-red-500 mx-auto" size={40} />
+              <h3 className="text-lg font-black text-red-700 uppercase">Connection Error</h3>
+              <p className="text-xs text-red-500">{error}</p>
+              <button 
+                onClick={fetchData}
+                className="px-6 py-3 bg-red-600 text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-red-700 transition-all"
+              >
+                Retry Connection
+              </button>
+            </div>
+          )}
           {loading ? (
             <div className="flex flex-col items-center justify-center py-40">
               <div className="w-12 h-12 border-4 border-blueprint-blue border-t-transparent rounded-full animate-spin mb-4"></div>
@@ -1449,6 +1478,12 @@ const AdminDashboard: React.FC = () => {
               )}
               {activeTab === 'analytics' && (
                 <div className="p-8 space-y-8">
+                  {analyticsLoading && (
+                    <div className="flex items-center justify-center py-20">
+                      <Loader2 className="animate-spin text-blueprint-blue" size={40} />
+                      <p className="ml-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Loading Analytics...</p>
+                    </div>
+                  )}
                   <div className="mb-8 flex justify-between items-end">
                     <div>
                       <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight flex items-center gap-3">
@@ -1580,10 +1615,10 @@ const AdminDashboard: React.FC = () => {
                         </div>
                         <div className="divide-y">
                           {categoryCounts.map(category => (
-                            <button 
+                            <div 
                               key={category.value} 
                               onClick={() => setSelectedAnalyticsCategory(category.value)}
-                              className="w-full p-6 flex justify-between items-center hover:bg-slate-50 transition-colors text-left"
+                              className="p-6 flex justify-between items-center hover:bg-slate-50 transition-colors cursor-pointer"
                             >
                               <div className="flex items-center gap-4">
                                 <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500">
@@ -1602,7 +1637,7 @@ const AdminDashboard: React.FC = () => {
                                   {category.count}
                                 </span>
                               </div>
-                            </button>
+                            </div>
                           ))}
                         </div>
                       </div>
@@ -1633,30 +1668,30 @@ const AdminDashboard: React.FC = () => {
                             </span>
                           </div>
                         </div>
-                        <div className="overflow-x-auto">
+                        <div className="overflow-x-auto -mx-8">
                           <table className="w-full text-left border-collapse">
                             <thead>
                               <tr className="bg-slate-50/50 border-b">
-                                <th className="px-8 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Student Data</th>
+                                <th className="px-4 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Student Data</th>
                                 {selectedAnalyticsYear === 'Overall' && (
-                                  <th className="px-8 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Year</th>
+                                  <th className="px-4 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Year</th>
                                 )}
-                                <th className="px-8 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Event & Location</th>
-                                <th className="px-8 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Period</th>
-                                <th className="px-8 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Audit Sanction</th>
+                                <th className="px-4 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Event & Location</th>
+                                <th className="px-4 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Period</th>
+                                <th className="px-4 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Audit Sanction</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y">
                               {filteredData.length === 0 ? (
                                 <tr>
-                                  <td colSpan={selectedAnalyticsYear === 'Overall' ? 5 : 4} className="px-8 py-12 text-center">
+                                  <td colSpan={selectedAnalyticsYear === 'Overall' ? 5 : 4} className="px-4 py-12 text-center">
                                     <p className="text-xs font-bold text-slate-400 uppercase tracking-widest italic">No approved registrations found for this category.</p>
                                   </td>
                                 </tr>
                               ) : (
                                 filteredData.map((student) => (
                                   <tr key={student.id} className="hover:bg-slate-50/50 transition-colors">
-                                    <td className="px-8 py-6">
+                                    <td className="px-4 py-4">
                                       <div className="flex items-center gap-3">
                                         <div className="w-8 h-8 rounded-lg bg-blueprint-blue/10 flex items-center justify-center text-blueprint-blue">
                                           <User size={16} />
@@ -1672,13 +1707,13 @@ const AdminDashboard: React.FC = () => {
                                       </div>
                                     </td>
                                     {selectedAnalyticsYear === 'Overall' && (
-                                      <td className="px-8 py-6">
+                                      <td className="px-4 py-4">
                                         <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded text-[9px] font-black uppercase tracking-widest">
                                           {student.year} Year
                                         </span>
                                       </td>
                                     )}
-                                    <td className="px-8 py-6">
+                                    <td className="px-4 py-4">
                                       <div className="flex flex-col gap-0.5">
                                         <p className="font-bold text-slate-900 text-xs uppercase tracking-tight">{student.organization_name}</p>
                                         <div className="flex items-center gap-1.5">
@@ -1688,7 +1723,7 @@ const AdminDashboard: React.FC = () => {
                                         <p className="text-[9px] font-bold text-blueprint-blue uppercase italic mt-1">{student.event_type}</p>
                                       </div>
                                     </td>
-                                    <td className="px-8 py-6">
+                                    <td className="px-4 py-4">
                                       <div className="flex flex-col gap-1">
                                         <div className="flex items-center gap-2">
                                           <Calendar size={12} className="text-blueprint-blue" />
@@ -1707,7 +1742,7 @@ const AdminDashboard: React.FC = () => {
                                         </div>
                                       </div>
                                     </td>
-                                    <td className="px-8 py-6">
+                                    <td className="px-4 py-4">
                                       <div className="flex items-center gap-2">
                                         <CheckCircle2 size={12} className="text-emerald-500" />
                                         <div>

@@ -51,7 +51,11 @@ const calculateDuration = (start: string | null | undefined, end: string | null 
   return `${diffDays} Day${diffDays > 1 ? 's' : ''}`;
 };
 
-export const exportODRequestsToExcel = (requests: ODRequest[], department?: string) => {
+export const exportODRequestsToExcel = (
+  requests: ODRequest[], 
+  department?: string,
+  onError?: (message: string) => void
+) => {
   const data = requests.map((req, index) => {
     // Robustly handle team members (could be array, stringified JSON, or null)
     let teamList: TeamMember[] = [];
@@ -129,6 +133,10 @@ export const exportODRequestsToExcel = (requests: ODRequest[], department?: stri
     XLSX.writeFile(workbook, filename);
   } catch (error) {
     console.error("Excel Export Error:", error);
-    alert("Failed to generate Excel report. Please check the console for details.");
+    if (onError) {
+      onError("Failed to generate Excel report. Please try again.");
+    } else {
+      console.error("Excel Export Error:", error);
+    }
   }
 };

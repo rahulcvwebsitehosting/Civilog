@@ -21,6 +21,39 @@ import { useToast } from '../contexts/ToastContext';
 import { DEPARTMENTS, EVENT_CATEGORIES } from '../constants';
 import { exportODRequestsToExcel } from '../services/excelService';
 
+const getDeptStyling = (dept: string) => {
+  const styling: Record<string, { emoji: string; bg: string }> = {
+    'Civil Engineering': { emoji: '🏗️', bg: 'bg-amber-100' },
+    'Agriculture Engineering': { emoji: '🌱', bg: 'bg-green-100' },
+    'Biomedical Engineering': { emoji: '🏥', bg: 'bg-rose-100' },
+    'Computer Science and Engineering': { emoji: '💻', bg: 'bg-blue-100' },
+    'Electrical and Electronics Engineering': { emoji: '⚡', bg: 'bg-yellow-100' },
+    'Electronics and Communication Engineering': { emoji: '📡', bg: 'bg-cyan-100' },
+    'Electronics and Instrumentation Engineering': { emoji: '📊', bg: 'bg-teal-100' },
+    'Mechanical Engineering': { emoji: '⚙️', bg: 'bg-gray-200' },
+    'Robotics and Automation': { emoji: '🤖', bg: 'bg-violet-100' },
+    'CSE (Cyber Security)': { emoji: '🔒', bg: 'bg-red-100' },
+    'CSE (AI & ML)': { emoji: '🧠', bg: 'bg-indigo-100' },
+    'CSE (IoT)': { emoji: '🌐', bg: 'bg-emerald-100' },
+    'Chemical Engineering': { emoji: '🧪', bg: 'bg-lime-100' },
+    'Information Technology': { emoji: '📱', bg: 'bg-sky-100' },
+    'Artificial Intelligence and Data Science': { emoji: '🤖', bg: 'bg-purple-100' },
+    'Computer Science and Design': { emoji: '🎨', bg: 'bg-pink-100' },
+    'M.Tech. CSE (5-Years)': { emoji: '📚', bg: 'bg-orange-100' },
+    'MBA': { emoji: '💼', bg: 'bg-emerald-100' },
+    'MCA': { emoji: '💻', bg: 'bg-slate-100' },
+    'Food Technology': { emoji: '🍔', bg: 'bg-orange-200' },
+    'S&H': { emoji: '🔬', bg: 'bg-blue-50' },
+    'Placement Cell': { emoji: '👔', bg: 'bg-green-200' },
+    'Physical Education': { emoji: '🏅', bg: 'bg-yellow-200' },
+    'Fashion Technology': { emoji: '👗', bg: 'bg-fuchsia-100' },
+    'Textile Technology': { emoji: '🧵', bg: 'bg-rose-200' },
+    'Mechatronics Engineering': { emoji: '🔧', bg: 'bg-zinc-200' },
+    'Computer Science and Business Systems': { emoji: '📈', bg: 'bg-amber-200' }
+  };
+  return styling[dept] || { emoji: '', bg: 'bg-slate-100' };
+};
+
 const AdminDashboard: React.FC = () => {
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<'users' | 'requests' | 'feed' | 'system' | 'mail' | 'locks' | 'audit' | 'deletions' | 'analytics'>('analytics');
@@ -1559,21 +1592,22 @@ const AdminDashboard: React.FC = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                       {DEPARTMENTS.map(dept => {
                         const count = analyticsData.filter(r => r.department === dept).length;
+                        const { emoji, bg } = getDeptStyling(dept);
                         return (
                           <button 
                             key={dept}
                             onClick={() => setSelectedAnalyticsDept(dept)}
-                            className="bg-white border rounded-[2rem] p-8 shadow-sm hover:shadow-md transition-all text-left group"
+                            className={`${bg} border rounded-[2rem] p-8 shadow-sm hover:shadow-md transition-all text-left group`}
                           >
                             <div className="flex justify-between items-start mb-4">
-                              <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover:text-blueprint-blue transition-colors">
+                              <div className="w-12 h-12 rounded-2xl bg-slate-50/50 flex items-center justify-center text-slate-400 group-hover:text-blueprint-blue transition-colors">
                                 <Building2 size={24} />
                               </div>
                               <span className="px-3 py-1 bg-blueprint-blue/10 text-blueprint-blue rounded-full text-[10px] font-black uppercase tracking-widest">
                                 {count} Requests
                               </span>
                             </div>
-                            <h4 className="font-bold text-slate-900 text-sm uppercase tracking-tight leading-tight">{dept}</h4>
+                            <h4 className="font-bold text-slate-900 text-sm uppercase tracking-tight leading-tight">{emoji} {dept}</h4>
                           </button>
                         );
                       })}

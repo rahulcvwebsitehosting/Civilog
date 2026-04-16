@@ -312,6 +312,18 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
   }, [requestId]);
 
   useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSoftDeleteCandidateId(null);
+        setDeleteCandidateId(null);
+        setAdminPasswordInput('');
+      }
+    };
+    document.addEventListener('keydown', handleEsc);
+    return () => document.removeEventListener('keydown', handleEsc);
+  }, []);
+
+  useEffect(() => {
     const controller = new AbortController();
     fetchRequests(controller.signal);
     return () => controller.abort();
@@ -968,8 +980,14 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
 
       {/* Soft Delete Confirmation Modal */}
       {softDeleteCandidateId && (
-        <div className="fixed inset-0 z-[150] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200">
+        <div 
+          className="fixed inset-0 z-[150] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setSoftDeleteCandidateId(null)}
+        >
+          <div 
+            className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
              <div className="flex justify-between items-start mb-6">
                 <div>
                   <h3 className="text-xl font-black text-slate-900 uppercase italic">Archive Request</h3>
@@ -998,8 +1016,17 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
 
       {/* Password Modal for Hard Delete */}
       {deleteCandidateId && (
-        <div className="fixed inset-0 z-[150] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl border-2 border-red-100 animate-in zoom-in-95 duration-200">
+        <div 
+          className="fixed inset-0 z-[150] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => {
+            setDeleteCandidateId(null);
+            setAdminPasswordInput('');
+          }}
+        >
+          <div 
+            className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl border-2 border-red-100 animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
              <div className="flex justify-between items-start mb-6">
                 <div>
                   <h3 className="text-xl font-black text-red-600 uppercase italic">Admin Override</h3>

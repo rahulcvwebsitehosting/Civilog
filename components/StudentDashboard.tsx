@@ -51,7 +51,7 @@ const PrizeDetailsPromptModal: React.FC<PrizeDetailsPromptModalProps> = ({ onClo
               value={prizeType}
               onChange={(e) => setPrizeType(e.target.value)}
               placeholder="e.g., 1st Place, Best Innovation, Runner Up"
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blueprint-blue outline-none text-sm"
+              className="w-full px-4 py-4 min-h-[48px] rounded-xl border border-slate-200 focus:border-blueprint-blue outline-none text-sm"
               required
             />
           </div>
@@ -63,7 +63,7 @@ const PrizeDetailsPromptModal: React.FC<PrizeDetailsPromptModalProps> = ({ onClo
               value={prizeEvent}
               onChange={(e) => setPrizeEvent(e.target.value)}
               placeholder="e.g., Inter-College Robotics Competition"
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blueprint-blue outline-none text-sm"
+              className="w-full px-4 py-4 min-h-[48px] rounded-xl border border-slate-200 focus:border-blueprint-blue outline-none text-sm"
               required
             />
           </div>
@@ -71,7 +71,7 @@ const PrizeDetailsPromptModal: React.FC<PrizeDetailsPromptModalProps> = ({ onClo
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-blueprint-blue text-white py-3 rounded-xl font-black flex items-center justify-center gap-2 hover:bg-goldenrod transition-all shadow-lg shadow-amber-500/10 uppercase tracking-widest text-xs"
+            className="w-full bg-blueprint-blue text-white py-4 min-h-[48px] rounded-xl font-black flex items-center justify-center gap-2 hover:bg-goldenrod transition-all shadow-lg shadow-amber-500/10 uppercase tracking-widest text-xs"
           >
             {isLoading ? <Loader2 className="animate-spin" size={18} /> : 'Save Prize Details'}
           </button>

@@ -409,7 +409,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
                 required
                 value={formData.student_name}
                 onChange={handleInputChange}
-                className="w-full bg-white dark:bg-gray-800 text-sm pl-12 pr-4 py-4 rounded-2xl border border-slate-200 outline-none focus:border-blueprint-blue transition-colors shadow-sm" 
+                className="w-full bg-white dark:bg-gray-800 text-sm pl-12 pr-4 py-5 min-h-[48px] rounded-2xl border border-slate-200 outline-none focus:border-blueprint-blue transition-colors shadow-sm" 
                 placeholder="Student Name (Ex. Rahul Shyam)" 
               />
             </div>
@@ -421,7 +421,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
                 type="tel"
                 value={formData.phone_number}
                 onChange={handleInputChange}
-                className="w-full bg-white dark:bg-gray-800 text-sm pl-12 pr-4 py-4 rounded-2xl border border-slate-200 outline-none focus:border-blueprint-blue transition-colors shadow-sm" 
+                className="w-full bg-white dark:bg-gray-800 text-sm pl-12 pr-4 py-5 min-h-[48px] rounded-2xl border border-slate-200 outline-none focus:border-blueprint-blue transition-colors shadow-sm" 
                 placeholder="Phone Number" 
               />
             </div>
@@ -432,7 +432,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
               value={formData.year} 
               onChange={handleInputChange} 
               disabled={!!profile.year}
-              className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none disabled:opacity-70 shadow-sm"
+              className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-5 min-h-[48px] rounded-2xl border border-slate-200 outline-none disabled:opacity-70 shadow-sm"
             >
                <option value="1">1st Year</option>
                <option value="2">2nd Year</option>
@@ -446,7 +446,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
               name="semester" 
               value={formData.semester} 
               onChange={handleInputChange} 
-              className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none shadow-sm"
+              className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-5 min-h-[48px] rounded-2xl border border-slate-200 outline-none shadow-sm"
             >
                {[2 * parseInt(formData.year) - 1, 2 * parseInt(formData.year)].map(sem => (
                  <option key={sem} value={sem.toString()}>{sem}{sem === 1 ? 'st' : sem === 2 ? 'nd' : sem === 3 ? 'rd' : 'th'} Sem</option>
@@ -457,7 +457,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
               value={formData.department} 
               onChange={handleInputChange} 
               disabled={!!profile.department}
-              className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none disabled:opacity-70 shadow-sm"
+              className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-5 min-h-[48px] rounded-2xl border border-slate-200 outline-none disabled:opacity-70 shadow-sm"
             >
                {DEPARTMENTS.map(dept => (
                  <option key={dept} value={dept}>{dept}</option>
@@ -465,8 +465,8 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
              </select>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-             <input name="register_no" required value={formData.register_no} onChange={handleInputChange} className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none font-mono shadow-sm" placeholder="Reg No (Ex. 2403730410321019)" />
-             <input name="roll_no" required value={formData.roll_no} onChange={handleInputChange} className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none font-mono shadow-sm" placeholder="Roll No (Ex. ES24CE19)" />
+             <input name="register_no" required value={formData.register_no} onChange={handleInputChange} className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-5 min-h-[48px] rounded-2xl border border-slate-200 outline-none font-mono shadow-sm" placeholder="Reg No (Ex. 2403730410321019)" />
+             <input name="roll_no" required value={formData.roll_no} onChange={handleInputChange} className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-5 min-h-[48px] rounded-2xl border border-slate-200 outline-none font-mono shadow-sm" placeholder="Roll No (Ex. ES24CE19)" />
           </div>
         </div>
 
@@ -481,7 +481,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
               required 
               value={formData.event_title} 
               onChange={handleInputChange} 
-              className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none font-bold shadow-sm" 
+              className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-5 min-h-[48px] rounded-2xl border border-slate-200 outline-none font-bold shadow-sm" 
               placeholder="Ex. Seismic Analysis of High-Rise Structures" 
             />
           </div>
@@ -510,7 +510,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
                           setEventSubType(e.target.value);
                           if (e.target.value !== 'Other') setCustomSubType('');
                         }}
-                        className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none shadow-sm"
+                        className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-5 min-h-[48px] rounded-2xl border border-slate-200 outline-none shadow-sm"
                         required
                       >
                         <option value="">Choose Sub-Category</option>
@@ -527,14 +527,14 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
                       placeholder="Specify Sub-Category"
                       value={customSubType}
                       onChange={(e) => setCustomSubType(e.target.value)}
-                      className="w-full bg-white dark:bg-gray-700 text-sm px-5 py-3 rounded-xl border-2 border-blueprint-blue outline-none animate-in slide-in-from-top-1 duration-200"
+                      className="w-full bg-white dark:bg-gray-700 text-sm px-5 py-5 min-h-[48px] rounded-xl border-2 border-blueprint-blue outline-none animate-in slide-in-from-top-1 duration-200"
                       required
                     />
                   )}
                 </>
               )}
             </div>
-            <input name="organization_name" required value={formData.organization_name} onChange={handleInputChange} className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none shadow-sm h-fit" placeholder="Organization (Ex. ESEC)" />
+            <input name="organization_name" required value={formData.organization_name} onChange={handleInputChange} className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-5 min-h-[48px] rounded-2xl border border-slate-200 outline-none shadow-sm h-fit" placeholder="Organization (Ex. ESEC)" />
           </div>
           <div className="grid grid-cols-2 gap-5">
             <div className="space-y-1.5">
@@ -546,7 +546,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
                 min={new Date().toISOString().split('T')[0]}
                 value={formData.event_date} 
                 onChange={handleInputChange} 
-                className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none shadow-sm" 
+                className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-5 min-h-[48px] rounded-2xl border border-slate-200 outline-none shadow-sm" 
               />
             </div>
             <div className="space-y-1.5">
@@ -558,7 +558,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
                 min={formData.event_date || new Date().toISOString().split('T')[0]}
                 value={formData.event_end_date} 
                 onChange={handleInputChange} 
-                className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-4 rounded-2xl border border-slate-200 outline-none shadow-sm" 
+                className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-5 min-h-[48px] rounded-2xl border border-slate-200 outline-none shadow-sm" 
               />
             </div>
           </div>
@@ -580,7 +580,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
                 placeholder="Specify Location (Ex. Bangalore)"
                 value={customLocation}
                 onChange={(e) => setCustomLocation(e.target.value)}
-                className="w-full bg-white dark:bg-gray-700 text-sm px-5 py-3 rounded-xl border-2 border-blueprint-blue outline-none animate-in slide-in-from-top-1 duration-200"
+                className="w-full bg-white dark:bg-gray-700 text-sm px-5 py-5 min-h-[48px] rounded-xl border-2 border-blueprint-blue outline-none animate-in slide-in-from-top-1 duration-200"
                 required
               />
             )}
@@ -704,7 +704,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
         <button 
           type="submit" 
           disabled={loading} 
-          className="w-full bg-blueprint-blue hover:bg-blue-900 text-white font-black py-6 px-10 rounded-[1.5rem] shadow-2xl shadow-blue-900/20 transition-all disabled:opacity-50 uppercase tracking-[0.2em] text-xs active:scale-[0.98] flex items-center justify-center gap-3"
+          className="w-full bg-blueprint-blue hover:bg-blue-900 text-white font-black py-5 px-10 rounded-[1.5rem] shadow-2xl shadow-blue-900/20 transition-all disabled:opacity-50 uppercase tracking-[0.2em] text-xs active:scale-[0.98] flex items-center justify-center gap-3"
         >
           {loading ? (
             <>

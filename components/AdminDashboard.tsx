@@ -41,7 +41,7 @@ const getDeptStyling = (dept: string) => {
     'Information Technology': { emoji: '📱', bg: 'bg-sky-100' },
     'Management Studies': { emoji: '💼', bg: 'bg-emerald-100' },
     'Mechanical Engineering': { emoji: '⚙️', bg: 'bg-gray-200' },
-    'M.Tech. CSE': { emoji: '📚', bg: 'bg-orange-100' },
+    'M.Tech. CSE (5-Years)': { emoji: '📚', bg: 'bg-orange-100' },
     'Robotics and Automation': { emoji: '🤖', bg: 'bg-violet-100' },
     'Science and Humanities': { emoji: '🔬', bg: 'bg-blue-50' }
   };
@@ -57,6 +57,8 @@ const AdminDashboard: React.FC = () => {
   const [selectedAnalyticsDept, setSelectedAnalyticsDept] = useState<string | null>(null);
   const [selectedAnalyticsYear, setSelectedAnalyticsYear] = useState<string | null>(null);
   const [selectedAnalyticsCategory, setSelectedAnalyticsCategory] = useState<string | null>(null);
+  const [analyticsSearch, setAnalyticsSearch] = useState('');
+  const [studentSearch, setStudentSearch] = useState('');
   const [registrationLocks, setRegistrationLocks] = useState<Record<string, any>>({});
   const [deletionRequests, setDeletionRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1583,28 +1585,40 @@ const AdminDashboard: React.FC = () => {
 
                   {/* Level 1: Department Grid */}
                   {!selectedAnalyticsDept && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {DEPARTMENTS.map(dept => {
-                        const count = analyticsData.filter(r => r.department === dept).length;
-                        const { emoji, bg } = getDeptStyling(dept);
-                        return (
-                          <button 
-                            key={dept}
-                            onClick={() => setSelectedAnalyticsDept(dept)}
-                            className={`${bg} border rounded-[2rem] p-8 shadow-sm hover:shadow-md transition-all text-left group`}
-                          >
-                            <div className="flex justify-between items-start mb-4">
-                              <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover:text-blueprint-blue transition-colors text-2xl">
-                                {emoji}
+                    <div className="space-y-6">
+                      <div className="relative max-w-md">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                        <input
+                          type="text"
+                          placeholder="Search departments..."
+                          value={analyticsSearch}
+                          onChange={(e) => setAnalyticsSearch(e.target.value)}
+                          className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blueprint-blue/20 focus:border-blueprint-blue transition-all uppercase font-bold tracking-tight"
+                        />
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {DEPARTMENTS.filter(d => d.toLowerCase().includes(analyticsSearch.toLowerCase())).map(dept => {
+                          const count = analyticsData.filter(r => r.department === dept).length;
+                          const { emoji, bg } = getDeptStyling(dept);
+                          return (
+                            <button 
+                              key={dept}
+                              onClick={() => setSelectedAnalyticsDept(dept)}
+                              className={`${bg} border rounded-[2rem] p-8 shadow-sm hover:shadow-md transition-all text-left group`}
+                            >
+                              <div className="flex justify-between items-start mb-4">
+                                <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover:text-blueprint-blue transition-colors text-2xl">
+                                  {emoji}
+                                </div>
+                                <span className="px-3 py-1 bg-blueprint-blue/10 text-blueprint-blue rounded-full text-[10px] font-black uppercase tracking-widest">
+                                  {count} Requests
+                                </span>
                               </div>
-                              <span className="px-3 py-1 bg-blueprint-blue/10 text-blueprint-blue rounded-full text-[10px] font-black uppercase tracking-widest">
-                                {count} Requests
-                              </span>
-                            </div>
-                            <h4 className="font-bold text-slate-900 text-sm uppercase tracking-tight leading-tight">{dept}</h4>
-                          </button>
-                        );
-                      })}
+                              <h4 className="font-bold text-slate-900 text-sm uppercase tracking-tight leading-tight">{dept}</h4>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
 
@@ -1710,19 +1724,37 @@ const AdminDashboard: React.FC = () => {
                       (selectedAnalyticsYear === 'Overall' ? true : r.year === selectedAnalyticsYear.charAt(0)) &&
                       (r.status === 'Approved' || (r.hod_id !== null && r.coordinator_id !== null)) &&
                       (r.event_type?.startsWith(selectedAnalyticsCategory) || r.event_type === selectedAnalyticsCategory)
-                    );
+                    ).filter(r => {
+                      if (!studentSearch) return true;
+                      const search = studentSearch.toLowerCase();
+                      return (
+                        r.student_name?.toLowerCase().includes(search) ||
+                        r.register_no?.toLowerCase().includes(search) ||
+                        r.roll_no?.toLowerCase().includes(search)
+                      );
+                    });
 
                     return (
                       <div className="bg-white border rounded-[2rem] shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        <div className="p-8 border-b bg-slate-50/50 flex justify-between items-center">
+                        <div className="p-8 border-b bg-slate-50/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                           <div>
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Approved Students</p>
                             <h4 className="text-2xl font-black text-slate-900 tracking-tighter uppercase italic">
                               {selectedAnalyticsCategory}
                             </h4>
                           </div>
-                          <div className="text-right">
-                            <span className="px-4 py-2 bg-blueprint-blue text-white rounded-xl text-[10px] font-black uppercase tracking-widest">
+                          <div className="flex items-center gap-4 w-full md:w-auto">
+                            <div className="relative flex-1 md:w-64">
+                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                              <input
+                                type="text"
+                                placeholder="Search students..."
+                                value={studentSearch}
+                                onChange={(e) => setStudentSearch(e.target.value)}
+                                className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blueprint-blue/20 focus:border-blueprint-blue transition-all font-bold tracking-tight"
+                              />
+                            </div>
+                            <span className="px-4 py-2 bg-blueprint-blue text-white rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap">
                               {filteredData.length} Students
                             </span>
                           </div>

@@ -20,7 +20,7 @@ export const DEPARTMENTS = [
   'Information Technology',
   'Management Studies',
   'Mechanical Engineering',
-  'M.Tech. CSE',
+  'M.Tech. CSE (5-Years)',
   'Robotics and Automation',
   'Science and Humanities'
 ].sort();

@@ -179,7 +179,7 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ profile, onComplete }) => {
                 required
                 value={formData.full_name}
                 onChange={handleInputChange}
-                className="w-full px-5 py-4 rounded-2xl bg-slate-50 border border-slate-200 text-sm outline-none"
+                className="w-full px-5 py-5 min-h-[48px] rounded-2xl bg-slate-50 border border-slate-200 text-sm outline-none"
                 placeholder="Full Name"
               />
               <input
@@ -187,7 +187,7 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ profile, onComplete }) => {
                 required
                 value={formData.identification_no}
                 onChange={handleInputChange}
-                className="w-full px-5 py-4 rounded-2xl bg-slate-50 border border-slate-200 font-mono text-sm outline-none"
+                className="w-full px-5 py-5 min-h-[48px] rounded-2xl bg-slate-50 border border-slate-200 font-mono text-sm outline-none"
                 placeholder={profile.role === 'student' ? "Reg No" : "Emp ID"}
               />
 
@@ -199,7 +199,7 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ profile, onComplete }) => {
                       required
                       value={formData.roll_no}
                       onChange={handleInputChange}
-                      className="w-full px-5 py-4 rounded-2xl bg-slate-50 border border-slate-200 font-mono text-sm outline-none"
+                      className="w-full px-5 py-5 min-h-[48px] rounded-2xl bg-slate-50 border border-slate-200 font-mono text-sm outline-none"
                       placeholder="Roll No"
                     />
                     <input
@@ -208,7 +208,7 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ profile, onComplete }) => {
                       type="tel"
                       value={formData.phone_number}
                       onChange={handleInputChange}
-                      className="w-full px-5 py-4 rounded-2xl bg-slate-50 border border-slate-200 text-sm outline-none"
+                      className="w-full px-5 py-5 min-h-[48px] rounded-2xl bg-slate-50 border border-slate-200 text-sm outline-none"
                       placeholder="Phone Number"
                     />
                   </div>
@@ -217,7 +217,7 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ profile, onComplete }) => {
                       name="year"
                       value={formData.year}
                       onChange={handleInputChange}
-                      className="w-full px-5 py-4 rounded-2xl bg-slate-50 border border-slate-200 text-sm outline-none"
+                      className="w-full px-5 py-5 min-h-[48px] rounded-2xl bg-slate-50 border border-slate-200 text-sm outline-none"
                     >
                       <option value="1">1st Year</option>
                       <option value="2">2nd Year</option>
@@ -231,7 +231,7 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ profile, onComplete }) => {
                       name="semester"
                       value={formData.semester}
                       onChange={handleInputChange}
-                      className="w-full px-5 py-4 rounded-2xl bg-slate-50 border border-slate-200 text-sm outline-none"
+                      className="w-full px-5 py-5 min-h-[48px] rounded-2xl bg-slate-50 border border-slate-200 text-sm outline-none"
                     >
                       {[2 * parseInt(formData.year) - 1, 2 * parseInt(formData.year)].map(sem => (
                         <option key={sem} value={sem.toString()}>{sem}{sem === 1 ? 'st' : sem === 2 ? 'nd' : sem === 3 ? 'rd' : 'th'} Sem</option>
@@ -245,13 +245,13 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ profile, onComplete }) => {
                   required
                   value={formData.designation}
                   onChange={handleInputChange}
-                  className="w-full px-5 py-4 rounded-2xl bg-slate-50 border border-slate-200 text-sm outline-none"
+                  className="w-full px-5 py-5 min-h-[48px] rounded-2xl bg-slate-50 border border-slate-200 text-sm outline-none"
                   placeholder="Designation"
                 />
               )}
               
               {profile.role === 'faculty' && (
-                <div className="flex items-center gap-3 px-5 py-4 rounded-2xl bg-slate-50 border border-slate-200">
+                <div className="flex items-center gap-3 px-5 py-5 min-h-[48px] rounded-2xl bg-slate-50 border border-slate-200">
                   <input
                     type="checkbox"
                     id="is_hod"
@@ -268,7 +268,7 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ profile, onComplete }) => {
                 name="department"
                 value={formData.department}
                 onChange={handleInputChange}
-                className="w-full px-5 py-4 rounded-2xl bg-slate-50 border border-slate-200 text-sm outline-none"
+                className="w-full px-5 py-5 min-h-[48px] rounded-2xl bg-slate-50 border border-slate-200 text-sm outline-none"
               >
                 {DEPARTMENTS.map(dept => (
                   <option key={dept} value={dept}>{dept}</option>

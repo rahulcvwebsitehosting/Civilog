@@ -23,26 +23,27 @@ import { exportODRequestsToExcel } from '../services/excelService';
 
 const getDeptStyling = (dept: string) => {
   const styling: Record<string, { emoji: string; bg: string }> = {
-    'Civil Engineering': { emoji: '🏗️', bg: 'bg-amber-100' },
-    'Agriculture Engineering': { emoji: '🌱', bg: 'bg-green-100' },
+    'Agricultural Engineering': { emoji: '🌱', bg: 'bg-green-100' },
+    'Artificial Intelligence and Data Science': { emoji: '🤖', bg: 'bg-purple-100' },
+    'Bio Technology': { emoji: '🧬', bg: 'bg-green-50' },
     'Biomedical Engineering': { emoji: '🏥', bg: 'bg-rose-100' },
+    'Chemical Engineering': { emoji: '🧪', bg: 'bg-lime-100' },
+    'Civil Engineering': { emoji: '🏗️', bg: 'bg-yellow-300' },
+    'Computer Applications': { emoji: '💿', bg: 'bg-slate-100' },
+    'Computer Science and Design': { emoji: '🎨', bg: 'bg-pink-100' },
     'Computer Science and Engineering': { emoji: '💻', bg: 'bg-blue-100' },
+    'CSE (AI & ML)': { emoji: '🧠', bg: 'bg-indigo-100' },
+    'CSE (Cyber Security)': { emoji: '🔐', bg: 'bg-red-100' },
+    'CSE (Internet of Things)': { emoji: '🌐', bg: 'bg-emerald-100' },
     'Electrical and Electronics Engineering': { emoji: '⚡', bg: 'bg-yellow-100' },
     'Electronics and Communication Engineering': { emoji: '📡', bg: 'bg-cyan-100' },
     'Electronics and Instrumentation Engineering': { emoji: '📊', bg: 'bg-teal-100' },
-    'Mechanical Engineering': { emoji: '⚙️', bg: 'bg-gray-200' },
-    'Robotics and Automation': { emoji: '🤖', bg: 'bg-violet-100' },
-    'CSE (Cyber Security)': { emoji: '🔐', bg: 'bg-red-100' },
-    'CSE (AI & ML)': { emoji: '🧠', bg: 'bg-indigo-100' },
-    'CSE (IoT)': { emoji: '🌐', bg: 'bg-emerald-100' },
-    'Chemical Engineering': { emoji: '🧪', bg: 'bg-lime-100' },
     'Information Technology': { emoji: '📱', bg: 'bg-sky-100' },
-    'Artificial Intelligence and Data Science': { emoji: '🤖', bg: 'bg-purple-100' },
-    'Computer Science and Design': { emoji: '🎨', bg: 'bg-pink-100' },
-    'M.Tech. CSE (5-Years)': { emoji: '📚', bg: 'bg-orange-100' },
-    'MBA': { emoji: '💼', bg: 'bg-emerald-100' },
-    'MCA': { emoji: '💿', bg: 'bg-slate-100' },
-    'Computer Science and Business Systems': { emoji: '📈', bg: 'bg-amber-200' }
+    'Management Studies': { emoji: '💼', bg: 'bg-emerald-100' },
+    'Mechanical Engineering': { emoji: '⚙️', bg: 'bg-gray-200' },
+    'M.Tech. CSE': { emoji: '📚', bg: 'bg-orange-100' },
+    'Robotics and Automation': { emoji: '🤖', bg: 'bg-violet-100' },
+    'Science and Humanities': { emoji: '🔬', bg: 'bg-blue-50' }
   };
   return styling[dept] || { emoji: '🏛️', bg: 'bg-slate-100' };
 };

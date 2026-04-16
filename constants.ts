@@ -2,26 +2,27 @@
 export const BASE_URL = 'https://civilog.vercel.app/#/';
 
 export const DEPARTMENTS = [
-  'Civil Engineering',
-  'Agriculture Engineering',
+  'Agricultural Engineering',
+  'Artificial Intelligence and Data Science',
+  'Bio Technology',
   'Biomedical Engineering',
+  'Chemical Engineering',
+  'Civil Engineering',
+  'Computer Applications',
+  'Computer Science and Design',
   'Computer Science and Engineering',
+  'CSE (AI & ML)',
+  'CSE (Cyber Security)',
+  'CSE (Internet of Things)',
   'Electrical and Electronics Engineering',
   'Electronics and Communication Engineering',
   'Electronics and Instrumentation Engineering',
-  'Mechanical Engineering',
-  'Robotics and Automation',
-  'CSE (Cyber Security)',
-  'CSE (AI & ML)',
-  'CSE (IoT)',
-  'Chemical Engineering',
   'Information Technology',
-  'Artificial Intelligence and Data Science',
-  'Computer Science and Design',
-  'M.Tech. CSE (5-Years)',
-  'MBA',
-  'MCA',
-  'Computer Science and Business Systems'
+  'Management Studies',
+  'Mechanical Engineering',
+  'M.Tech. CSE',
+  'Robotics and Automation',
+  'Science and Humanities'
 ].sort();
 
 export const TAMIL_NADU_DISTRICTS = [

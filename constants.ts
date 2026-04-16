@@ -21,13 +21,6 @@ export const DEPARTMENTS = [
   'M.Tech. CSE (5-Years)',
   'MBA',
   'MCA',
-  'Food Technology',
-  'S&H',
-  'Placement Cell',
-  'Physical Education',
-  'Fashion Technology',
-  'Textile Technology',
-  'Mechatronics Engineering',
   'Computer Science and Business Systems'
 ].sort();
 

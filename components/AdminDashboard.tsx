@@ -291,7 +291,7 @@ const AdminDashboard: React.FC = () => {
         try {
           let q = supabase
             .from('od_requests')
-            .select('id, department, year, event_title, organization_name, organization_location, event_type, status, student_name, roll_no, register_no, event_date, event_end_date, coordinator_id, hod_id, phone_number, semester, hod_approved_at, registration_proof_url, payment_proof_url, event_start_time')
+            .select('id, department, year, event_title, organization_name, organization_location, event_type, status, student_name, roll_no, register_no, event_date, event_end_date, coordinator_id, hod_id, phone_number, semester, hod_approved_at, registration_proof_url, payment_proof_url, event_start_time, prize_details')
             .or('status.eq.Approved,and(hod_id.not.is.null,coordinator_id.not.is.null)');
           if (signal) q = q.abortSignal(signal);
           const { data } = await q;
@@ -1759,62 +1759,80 @@ const AdminDashboard: React.FC = () => {
                             </span>
                           </div>
                         </div>
-                        <div className="overflow-x-auto -mx-8">
+                        <div className="overflow-x-auto">
                           <table className="w-full text-left border-collapse">
                             <thead>
                               <tr className="bg-slate-50/50 border-b">
-                                <th className="px-4 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Student Data</th>
+                                <th className="pl-8 pr-4 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest whitespace-nowrap align-top">Student Data</th>
                                 {selectedAnalyticsYear === 'Overall' && (
-                                  <th className="px-4 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Year</th>
+                                  <th className="px-4 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest whitespace-nowrap align-top">Year</th>
                                 )}
-                                <th className="px-4 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Event & Location</th>
-                                <th className="px-4 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Period</th>
-                                <th className="px-4 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Audit Sanction</th>
+                                <th className="px-4 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest whitespace-nowrap align-top">Event & Location</th>
+                                <th className="px-4 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest whitespace-nowrap align-top">Prize Won</th>
+                                <th className="px-4 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest whitespace-nowrap align-top">Period</th>
+                                <th className="pr-8 pl-4 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest whitespace-nowrap align-top">Audit Sanction</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y">
                               {filteredData.length === 0 ? (
                                 <tr>
-                                  <td colSpan={selectedAnalyticsYear === 'Overall' ? 5 : 4} className="px-4 py-12 text-center">
+                                  <td colSpan={selectedAnalyticsYear === 'Overall' ? 6 : 5} className="py-12 text-center">
                                     <p className="text-xs font-bold text-slate-400 uppercase tracking-widest italic">No approved registrations found for this category.</p>
                                   </td>
                                 </tr>
                               ) : (
                                 filteredData.map((student) => (
                                   <tr key={student.id} className="hover:bg-slate-50/50 transition-colors">
-                                    <td className="px-4 py-4">
-                                      <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded-lg bg-blueprint-blue/10 flex items-center justify-center text-blueprint-blue">
+                                    <td className="pl-8 pr-4 py-4 align-top">
+                                      <div className="flex items-start gap-3">
+                                        <div className="w-8 h-8 flex-shrink-0 rounded-lg bg-blueprint-blue/10 flex items-center justify-center text-blueprint-blue mt-0.5">
                                           <User size={16} />
                                         </div>
                                         <div>
                                           <p className="font-bold text-slate-900 text-sm uppercase tracking-tight">{student.student_name}</p>
-                                          <div className="flex gap-2 mt-0.5">
-                                            <p className="text-[9px] font-mono text-slate-400 uppercase">Reg: {student.register_no || 'N/A'}</p>
-                                            <p className="text-[9px] font-mono text-slate-400 uppercase">Roll: {student.roll_no || 'N/A'}</p>
+                                          <div className="flex flex-wrap gap-2 mt-0.5">
+                                            <p className="text-[9px] font-mono text-slate-400 uppercase whitespace-nowrap">Reg: {student.register_no || 'N/A'}</p>
+                                            <p className="text-[9px] font-mono text-slate-400 uppercase whitespace-nowrap">Roll: {student.roll_no || 'N/A'}</p>
                                           </div>
                                           <p className="text-[9px] font-mono text-blueprint-blue uppercase font-black mt-0.5">Sem: {student.semester || 'N/A'}</p>
                                         </div>
                                       </div>
                                     </td>
                                     {selectedAnalyticsYear === 'Overall' && (
-                                      <td className="px-4 py-4">
-                                        <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded text-[9px] font-black uppercase tracking-widest">
+                                      <td className="px-4 py-4 align-top">
+                                        <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded text-[9px] font-black uppercase tracking-widest whitespace-nowrap block w-max">
                                           {student.year} Year
                                         </span>
                                       </td>
                                     )}
-                                    <td className="px-4 py-4">
+                                    <td className="px-4 py-4 align-top">
                                       <div className="flex flex-col gap-0.5">
                                         <p className="font-bold text-slate-900 text-xs uppercase tracking-tight">{student.organization_name}</p>
                                         <div className="flex items-center gap-1.5">
-                                          <Building2 size={10} className="text-slate-400" />
+                                          <Building2 size={10} className="text-slate-400 flex-shrink-0" />
                                           <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">{student.organization_location || 'N/A'}</p>
                                         </div>
                                         <p className="text-[9px] font-bold text-blueprint-blue uppercase italic mt-1">{student.event_type}</p>
                                       </div>
                                     </td>
-                                    <td className="px-4 py-4">
+                                    <td className="px-4 py-4 align-top">
+                                      {student.prize_details && student.prize_details.length > 0 ? (
+                                        <div className="flex flex-col gap-1.5">
+                                          {student.prize_details.map((prize, idx) => (
+                                            <div key={idx} className="flex items-start gap-1.5">
+                                              <Trophy size={12} className="text-amber-500 flex-shrink-0 mt-0.5" />
+                                              <div className="flex flex-col">
+                                                <span className="text-[10px] font-black text-amber-600 uppercase tracking-tight leading-none">{prize.type}</span>
+                                                <span className="text-[9px] font-bold text-slate-500 uppercase truncate max-w-[120px] mt-0.5" title={prize.event}>{prize.event}</span>
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest italic">-</p>
+                                      )}
+                                    </td>
+                                    <td className="px-4 py-4 align-top">
                                       <div className="flex flex-col gap-1">
                                         <div className="flex items-center gap-2">
                                           <Calendar size={12} className="text-blueprint-blue" />
@@ -1833,9 +1851,9 @@ const AdminDashboard: React.FC = () => {
                                         </div>
                                       </div>
                                     </td>
-                                    <td className="px-4 py-4">
-                                      <div className="flex items-center gap-2">
-                                        <CheckCircle2 size={12} className="text-emerald-500" />
+                                    <td className="pr-8 pl-4 py-4 align-top">
+                                      <div className="flex items-start gap-2">
+                                        <CheckCircle2 size={12} className="text-emerald-500 flex-shrink-0 mt-0.5" />
                                         <div>
                                           <p className="text-[10px] font-black text-slate-400 uppercase">Sanctioned At</p>
                                           <p className="text-[10px] font-mono text-slate-600">

@@ -11,6 +11,8 @@ import NestedFolderView from './NestedFolderView';
 import { motion, AnimatePresence } from 'motion/react';
 import { useToast } from '../contexts/ToastContext';
 import { exportODRequestsToExcel } from '../services/excelService';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
 
 import { DEPARTMENTS, BASE_URL } from '../constants';
 
@@ -64,9 +66,15 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
   );
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [yearStats, setYearStats] = useState<{ [key: number]: number }>({ 1: 0, 2: 0, 3: 0, 4: 0 });
-  const [viewMode, setViewMode] = useState<'registry' | 'inspection' | 'nested'>('registry');
+  const [viewMode, setViewMode] = useState<'registry' | 'inspection' | 'nested' | 'download'>('registry');
   const [facultyProfile, setFacultyProfile] = useState<Profile | null>(null);
   const [smtpStatus, setSmtpStatus] = useState<{ configured: boolean; user: string | null }>({ configured: false, user: null });
+
+  // Download Center State
+  const [downloadYear, setDownloadYear] = useState<string>('all');
+  const [downloadOptions, setDownloadOptions] = useState({ letters: true, photos: true, certs: true, prizes: true, regProof: false, payProof: false, posters: false });
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState('');
 
   const fetchYearStats = useCallback(async () => {
     if (!facultyProfile?.department && role !== 'admin') return;
@@ -123,6 +131,132 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
   useEffect(() => {
     checkSmtpStatus();
   }, []);
+
+  const handleDownloadEvidence = async () => {
+    if (!facultyProfile && role !== 'admin') return;
+    
+    setIsDownloading(true);
+    setDownloadProgress('Fetching registry...');
+    try {
+      let q = supabase.from('od_requests').select('*');
+      
+      // Filter by approved/completed
+      q = q.in('status', ['Approved', 'Completed']);
+      
+      // Filter by department
+      if (role !== 'admin' && facultyProfile?.department) {
+        q = q.ilike('department', facultyProfile.department.trim());
+      }
+      
+      // Filter by year
+      if (downloadYear !== 'all') {
+        q = q.eq('year', downloadYear);
+      }
+      
+      const { data: records, error } = await q;
+      
+      if (error) throw error;
+      if (!records || records.length === 0) {
+        showToast("No approved/completed requests found matching criteria", "error");
+        setIsDownloading(false);
+        return;
+      }
+
+      const zip = new JSZip();
+      
+      let processed = 0;
+      for (const record of records) {
+        processed++;
+        setDownloadProgress(`Processing ${processed}/${records.length} students...`);
+        
+        // Structure: Deparatment/Year_X_Students/RegNo_Name/
+        const deptFolder = role === 'admin' ? `/${record.department?.replace(/[^a-zA-Z0-9]/g, '_')}` : '';
+        const yearFolder = `/Year_${record.year}_Students`;
+        const studentFolder = `/${record.register_no || record.roll_no}_${record.student_name.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        const basePath = `${deptFolder}${yearFolder}${studentFolder}`;
+        
+        const folder = zip.folder(basePath.replace(/^\//, ''));
+        if (!folder) continue;
+
+        const downloadFile = async (url: string | null, subFolder: string | null, filename: string) => {
+          if (!url) return;
+          try {
+            // Extract path from public URL
+            const urlPath = new URL(url).pathname;
+            const storagePathMatch = urlPath.match(/public\/od-files\/(.+)/);
+            if (!storagePathMatch) return;
+            
+            const storagePath = storagePathMatch[1];
+            const { data, error } = await supabase.storage.from('od-files').download(storagePath);
+            if (error) throw error;
+            
+            const targetFolder = subFolder ? folder.folder(subFolder) : folder;
+            if (targetFolder) {
+               const ext = storagePath.split('.').pop() || 'file';
+               targetFolder.file(`${filename}.${ext}`, data);
+            }
+          } catch (err) {
+            console.error(`Failed to download ${url}:`, err);
+          }
+        };
+
+        if (downloadOptions.letters && record.od_letter_url) {
+          await downloadFile(record.od_letter_url, null, 'OD_Letter');
+        }
+        
+        if (downloadOptions.photos) {
+          if (record.geotag_photo_urls && record.geotag_photo_urls.length > 0) {
+            for (let i = 0; i < record.geotag_photo_urls.length; i++) {
+              await downloadFile(record.geotag_photo_urls[i], 'Photos', `Photo_${i+1}`);
+            }
+          } else if (record.geotag_photo_url) {
+            await downloadFile(record.geotag_photo_url, 'Photos', 'Photo');
+          }
+        }
+        
+        if (downloadOptions.certs) {
+          if (record.certificate_urls && record.certificate_urls.length > 0) {
+            for (let i = 0; i < record.certificate_urls.length; i++) {
+              await downloadFile(record.certificate_urls[i], 'Certificates', `Certificate_${i+1}`);
+            }
+          } else if (record.certificate_url) {
+            await downloadFile(record.certificate_url, 'Certificates', 'Certificate');
+          }
+        }
+        
+        if (downloadOptions.prizes && record.prize_details && record.prize_details.length > 0) {
+          for (let i = 0; i < record.prize_details.length; i++) {
+            await downloadFile(record.prize_details[i].url, 'Prizes', `${record.prize_details[i].type}_${i+1}`);
+          }
+        }
+        
+        if (downloadOptions.regProof && record.registration_proof_url) {
+          await downloadFile(record.registration_proof_url, 'Proofs', 'Registration_Proof');
+        }
+        
+        if (downloadOptions.payProof && record.payment_proof_url) {
+          await downloadFile(record.payment_proof_url, 'Proofs', 'Payment_Proof');
+        }
+        
+        if (downloadOptions.posters && record.event_poster_url) {
+          await downloadFile(record.event_poster_url, 'Proofs', 'Event_Poster');
+        }
+      }
+      
+      setDownloadProgress('Generating ZIP file...');
+      const content = await zip.generateAsync({ type: 'blob' });
+      saveAs(content, `OD_Evidence_${role === 'admin' ? 'All_Depts' : facultyProfile?.department}_${downloadYear === 'all' ? 'All_Years' : `Year_${downloadYear}`}.zip`);
+      
+      showToast("Evidence downloaded successfully", "success");
+    } catch (err: any) {
+      console.error(err);
+      showToast("Failed to download evidence: " + err.message, "error");
+    } finally {
+      setIsDownloading(false);
+      setDownloadProgress('');
+    }
+  };
+
   const [searchParams] = useSearchParams();
   const requestId = searchParams.get('request_id');
 
@@ -1174,6 +1308,9 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
             <button onClick={() => setViewMode('inspection')} className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all ${viewMode === 'inspection' ? 'bg-blueprint-blue text-white shadow-lg shadow-amber-500/20' : 'text-slate-400 hover:text-slate-600'}`}>
               <BookOpen size={14} /> Detail
             </button>
+            <button onClick={() => setViewMode('download')} className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all ${viewMode === 'download' ? 'bg-blueprint-blue text-white shadow-lg shadow-amber-500/20' : 'text-slate-400 hover:text-slate-600'}`}>
+              <Download size={14} /> Export
+            </button>
           </div>
           <button onClick={() => fetchRequests()} className="p-2.5 bg-white border rounded-xl hover:bg-slate-50 transition-colors shadow-sm"><RefreshCw size={20} className={loading ? 'animate-spin' : ''} /></button>
         </div>
@@ -1362,6 +1499,89 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
           >
             Retry Sync
           </button>
+        </div>
+      ) : viewMode === 'download' ? (
+        <div className="bg-white rounded-[2.5rem] border p-8 shadow-sm max-w-3xl mx-auto animate-in fade-in slide-in-from-bottom-4">
+          <div className="text-center mb-10">
+            <div className="w-20 h-20 bg-blueprint-blue/10 text-blueprint-blue rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl shadow-blueprint-blue/10">
+              <Download size={40} />
+            </div>
+            <h2 className="text-2xl font-black text-slate-900 uppercase italic tracking-tight">Evidence Export Center</h2>
+            <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-2 px-8">
+              Download approved & completed OD request evidence in a structured ZIP archive.
+            </p>
+          </div>
+
+          <div className="space-y-8">
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Target Year Group</label>
+              <select 
+                value={downloadYear} 
+                onChange={(e) => setDownloadYear(e.target.value)}
+                className="w-full px-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:border-blueprint-blue/50 focus:bg-white transition-all appearance-none"
+              >
+                <option value="all">All Years (1st - 5th Year)</option>
+                <option value="1">1st Year Students</option>
+                <option value="2">2nd Year Students</option>
+                <option value="3">3rd Year Students</option>
+                <option value="4">4th Year Students</option>
+                <option value="5">5th Year Students</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Evidence Artifacts Required</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {[
+                  { id: 'letters', label: 'OD Letters (PDF)', icon: <FileText size={16} /> },
+                  { id: 'photos', label: 'Geotagged Photos', icon: <img src="https://api.iconify.design/lucide:image.svg" alt="Photo" className="w-4 h-4 opacity-50 filter grayscale" /> },
+                  { id: 'certs', label: 'Certificates', icon: <FileText size={16} /> },
+                  { id: 'prizes', label: 'Prize Documents', icon: <img src="https://api.iconify.design/lucide:award.svg" alt="Prize" className="w-4 h-4 opacity-50 filter grayscale" /> },
+                  { id: 'regProof', label: 'Registration Proofs', icon: <LayoutList size={16} /> },
+                  { id: 'payProof', label: 'Payment Receipts', icon: <FileSpreadsheet size={16} /> },
+                  { id: 'posters', label: 'Event Posters', icon: <img src="https://api.iconify.design/lucide:image.svg" alt="Poster" className="w-4 h-4 opacity-50 filter grayscale" /> },
+                ].map(opt => (
+                  <label key={opt.id} className="flex items-center gap-3 p-4 bg-slate-50 border rounded-2xl cursor-pointer hover:bg-slate-100 transition-colors group">
+                    <div className="relative flex items-center justify-center">
+                      <input 
+                        type="checkbox" 
+                        checked={downloadOptions[opt.id as keyof typeof downloadOptions]} 
+                        onChange={(e) => setDownloadOptions(prev => ({ ...prev, [opt.id]: e.target.checked }))}
+                        className="w-5 h-5 rounded border-2 border-slate-300 text-blueprint-blue focus:ring-blueprint-blue focus:ring-offset-0 disabled:opacity-50 transition-all"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2 text-sm font-bold text-slate-700">
+                      <span className="text-slate-400 group-hover:text-blueprint-blue transition-colors">{opt.icon}</span>
+                      {opt.label}
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="pt-4 border-t">
+              <button 
+                onClick={handleDownloadEvidence}
+                disabled={isDownloading || !Object.values(downloadOptions).some(v => v)}
+                className="w-full flex items-center justify-center gap-3 py-5 bg-gradient-to-r from-blueprint-blue to-blueprint-blue/80 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:shadow-xl hover:shadow-blueprint-blue/20 hover:-translate-y-1 transition-all disabled:opacity-50 disabled:hover:transform-none disabled:hover:shadow-none"
+              >
+                {isDownloading ? (
+                  <>
+                    <Loader2 size={20} className="animate-spin" />
+                    {downloadProgress || 'Processing...'}
+                  </>
+                ) : (
+                  <>
+                    <Archive size={20} />
+                    Extract & Download Archive
+                  </>
+                )}
+              </button>
+              {!Object.values(downloadOptions).some(v => v) && (
+                <p className="text-center text-rose-500 text-[10px] font-bold uppercase tracking-widest mt-3">Select at least one artifact type</p>
+              )}
+            </div>
+          </div>
         </div>
       ) : viewMode === 'nested' ? (
         <NestedFolderView 

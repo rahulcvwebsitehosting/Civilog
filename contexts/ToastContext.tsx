@@ -29,7 +29,7 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
-      <div className="fixed bottom-24 lg:bottom-8 right-6 z-[100] flex flex-col gap-3 pointer-events-none">
+      <div className="fixed bottom-24 lg:bottom-8 right-6 z-[100] flex flex-col gap-3 pointer-events-none" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
         <AnimatePresence mode="popLayout">
           {toasts.map((toast) => (
             <div key={toast.id} className="pointer-events-auto">

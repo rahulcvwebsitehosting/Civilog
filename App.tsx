@@ -102,7 +102,7 @@ const Header: React.FC<{ profile: Profile | null; onLogout: () => void; onOpenSe
             />
           </div>
           <div>
-            <h1 className="text-lg font-black tracking-tighter text-blue-600 uppercase italic leading-none">ERODE SENGUNTHAR ENGINEERING COLLEGE OD</h1>
+            <h1 className="text-sm sm:text-base lg:text-lg font-black tracking-tighter text-blue-600 uppercase italic leading-none truncate max-w-[160px] sm:max-w-none">ERODE SENGUNTHAR ENGINEERING COLLEGE OD</h1>
             <p className="text-[8px] uppercase tracking-[0.2em] text-pencil-gray font-technical font-bold mt-1">Student OD Management System</p>
           </div>
         </Link>
@@ -233,10 +233,11 @@ const App: React.FC = () => {
   const updateProfileFromUser = useCallback((user: any, shouldSetLoading = true) => {
     if (!user) return;
     console.log("Updating profile from user metadata fallback");
+    const roleFromMeta = (user.user_metadata?.role || 'student').toLowerCase();
     const metadataProfile: Profile = {
       id: user.id,
       email: user.email || '',
-      role: user.user_metadata?.role || 'student',
+      role: roleFromMeta,
       full_name: user.user_metadata?.full_name || '',
       identification_no: user.user_metadata?.identification_no || '',
       roll_no: user.user_metadata?.roll_no || '',
@@ -274,6 +275,8 @@ const App: React.FC = () => {
       }
       
       if (data) {
+        if (!data.role) data.role = 'student';
+        data.role = data.role.toLowerCase();
         setProfile(data as Profile);
       }
     } catch (err) {
@@ -606,7 +609,7 @@ const App: React.FC = () => {
                     key={item.id} 
                     onSelect={() => {
                       setSearchOpen(false);
-                      window.location.hash = `#/track?register_no=${item.register_no}`;
+                      window.location.replace(`${window.location.pathname}${window.location.search}#/track?register_no=${item.register_no}`);
                     }}
                     className="flex items-center justify-between p-4 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-all group border border-transparent hover:border-blueprint-blue/20"
                   >
@@ -639,11 +642,11 @@ const App: React.FC = () => {
             )}
 
             <Command.Group heading={<span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-2 mt-6 mb-2 block">Quick Navigation</span>}>
-              <Command.Item onSelect={() => { setSearchOpen(false); window.location.hash = '#/track'; }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-all">
+              <Command.Item onSelect={() => { setSearchOpen(false); window.location.replace(`${window.location.pathname}${window.location.search}#/track`); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-all">
                 <SearchIcon size={18} className="text-slate-400" />
                 <span className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-widest">Track OD Status</span>
               </Command.Item>
-              <Command.Item onSelect={() => { setSearchOpen(false); window.location.hash = '#/profile'; }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-all">
+              <Command.Item onSelect={() => { setSearchOpen(false); window.location.replace(`${window.location.pathname}${window.location.search}#/profile`); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-all">
                 <User size={18} className="text-slate-400" />
                 <span className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-widest">My Profile Settings</span>
               </Command.Item>

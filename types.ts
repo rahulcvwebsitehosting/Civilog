@@ -8,7 +8,7 @@ export interface Notification {
   created_at: string;
   message: string;
   read: boolean;
-  type: 'info' | 'success' | 'warning';
+  type: 'info' | 'success' | 'warning' | 'error';
 }
 
 export interface Profile {
@@ -72,9 +72,10 @@ export interface ODRequest {
   // New plural fields for multiple evidence
   geotag_photo_urls: string[] | null;
   certificate_urls: string[] | null;
+  deadline_reminder_sent?: boolean;
   // Removed: prize_certificate_urls: string[] | null;
   // New structured prize details
-  prize_details: { type: string; event: string; url: string; }[] | null;
+  prize_details: { type: string; event: string; url: string; rank?: string; }[] | null;
   remarks: string | null;
   team_members: TeamMember[] | null;
   notification_sent?: boolean;

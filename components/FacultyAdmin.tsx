@@ -58,7 +58,8 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  const [monthFilter, setMonthFilter] = useState<string>('');
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
   const [deptSearch, setDeptSearch] = useState('');
   const [stats, setStats] = useState({ pendingCoordinator: 0, pendingHOD: 0, approved: 0, completed: 0, archived: 0, history: 0 });
   const [activeStatus, setActiveStatus] = useState<ODStatus | 'History'>(
@@ -75,6 +76,10 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
   const [downloadOptions, setDownloadOptions] = useState({ letters: true, photos: true, certs: true, prizes: true, regProof: false, payProof: false, posters: false });
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState('');
+  const [exportDateFrom, setExportDateFrom] = useState('');
+  const [exportDateTo, setExportDateTo] = useState('');
+  const [exportStatus, setExportStatus] = useState('All');
+  const [exportSortBy, setExportSortBy] = useState<'name'|'roll'|'date'>('date');
 
   const fetchYearStats = useCallback(async () => {
     if (!facultyProfile?.department && role !== 'admin') return;
@@ -265,6 +270,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
 
   // Approval Confirmation
   const [confirmApprovalRequest, setConfirmApprovalRequest] = useState<ODRequest | null>(null);
+  const [expiredODWarning, setExpiredODWarning] = useState<ODRequest | null>(null);
 
   // Auth for Delete
   const [deleteCandidateId, setDeleteCandidateId] = useState<string | null>(null);
@@ -461,7 +467,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
     const controller = new AbortController();
     fetchRequests(controller.signal);
     return () => controller.abort();
-  }, [activeStatus, role, requestId, monthFilter, debouncedSearch, facultyProfile?.department, selectedYear]);
+  }, [activeStatus, role, requestId, dateFrom, dateTo, debouncedSearch, facultyProfile?.department, selectedYear]);
 
   useEffect(() => {
     fetchYearStats();
@@ -558,6 +564,15 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
     }
 
     if (approve && !confirmed) {
+      // Check if the OD event date has already passed
+      const eventEndDate = new Date(request.event_end_date || request.event_date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (eventEndDate < today) {
+        setExpiredODWarning(request);
+        setProcessingId(null);
+        return;
+      }
       setConfirmApprovalRequest(request);
       setProcessingId(null);
       return;
@@ -1055,12 +1070,23 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                          r.event_title.toLowerCase().includes(debouncedSearch.toLowerCase());
     const matchesDept = selectedDept ? r.department === selectedDept : true;
     const matchesYear = selectedYear ? r.year?.toString() === selectedYear.toString() : true;
-    const matchesMonth = monthFilter ? new Date(r.event_date).getMonth() === parseInt(monthFilter) : true;
-    return matchesSearch && matchesDept && matchesYear && matchesMonth;
+    const matchesDateRange = (() => {
+      if (!dateFrom && !dateTo) return true;
+      const eventDate = new Date(r.event_date);
+      if (dateFrom && new Date(dateFrom) > eventDate) return false;
+      if (dateTo && new Date(dateTo) < eventDate) return false;
+      return true;
+    })();
+    return matchesSearch && matchesDept && matchesYear && matchesDateRange;
   });
 
   const exportToExcel = () => {
-    exportODRequestsToExcel(filteredRequests, facultyProfile?.department, (msg) => showToast(msg, 'error'));
+    exportODRequestsToExcel(
+      filteredRequests, 
+      facultyProfile?.department, 
+      (msg) => showToast(msg, 'error'),
+      { dateFrom: exportDateFrom, dateTo: exportDateTo, status: exportStatus, sortBy: exportSortBy }
+    );
   };
 
   const canApprove = (request: ODRequest) => {
@@ -1071,6 +1097,53 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-20 relative">
+      <AnimatePresence>
+        {expiredODWarning && (
+          <div className="fixed inset-0 z-[160] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-[2.5rem] p-8 max-w-md w-full shadow-2xl border-2 border-amber-200"
+            >
+              <div className="flex flex-col items-center text-center space-y-4">
+                <div className="w-16 h-16 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center">
+                  <AlertCircle size={32} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-slate-900 uppercase italic tracking-tight text-amber-600">
+                    Expired OD Date
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium mt-2">
+                    The event date for <span className="font-black text-slate-900">{expiredODWarning.event_title}</span> was{' '}
+                    <span className="font-black text-amber-600">{expiredODWarning.event_end_date || expiredODWarning.event_date}</span>.
+                    This OD's event has already passed. Do you still want to approve it?
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-4 w-full pt-4">
+                  <button
+                    onClick={() => setExpiredODWarning(null)}
+                    className="px-6 py-3.5 bg-slate-50 text-slate-500 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-100 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      const req = expiredODWarning;
+                      setExpiredODWarning(null);
+                      setConfirmApprovalRequest(req);
+                    }}
+                    className="px-6 py-3.5 bg-amber-500 text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Check size={14} /> Approve Anyway
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Approval Confirmation Modal */}
       <AnimatePresence>
         {confirmApprovalRequest && (
@@ -1298,6 +1371,32 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
             </>
           )}
 
+          <div className="flex items-center gap-2 mr-2">
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="px-3 py-2 bg-white border rounded-xl text-xs outline-none focus:border-blueprint-blue"
+              title="Event date from"
+            />
+            <span className="text-slate-400 text-xs font-bold">→</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="px-3 py-2 bg-white border rounded-xl text-xs outline-none focus:border-blueprint-blue"
+              title="Event date to"
+            />
+            {(dateFrom || dateTo) && (
+              <button
+                onClick={() => { setDateFrom(''); setDateTo(''); }}
+                className="text-[9px] font-black text-red-400 hover:text-red-600 uppercase tracking-widest"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+
           <div className="bg-white border p-1 rounded-xl flex items-center shadow-sm">
             <button onClick={() => setViewMode('registry')} className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all ${viewMode === 'registry' ? 'bg-blueprint-blue text-white shadow-lg shadow-amber-500/20' : 'text-slate-400 hover:text-slate-600'}`}>
               <LayoutList size={14} /> List
@@ -1457,23 +1556,7 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
         </div>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-[2rem] p-4 flex flex-wrap items-center justify-center gap-2 shadow-sm">
-        <button 
-          onClick={() => setMonthFilter('')}
-          className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${monthFilter === '' ? 'bg-blueprint-blue text-white shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
-        >
-          All Time
-        </button>
-        {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((m, i) => (
-          <button
-            key={m}
-            onClick={() => setMonthFilter(i.toString())}
-            className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${monthFilter === i.toString() ? 'bg-blueprint-blue text-white shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
-          >
-            {m}
-          </button>
-        ))}
-      </div>
+
 
       {error && requests.length === 0 && (
         <div className="bg-red-50 border-2 border-red-100 p-8 rounded-[2rem] text-center space-y-4">
@@ -1556,6 +1639,40 @@ const FacultyAdmin: React.FC<FacultyAdminProps> = ({ role }) => {
                     </div>
                   </label>
                 ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Excel Export Filters</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 mb-1">Date Range</label>
+                  <div className="flex gap-2">
+                    <input type="date" value={exportDateFrom} onChange={(e) => setExportDateFrom(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs outline-none focus:border-blueprint-blue" />
+                    <input type="date" value={exportDateTo} onChange={(e) => setExportDateTo(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs outline-none focus:border-blueprint-blue" />
+                  </div>
+                </div>
+                <div className="flex gap-4">
+                  <div className="flex-1">
+                    <label className="block text-[10px] font-bold text-slate-500 mb-1">Status</label>
+                    <select value={exportStatus} onChange={(e) => setExportStatus(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs outline-none focus:border-blueprint-blue">
+                      <option value="All">All</option>
+                      <option value="Approved">Approved</option>
+                      <option value="Completed">Completed</option>
+                      <option value="Pending Coordinator">Pending Coordinator</option>
+                      <option value="Pending HOD">Pending HOD</option>
+                      <option value="Rejected">Rejected</option>
+                    </select>
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-[10px] font-bold text-slate-500 mb-1">Sort By</label>
+                    <select value={exportSortBy} onChange={(e) => setExportSortBy(e.target.value as any)} className="w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs outline-none focus:border-blueprint-blue">
+                      <option value="date">Event Date</option>
+                      <option value="name">Name A-Z</option>
+                      <option value="roll">Roll No</option>
+                    </select>
+                  </div>
+                </div>
               </div>
             </div>
 

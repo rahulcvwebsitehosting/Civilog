@@ -1,5 +1,5 @@
 
-export const BASE_URL = 'https://civilog.vercel.app/#/';
+export const BASE_URL = 'https://civilog.vercel.app/';
 
 export const DEPARTMENTS = [
   'Agricultural Engineering',

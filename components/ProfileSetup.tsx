@@ -21,6 +21,8 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ profile, onComplete }) => {
     return (2 * y - 1).toString();
   };
 
+  const isStudent = !profile.role || profile.role.toLowerCase() === 'student';
+
   const [formData, setFormData] = useState({
     full_name: profile?.full_name || '',
     identification_no: profile?.identification_no || '',
@@ -60,7 +62,7 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ profile, onComplete }) => {
 
     try {
       // 0. Check Registration Lock (Students Only)
-      if (profile.role === 'student') {
+      if (isStudent) {
         const { data: lockData } = await supabase
           .from('registration_locks')
           .select('locked')
@@ -188,10 +190,10 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ profile, onComplete }) => {
                 value={formData.identification_no}
                 onChange={handleInputChange}
                 className="w-full px-5 py-5 min-h-[48px] rounded-2xl bg-slate-50 border border-slate-200 font-mono text-sm outline-none"
-                placeholder={profile.role === 'student' ? "Reg No" : "Emp ID"}
+                placeholder={isStudent ? "Reg No" : "Emp ID"}
               />
 
-              {profile.role === 'student' ? (
+              {isStudent ? (
                 <>
                   <div className="grid grid-cols-2 gap-4">
                     <input

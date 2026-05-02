@@ -1,11 +1,12 @@
 
 import React, { useState, useMemo } from 'react';
 import { supabase } from '../supabaseClient';
-import { Loader2, Phone, AlertCircle, Upload, Image as ImageIcon, FileText, CreditCard, X, User, Users } from 'lucide-react';
+import { Loader2, Phone, AlertCircle, Upload, Image as ImageIcon, FileText, CreditCard, X, User } from 'lucide-react';
 import { SubmissionFormData, Profile, TeamMember, ODRequest } from '../types';
 import { generateODDocument } from '../services/pdfService';
 import { logAudit } from '../services/auditService';
 import SearchableSelect from './SearchableSelect';
+import { useToast } from '../contexts/ToastContext';
 
 interface SubmissionFormProps {
   onSuccess: () => void;
@@ -17,8 +18,11 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
 
 import { DEPARTMENTS, BASE_URL, TAMIL_NADU_DISTRICTS, EVENT_CATEGORIES } from '../constants';
+import { useEventCategories } from '../hooks/useEventCategories';
 
 const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, profile }) => {
+  const { showToast } = useToast();
+  const { categories: EVENT_CATEGORIES_LIVE } = useEventCategories();
   const initialYear = profile?.year || '2';
   const getInitialSemester = (year: string) => {
     const y = parseInt(year);
@@ -45,6 +49,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
   const [eventCategorySearch, setEventCategorySearch] = useState('');
   const [eventSubType, setEventSubType] = useState('');
   const [customSubType, setCustomSubType] = useState('');
+  const [extraEvents, setExtraEvents] = useState<{title: string, category: string, subType: string, customSubType: string}[]>([]);
   const [customLocation, setCustomLocation] = useState('');
   const [regFile, setRegFile] = useState<File | null>(null);
   const [payFile, setPayFile] = useState<File | null>(null);
@@ -224,6 +229,21 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
           finalEventType = `${formData.event_type} - ${eventSubType}`;
         }
       }
+      
+      let finalTitle = formData.event_title;
+      extraEvents.forEach(ev => {
+        if (!ev.title.trim()) return;
+        finalTitle += ` & ${ev.title.trim()}`;
+        let evType = ev.category;
+        if (ev.subType) {
+          if (ev.subType === 'Other' && ev.customSubType) {
+            evType = `${ev.category} - Other: ${ev.customSubType}`;
+          } else {
+            evType = `${ev.category} - ${ev.subType}`;
+          }
+        }
+        finalEventType += `, ${evType}`;
+      });
 
       const finalLocation = formData.organization_location === 'Other' ? customLocation : formData.organization_location;
 
@@ -237,7 +257,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
         year: profile.year || formData.year,
         department: profile.department || formData.department,
         semester: formData.semester,
-        event_title: formData.event_title,
+        event_title: finalTitle,
         organization_name: formData.organization_name,
         organization_location: finalLocation,
         event_type: finalEventType,
@@ -474,34 +494,42 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
           <h2 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] font-mono flex items-center gap-2">
             <span className="w-8 h-[1px] bg-slate-200"></span> 02 SPECIFICATIONS
           </h2>
-          <div className="space-y-1.5">
-            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Event Title / Topic Name</label>
-            <input 
-              name="event_title" 
-              required 
-              value={formData.event_title} 
-              onChange={handleInputChange} 
-              className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-5 min-h-[48px] rounded-2xl border border-slate-200 outline-none font-bold shadow-sm" 
-              placeholder="Ex. Seismic Analysis of High-Rise Structures" 
-            />
-          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="space-y-1.5">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Event Title / Topic Name</label>
+              <input 
+                name="event_title" 
+                required 
+                value={formData.event_title} 
+                onChange={handleInputChange} 
+                className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-5 min-h-[48px] rounded-2xl border border-slate-200 outline-none font-bold shadow-sm" 
+                placeholder="Ex. Seismic Analysis of High-Rise Structures" 
+              />
+            </div>
             <div className="space-y-2">
               <SearchableSelect
                 label="Event Category"
-                options={EVENT_CATEGORIES.map(c => c.label)}
+                options={EVENT_CATEGORIES_LIVE.map(c => c.label)}
                 value={formData.event_type}
                 onChange={(val) => {
                   setFormData(prev => ({ ...prev, event_type: val }));
                   setEventSubType('');
                   setCustomSubType('');
                 }}
-                placeholder="Search Event Category"
+                placeholder="Search Events"
               />
+              
+              <button 
+                type="button" 
+                onClick={() => setExtraEvents([...extraEvents, {title: '', category: '', subType: '', customSubType: ''}])}
+                className="text-[10px] font-black uppercase tracking-widest text-blueprint-blue hover:text-blue-900 flex items-center justify-center gap-1 w-full py-2 bg-blue-50/50 rounded-xl hover:bg-blue-50 transition-colors border border-blue-100 border-dashed mt-2"
+              >
+                + Add Another Event
+              </button>
               
               {formData.event_type && (
                 <>
-                  {EVENT_CATEGORIES.find(c => c.value === formData.event_type)?.subcategories.length! > 0 && (
+                  {EVENT_CATEGORIES_LIVE.find(c => c.value === formData.event_type)?.subcategories.length! > 0 && (
                     <div className="space-y-1.5 animate-in slide-in-from-top-1 duration-200">
                       <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Select Sub-Category</label>
                       <select 
@@ -514,7 +542,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
                         required
                       >
                         <option value="">Choose Sub-Category</option>
-                        {EVENT_CATEGORIES.find(c => c.value === formData.event_type)?.subcategories.map(sub => (
+                        {EVENT_CATEGORIES_LIVE.find(c => c.value === formData.event_type)?.subcategories.map(sub => (
                           <option key={sub} value={sub}>{sub}</option>
                         ))}
                       </select>
@@ -534,9 +562,127 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
                 </>
               )}
             </div>
-            <input name="organization_name" required value={formData.organization_name} onChange={handleInputChange} className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-5 min-h-[48px] rounded-2xl border border-slate-200 outline-none shadow-sm h-fit" placeholder="Organization (Ex. ESEC)" />
           </div>
-          <div className="grid grid-cols-2 gap-5">
+
+          {extraEvents.map((ev, index) => (
+            <div key={index} className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-4 border-t border-slate-100 relative animate-in slide-in-from-top-2">
+              <button 
+                type="button" 
+                onClick={() => setExtraEvents(prev => prev.filter((_, i) => i !== index))}
+                className="absolute -top-3 -right-3 w-6 h-6 bg-red-100 text-red-500 rounded-full flex items-center justify-center hover:bg-red-500 hover:text-white transition-colors"
+                title="Remove Event"
+              >
+                <X size={12} strokeWidth={3} />
+              </button>
+              
+              <div className="space-y-1.5">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Event Title</label>
+                <input 
+                  required 
+                  value={ev.title} 
+                  onChange={(e) => {
+                    const newEvs = [...extraEvents];
+                    newEvs[index].title = e.target.value;
+                    setExtraEvents(newEvs);
+                  }}
+                  className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-5 min-h-[48px] rounded-2xl border border-slate-200 outline-none font-bold shadow-sm" 
+                  placeholder="Ex. Web Development Hackathon" 
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <SearchableSelect
+                  label="Event Category"
+                  options={EVENT_CATEGORIES_LIVE.map(c => c.label)}
+                  value={ev.category}
+                  onChange={(val) => {
+                    const newEvs = [...extraEvents];
+                    newEvs[index].category = val;
+                    newEvs[index].subType = '';
+                    newEvs[index].customSubType = '';
+                    setExtraEvents(newEvs);
+                  }}
+                  placeholder="Search Events"
+                />
+                
+                {ev.category && (
+                  <>
+                    {EVENT_CATEGORIES_LIVE.find(c => c.value === ev.category)?.subcategories.length! > 0 && (
+                      <div className="space-y-1.5 animate-in slide-in-from-top-1 duration-200">
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Select Sub-Category</label>
+                        <select 
+                          value={ev.subType}
+                          onChange={(e) => {
+                            const newEvs = [...extraEvents];
+                            newEvs[index].subType = e.target.value;
+                            if (e.target.value !== 'Other') newEvs[index].customSubType = '';
+                            setExtraEvents(newEvs);
+                          }}
+                          className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-5 min-h-[48px] rounded-2xl border border-slate-200 outline-none shadow-sm"
+                          required
+                        >
+                          <option value="">Choose Sub-Category</option>
+                          {EVENT_CATEGORIES_LIVE.find(c => c.value === ev.category)?.subcategories.map(sub => (
+                            <option key={sub} value={sub}>{sub}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {ev.subType === 'Other' && (
+                      <input 
+                        type="text"
+                        placeholder="Specify Sub-Category"
+                        value={ev.customSubType}
+                        onChange={(e) => {
+                          const newEvs = [...extraEvents];
+                          newEvs[index].customSubType = e.target.value;
+                          setExtraEvents(newEvs);
+                        }}
+                        className="w-full bg-white dark:bg-gray-700 text-sm px-5 py-5 min-h-[48px] rounded-xl border-2 border-blueprint-blue outline-none animate-in slide-in-from-top-1 duration-200"
+                        required
+                      />
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          ))}
+
+          {/* Redundant button removed as it is now near the main category */}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-4">
+            <div className="space-y-1.5">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Organization Name</label>
+              <input name="organization_name" required value={formData.organization_name} onChange={handleInputChange} className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-5 min-h-[48px] rounded-2xl border border-slate-200 outline-none shadow-sm h-fit" placeholder="Organization (Ex. ESEC)" />
+            </div>
+            <div className="space-y-1.5">
+              <SearchableSelect
+                label="Organization Location"
+                options={TAMIL_NADU_DISTRICTS}
+                value={formData.organization_location}
+                onChange={(val) => {
+                  handleInputChange({
+                    target: { name: 'organization_location', value: val }
+                  } as any);
+                }}
+                placeholder="Select District"
+              />
+              {formData.organization_location === 'Other' && (
+                <div className="pt-2 animate-in slide-in-from-top-1 duration-200">
+                  <input 
+                    type="text"
+                    placeholder="Specify Location (Ex. Bangalore)"
+                    value={customLocation}
+                    onChange={(e) => setCustomLocation(e.target.value)}
+                    className="w-full bg-white dark:bg-gray-700 text-sm px-5 py-5 min-h-[48px] rounded-xl border-2 border-blueprint-blue outline-none"
+                    required
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-5 mt-4">
             <div className="space-y-1.5">
               <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Start Date</label>
               <input 
@@ -561,113 +707,6 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onSuccess, onClose, pro
                 className="w-full bg-white dark:bg-gray-800 text-sm px-5 py-5 min-h-[48px] rounded-2xl border border-slate-200 outline-none shadow-sm" 
               />
             </div>
-          </div>
-          <div className="space-y-2">
-            <SearchableSelect
-              label="Organization Location"
-              options={TAMIL_NADU_DISTRICTS}
-              value={formData.organization_location}
-              onChange={(val) => {
-                handleInputChange({
-                  target: { name: 'organization_location', value: val }
-                } as any);
-              }}
-              placeholder="Select District"
-            />
-            {formData.organization_location === 'Other' && (
-              <input 
-                type="text"
-                placeholder="Specify Location (Ex. Bangalore)"
-                value={customLocation}
-                onChange={(e) => setCustomLocation(e.target.value)}
-                className="w-full bg-white dark:bg-gray-700 text-sm px-5 py-5 min-h-[48px] rounded-xl border-2 border-blueprint-blue outline-none animate-in slide-in-from-top-1 duration-200"
-                required
-              />
-            )}
-          </div>
-        </div>
-
-        <div className="space-y-5 pt-2">
-          <div className="flex justify-between items-center">
-            <h2 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] font-mono flex items-center gap-2">
-              <span className="w-8 h-[1px] bg-slate-200"></span> 03 TEAM MEMBERS (Optional)
-            </h2>
-            <button 
-              type="button" 
-              onClick={addTeamMember}
-              className="text-[9px] font-black text-blueprint-blue uppercase tracking-widest hover:underline"
-            >
-              + Add Member
-            </button>
-          </div>
-          
-          <div className="space-y-4">
-            {formData.team_members.map((member, index) => (
-              <div key={index} className="p-5 bg-white dark:bg-gray-800 rounded-3xl border border-slate-100 dark:border-gray-700 relative animate-in zoom-in-95 duration-200">
-                <button 
-                  type="button"
-                  onClick={() => removeTeamMember(index)}
-                  className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-red-600 transition-colors"
-                >
-                  <X size={12} />
-                </button>
-                <div className="grid grid-cols-1 gap-4">
-                  <input 
-                    placeholder="Member Name"
-                    value={member.name}
-                    onChange={(e) => handleTeamMemberChange(index, 'name', e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-gray-900 text-xs px-4 py-3 rounded-xl border-none outline-none focus:ring-1 ring-blueprint-blue"
-                    required
-                  />
-                  <div className="grid grid-cols-2 gap-3">
-                    <input 
-                      placeholder="Reg No"
-                      value={member.register_no}
-                      onChange={(e) => handleTeamMemberChange(index, 'register_no', e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-gray-900 text-[10px] px-4 py-3 rounded-xl border-none outline-none font-mono focus:ring-1 ring-blueprint-blue"
-                      required
-                    />
-                    <input 
-                      placeholder="Roll No"
-                      value={member.roll_no}
-                      onChange={(e) => handleTeamMemberChange(index, 'roll_no', e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-gray-900 text-[10px] px-4 py-3 rounded-xl border-none outline-none font-mono focus:ring-1 ring-blueprint-blue"
-                      required
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <select 
-                      value={member.year}
-                      onChange={(e) => handleTeamMemberChange(index, 'year', e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-gray-900 text-[10px] px-4 py-3 rounded-xl border-none outline-none focus:ring-1 ring-blueprint-blue"
-                      required
-                    >
-                      <option value="1">1st Year</option>
-                      <option value="2">2nd Year</option>
-                      <option value="3">3rd Year</option>
-                      <option value="4">4th Year</option>
-                      <option value="5">5th Year</option>
-                    </select>
-                    <select 
-                      value={member.department}
-                      onChange={(e) => handleTeamMemberChange(index, 'department', e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-gray-900 text-[10px] px-4 py-3 rounded-xl border-none outline-none focus:ring-1 ring-blueprint-blue"
-                      required
-                    >
-                      {DEPARTMENTS.map(dept => (
-                        <option key={dept} value={dept}>{dept}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </div>
-            ))}
-            {formData.team_members.length === 0 && (
-              <div className="py-6 border-2 border-dashed border-slate-100 dark:border-gray-800 rounded-3xl flex flex-col items-center justify-center text-slate-300">
-                <Users size={24} className="mb-2 opacity-20" />
-                <p className="text-[9px] font-bold uppercase tracking-widest">Individual Submission</p>
-              </div>
-            )}
           </div>
         </div>
 

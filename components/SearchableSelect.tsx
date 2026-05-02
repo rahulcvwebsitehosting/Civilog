@@ -50,7 +50,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({ options, value, onC
               <input
                 type="text"
                 autoFocus
-                placeholder="Search districts..."
+                placeholder={placeholder || "Search..."}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-gray-900 border-none rounded-xl text-xs outline-none focus:ring-1 ring-blueprint-blue"

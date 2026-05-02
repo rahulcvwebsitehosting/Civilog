@@ -18,7 +18,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import FeedCard from './FeedCard';
 import { useToast } from '../contexts/ToastContext';
-import { DEPARTMENTS, EVENT_CATEGORIES } from '../constants';
+import { DEPARTMENTS, EVENT_CATEGORIES, BASE_URL } from '../constants';
 import { exportODRequestsToExcel } from '../services/excelService';
 
 const getDeptStyling = (dept: string) => {
@@ -50,14 +50,18 @@ const getDeptStyling = (dept: string) => {
 
 const AdminDashboard: React.FC = () => {
   const { showToast } = useToast();
-  const [activeTab, setActiveTab] = useState<'users' | 'requests' | 'feed' | 'system' | 'mail' | 'locks' | 'audit' | 'deletions' | 'analytics'>('analytics');
+  const [activeTab, setActiveTab] = useState<'users' | 'requests' | 'feed' | 'system' | 'mail' | 'locks' | 'audit' | 'deletions' | 'analytics' | 'categories'>('analytics');
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [requests, setRequests] = useState<ODRequest[]>([]);
+  const [catList, setCatList] = useState<any[]>([]);
+  const [newCatLabel, setNewCatLabel] = useState('');
+  const [catLoading, setCatLoading] = useState(false);
   const [analyticsData, setAnalyticsData] = useState<any[]>([]);
   const [selectedAnalyticsDept, setSelectedAnalyticsDept] = useState<string | null>(null);
   const [selectedAnalyticsYear, setSelectedAnalyticsYear] = useState<string | null>(null);
   const [selectedAnalyticsCategory, setSelectedAnalyticsCategory] = useState<string | null>(null);
   const [analyticsSearch, setAnalyticsSearch] = useState('');
+  const [analyticsView, setAnalyticsView] = useState<'simple' | 'professional'>('simple');
   const [studentSearch, setStudentSearch] = useState('');
   const [registrationLocks, setRegistrationLocks] = useState<Record<string, any>>({});
   const [deletionRequests, setDeletionRequests] = useState<any[]>([]);
@@ -100,6 +104,8 @@ const AdminDashboard: React.FC = () => {
   const [systemStatus, setSystemStatus] = useState<any>(null);
 
   useEffect(() => {
+    setRequests([]);
+    setProfiles([]);
     const controller = new AbortController();
     fetchData(controller.signal);
     if (activeTab === 'system') {
@@ -110,7 +116,7 @@ const AdminDashboard: React.FC = () => {
 
   // Student Audit Debounce Search
   useEffect(() => {
-    if (activeTab !== 'audit' || !auditSearchTerm.trim()) {
+    if (activeTab !== 'audit') {
       setAuditSearchResults([]);
       return;
     }
@@ -118,12 +124,18 @@ const AdminDashboard: React.FC = () => {
     const timer = setTimeout(async () => {
       setAuditSearchLoading(true);
       try {
-        const { data, error } = await supabase
+        let q = supabase
           .from('profiles')
           .select('*')
-          .eq('role', 'student')
-          .or(`full_name.ilike.%${auditSearchTerm}%,identification_no.ilike.%${auditSearchTerm}%,roll_no.ilike.%${auditSearchTerm}%`)
-          .limit(10);
+          .eq('role', 'student');
+
+        if (auditSearchTerm.trim()) {
+          q = q.or(`full_name.ilike.%${auditSearchTerm}%,identification_no.ilike.%${auditSearchTerm}%,roll_no.ilike.%${auditSearchTerm}%`);
+        }
+
+        const { data, error } = await q
+          .order('full_name')
+          .limit(auditSearchTerm.trim() ? 10 : 20);
 
         if (error) throw error;
         setAuditSearchResults(data || []);
@@ -132,7 +144,7 @@ const AdminDashboard: React.FC = () => {
       } finally {
         setAuditSearchLoading(false);
       }
-    }, 400);
+    }, auditSearchTerm.trim() ? 400 : 0);
 
     return () => clearTimeout(timer);
   }, [auditSearchTerm, activeTab]);
@@ -258,12 +270,14 @@ const AdminDashboard: React.FC = () => {
           .select('id, full_name, email, role, department, is_profile_complete, identification_no, phone_number, roll_no, year, designation, is_blacklisted, blacklist_reason, is_profile_locked')
           .order('full_name');
         if (signal) q = q.abortSignal(signal);
-        const { data } = await q;
+        const { data, error: fetchErr } = await q;
+        if (fetchErr) throw fetchErr;
         setProfiles(data || []);
       } else if (activeTab === 'locks') {
         let q = supabase.from('registration_locks').select('*');
         if (signal) q = q.abortSignal(signal);
-        const { data: locks } = await q;
+        const { data: locks, error: fetchErr } = await q;
+        if (fetchErr) throw fetchErr;
         const lockMap = (locks || []).reduce((acc: any, curr: any) => {
           acc[curr.department] = curr;
           return acc;
@@ -276,15 +290,17 @@ const AdminDashboard: React.FC = () => {
           .eq('status', 'pending')
           .order('requested_at', { ascending: true });
         if (signal) q = q.abortSignal(signal);
-        const { data } = await q;
+        const { data, error: fetchErr } = await q;
+        if (fetchErr) throw fetchErr;
         setDeletionRequests(data || []);
       } else if (activeTab === 'requests' || activeTab === 'feed') {
         let q = supabase
           .from('od_requests')
-          .select('id, student_name, register_no, roll_no, phone_number, year, semester, department, event_title, organization_name, organization_location, event_type, event_date, event_end_date, status, created_at, coordinator_id, hod_id, coordinator_approved_at, hod_approved_at, od_letter_url, notification_sent, team_members, prize_details, geotag_photo_urls, certificate_urls, achievement_details, registration_proof_url, payment_proof_url, event_poster_url, user_id, geotag_photo_url, certificate_url, remarks')
+          .select('id, student_name, register_no, roll_no, phone_number, year, semester, department, event_title, organization_name, organization_location, event_type, event_date, event_end_date, event_start_time, status, created_at, coordinator_id, hod_id, coordinator_approved_at, hod_approved_at, od_letter_url, notification_sent, team_members, prize_details, geotag_photo_urls, certificate_urls, achievement_details, registration_proof_url, payment_proof_url, event_poster_url, user_id, geotag_photo_url, certificate_url, remarks')
           .order('created_at', { ascending: sortOrder === 'asc' });
         if (signal) q = q.abortSignal(signal);
-        const { data } = await q;
+        const { data, error: fetchErr } = await q;
+        if (fetchErr) throw fetchErr;
         setRequests(data || []);
       } else if (activeTab === 'analytics') {
         setAnalyticsLoading(true);
@@ -294,11 +310,18 @@ const AdminDashboard: React.FC = () => {
             .select('id, department, year, event_title, organization_name, organization_location, event_type, status, student_name, roll_no, register_no, event_date, event_end_date, coordinator_id, hod_id, phone_number, semester, hod_approved_at, registration_proof_url, payment_proof_url, event_start_time, prize_details')
             .or('status.eq.Approved,and(hod_id.not.is.null,coordinator_id.not.is.null)');
           if (signal) q = q.abortSignal(signal);
-          const { data } = await q;
+          const { data, error: fetchErr } = await q;
+          if (fetchErr) throw fetchErr;
           setAnalyticsData(data || []);
         } finally {
           setAnalyticsLoading(false);
         }
+      } else if (activeTab === 'categories') {
+        let q = supabase.from('event_categories').select('*').order('label');
+        if (signal) q = q.abortSignal(signal);
+        const { data, error: fetchErr } = await q;
+        if (fetchErr) throw fetchErr;
+        setCatList(data || []);
       }
     } catch (err: any) {
       if (err.name === 'AbortError' || err.name === 'CanceledError' || err.message?.includes('aborted')) return;
@@ -376,6 +399,9 @@ const AdminDashboard: React.FC = () => {
             </div>
             <div style="margin-bottom: 30px;">
               ${mailMessage.replace(/\n/g, '<br/>')}
+            </div>
+            <div style="margin-top: 30px; text-align: center;">
+              <a href="${BASE_URL}" style="display: inline-block; background-color: #003366; color: #ffffff; padding: 12px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 14px;">Open Portal</a>
             </div>
             <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
             <div style="text-align: center;">
@@ -729,6 +755,12 @@ const AdminDashboard: React.FC = () => {
               >
                 <BarChart3 size={14} className="inline mr-2" /> Analytics
               </button>
+              <button
+                onClick={() => setActiveTab('categories')}
+                className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex-shrink-0 ${activeTab === 'categories' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+              >
+                Categories
+              </button>
               <button 
                 onClick={() => setActiveTab('feed')}
                 className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex-shrink-0 ${activeTab === 'feed' ? 'bg-blueprint-blue text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
@@ -832,7 +864,7 @@ const AdminDashboard: React.FC = () => {
 
             {(activeTab === 'requests' || activeTab === 'feed') && (
               <button 
-                onClick={() => exportODRequestsToExcel(filteredRequests, deptFilter !== 'all' ? deptFilter : undefined, (msg) => showToast(msg, 'error'))}
+                onClick={() => exportODRequestsToExcel(filteredRequests, deptFilter !== 'all' ? deptFilter : undefined, (msg) => showToast(msg, 'error'), {})}
                 className="px-5 py-4 bg-emerald-500 text-white rounded-2xl outline-none shadow-lg shadow-emerald-500/20 text-sm font-bold uppercase tracking-tight flex items-center gap-2 hover:bg-emerald-600 transition-all"
               >
                 <Download size={16} />
@@ -1080,7 +1112,7 @@ const AdminDashboard: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {requests.map((r) => (
+                    {filteredRequests.map((r) => (
                       <tr key={r.id} className="hover:bg-slate-50/50 transition-colors">
                         <td className="p-6">
                           <p className="font-bold text-slate-900 text-sm">{r.student_name}</p>
@@ -1312,7 +1344,7 @@ const AdminDashboard: React.FC = () => {
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                     <input 
                       type="text"
-                      placeholder="Search by Student Name, Reg No, or Roll No..."
+                      placeholder="Search by name, reg no, or roll no (showing 20 recent by default)..."
                       value={auditSearchTerm}
                       onChange={(e) => setAuditSearchTerm(e.target.value)}
                       className="w-full pl-12 pr-4 py-4 bg-slate-50 border rounded-2xl outline-none focus:border-blueprint-blue shadow-sm text-sm"
@@ -1536,14 +1568,161 @@ const AdminDashboard: React.FC = () => {
                   )}
                 </div>
               )}
+              {activeTab === 'categories' && (
+                <div className="p-8 space-y-6">
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="text"
+                      placeholder="New category name..."
+                      value={newCatLabel}
+                      onChange={(e) => setNewCatLabel(e.target.value)}
+                      className="flex-1 px-5 py-3 rounded-xl bg-slate-50 border outline-none text-sm focus:border-blueprint-blue"
+                    />
+                    <button
+                      disabled={!newCatLabel.trim() || catLoading}
+                      onClick={async () => {
+                        setCatLoading(true);
+                        const label = newCatLabel.trim();
+                        const value = label;
+                        await supabase.from('event_categories').insert({ label, value, subcategories: [], is_active: true });
+                        setNewCatLabel('');
+                        fetchData();
+                        setCatLoading(false);
+                      }}
+                      className="px-6 py-3 bg-blueprint-blue text-white rounded-xl font-black uppercase text-xs tracking-widest hover:bg-blue-900 transition-all disabled:opacity-50"
+                    >
+                      Add Category
+                    </button>
+                  </div>
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 border-b">
+                        <th className="p-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Category</th>
+                        <th className="p-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Status</th>
+                        <th className="p-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {catList.map((cat) => (
+                        <tr key={cat.id} className="hover:bg-slate-50">
+                          <td className="p-4 font-bold text-slate-800">{cat.label}</td>
+                          <td className="p-4">
+                            <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase ${cat.is_active ? 'bg-green-50 text-green-600' : 'bg-slate-100 text-slate-400'}`}>
+                              {cat.is_active ? 'Active' : 'Hidden'}
+                            </span>
+                          </td>
+                          <td className="p-4 text-right">
+                            <button
+                              onClick={async () => {
+                                await supabase.from('event_categories').update({ is_active: !cat.is_active }).eq('id', cat.id);
+                                fetchData();
+                              }}
+                              className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all"
+                            >
+                              {cat.is_active ? 'Hide' : 'Show'}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
               {activeTab === 'analytics' && (
                 <div className="p-8 space-y-8">
-                  {analyticsLoading && (
-                    <div className="flex items-center justify-center py-20">
-                      <Loader2 className="animate-spin text-blueprint-blue" size={40} />
-                      <p className="ml-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Loading Analytics...</p>
+                  <div className="p-6 flex items-center justify-between border-b border-slate-100">
+                    <div>
+                      <h3 className="text-lg font-black text-slate-900 uppercase italic tracking-tight">Department Analytics</h3>
+                      <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold mt-1">
+                        {analyticsView === 'simple' ? 'Simple Overview' : 'Professional View'}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                      <button
+                        onClick={() => setAnalyticsView('simple')}
+                        className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${analyticsView === 'simple' ? 'bg-white text-blueprint-blue shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                      >
+                        Simple
+                      </button>
+                      <button
+                        onClick={() => setAnalyticsView('professional')}
+                        className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${analyticsView === 'professional' ? 'bg-white text-blueprint-blue shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                      >
+                        Professional
+                      </button>
+                    </div>
+                  </div>
+
+                  {analyticsView === 'simple' && (
+                    <div className="p-6 overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200">
+                            <th className="p-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Department</th>
+                            <th className="p-4 text-[10px] font-black text-amber-500 uppercase tracking-widest">Pending</th>
+                            <th className="p-4 text-[10px] font-black text-green-500 uppercase tracking-widest">Approved</th>
+                            <th className="p-4 text-[10px] font-black text-blue-500 uppercase tracking-widest">Completed</th>
+                            <th className="p-4 text-[10px] font-black text-red-400 uppercase tracking-widest">Rejected</th>
+                            <th className="p-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {(() => {
+                            const deptMap: Record<string, { pending: number; approved: number; completed: number; rejected: number }> = {};
+                            analyticsData.forEach((r: any) => {
+                              if (!r.department) return;
+                              if (!deptMap[r.department]) deptMap[r.department] = { pending: 0, approved: 0, completed: 0, rejected: 0 };
+                              if (r.status === 'Pending Coordinator' || r.status === 'Pending HOD') deptMap[r.department].pending++;
+                              else if (r.status === 'Approved') deptMap[r.department].approved++;
+                              else if (r.status === 'Completed') deptMap[r.department].completed++;
+                              else if (r.status === 'Rejected') deptMap[r.department].rejected++;
+                            });
+                            return Object.entries(deptMap).sort((a, b) => a[0].localeCompare(b[0])).map(([dept, counts]) => (
+                              <tr key={dept} className="hover:bg-slate-50 transition-colors">
+                                <td className="p-4">
+                                  <p className="font-bold text-slate-800 text-sm">{dept}</p>
+                                </td>
+                                <td className="p-4">
+                                  <span className="px-2 py-1 bg-amber-50 text-amber-600 rounded-lg text-xs font-black">{counts.pending}</span>
+                                </td>
+                                <td className="p-4">
+                                  <span className="px-2 py-1 bg-green-50 text-green-600 rounded-lg text-xs font-black">{counts.approved}</span>
+                                </td>
+                                <td className="p-4">
+                                  <span className="px-2 py-1 bg-blue-50 text-blue-600 rounded-lg text-xs font-black">{counts.completed}</span>
+                                </td>
+                                <td className="p-4">
+                                  <span className="px-2 py-1 bg-red-50 text-red-500 rounded-lg text-xs font-black">{counts.rejected}</span>
+                                </td>
+                                <td className="p-4">
+                                  <span className="text-sm font-black text-slate-700">{counts.pending + counts.approved + counts.completed + counts.rejected}</span>
+                                </td>
+                              </tr>
+                            ));
+                          })()}
+                        </tbody>
+                      </table>
+                      {analyticsData.length === 0 && !analyticsLoading && (
+                        <div className="text-center py-16">
+                          <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">No analytics data available</p>
+                        </div>
+                      )}
+                      {analyticsLoading && (
+                        <div className="text-center py-16">
+                          <div className="w-8 h-8 border-4 border-blueprint-blue border-t-transparent rounded-full animate-spin mx-auto"></div>
+                        </div>
+                      )}
                     </div>
                   )}
+
+                  {analyticsView === 'professional' && (
+                    <>
+                      {analyticsLoading && (
+                        <div className="flex items-center justify-center py-20">
+                          <Loader2 className="animate-spin text-blueprint-blue" size={40} />
+                          <p className="ml-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Loading Analytics...</p>
+                        </div>
+                      )}
                   <div className="mb-8 flex justify-between items-end">
                     <div>
                       <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight flex items-center gap-3">
@@ -1818,9 +1997,9 @@ const AdminDashboard: React.FC = () => {
                                     <td className="px-4 py-4 align-top">
                                       {student.prize_details && student.prize_details.length > 0 ? (
                                         <div className="flex flex-col gap-1.5">
-                                          {student.prize_details.map((prize, idx) => (
+                                          {student.prize_details.map((prize: any, idx: number) => (
                                             <div key={idx} className="flex items-start gap-1.5">
-                                              <Trophy size={12} className="text-amber-500 flex-shrink-0 mt-0.5" />
+                                              <span className="text-amber-500 flex-shrink-0 mt-0.5 text-xs">🏆</span>
                                               <div className="flex flex-col">
                                                 <span className="text-[10px] font-black text-amber-600 uppercase tracking-tight leading-none">{prize.type}</span>
                                                 <span className="text-[9px] font-bold text-slate-500 uppercase truncate max-w-[120px] mt-0.5" title={prize.event}>{prize.event}</span>
@@ -1871,6 +2050,8 @@ const AdminDashboard: React.FC = () => {
                       </div>
                     );
                   })()}
+                  </>
+                  )}
                 </div>
               )}
               {activeTab === 'system' && (

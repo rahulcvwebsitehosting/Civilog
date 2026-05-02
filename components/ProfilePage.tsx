@@ -478,6 +478,20 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ profile, onUpdate }) => {
               </div>
             </div>
           )}
+
+          <div className="mt-6 text-center">
+            <p className="text-[9px] text-slate-300 font-mono uppercase tracking-widest">
+              Built by{' '}
+              <a
+                href="https://linkedin.com/in/rahulshyamcivil"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blueprint-blue hover:underline font-black"
+              >
+                Rahul Shyam
+              </a>
+            </p>
+          </div>
         </div>
       </div>
     </div>

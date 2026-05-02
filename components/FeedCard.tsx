@@ -123,6 +123,7 @@ const FeedCard: React.FC<FeedCardProps> = ({
     if (interval > 1) return Math.floor(interval) + "d";
     interval = seconds / 3600;
     if (interval > 1) return Math.floor(interval) + "h";
+    interval = seconds / 60;
     if (interval > 1) return Math.floor(interval) + "m";
     return Math.floor(seconds) + "s";
   };
@@ -386,7 +387,7 @@ const FeedCard: React.FC<FeedCardProps> = ({
 
         {/* Assets Grid - Only visible if items exist, columns adjust dynamically */}
         {previews.length > 0 && (
-          <div className={`relative w-full bg-slate-100 border-y border-slate-100 overflow-hidden grid ${gridColsClass} gap-0.5 p-0.5 ${previews.length === 1 ? 'aspect-video' : 'aspect-[16/10]'}`}>
+          <div className={`relative w-full bg-slate-100 border-y border-slate-100 overflow-hidden grid ${gridColsClass} gap-0.5 p-0.5 ${previews.length === 1 ? 'aspect-video' : 'min-h-[180px] sm:aspect-[16/10]'}`}>
             {previews.map((item, idx) => {
               const isDoc = isPdf(item.url);
               return (

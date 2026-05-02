@@ -54,9 +54,28 @@ const calculateDuration = (start: string | null | undefined, end: string | null 
 export const exportODRequestsToExcel = (
   requests: ODRequest[], 
   department?: string,
-  onError?: (message: string) => void
+  onError?: (message: string) => void,
+  filters?: {
+    dateFrom?: string;
+    dateTo?: string;
+    status?: string;
+    sortBy?: 'name' | 'roll' | 'date';
+  }
 ) => {
-  const data = requests.map((req, index) => {
+  let filtered = [...requests];
+  if (filters?.dateFrom) filtered = filtered.filter(r => new Date(r.event_date) >= new Date(filters.dateFrom!));
+  if (filters?.dateTo)   filtered = filtered.filter(r => new Date(r.event_date) <= new Date(filters.dateTo!));
+  if (filters?.status && filters.status !== 'All') filtered = filtered.filter(r => r.status === filters.status);
+  
+  if (filters?.sortBy === 'name') {
+    filtered.sort((a, b) => (a.student_name || '').localeCompare(b.student_name || ''));
+  } else if (filters?.sortBy === 'roll') {
+    filtered.sort((a, b) => (a.roll_no || '').localeCompare(b.roll_no || ''));
+  } else if (filters?.sortBy === 'date') {
+    filtered.sort((a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime());
+  }
+
+  const data = filtered.map((req, index) => {
     // Robustly handle team members (could be array, stringified JSON, or null)
     let teamList: TeamMember[] = [];
     try {

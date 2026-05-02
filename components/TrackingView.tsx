@@ -12,7 +12,8 @@ interface TrackingViewProps {
 
 const TrackingView: React.FC<TrackingViewProps> = ({ profile }) => {
   const { showToast } = useToast();
-  const [registerNo, setRegisterNo] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [deptFilter, setDeptFilter] = useState('');
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<ODRequest[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -21,23 +22,38 @@ const TrackingView: React.FC<TrackingViewProps> = ({ profile }) => {
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!registerNo) return;
+    if (!searchQuery.trim()) return;
     
     setLoading(true);
     setError(null);
     try {
-      // Search by register_no, roll_no, or inside team_members JSONB array
-      const { data, error: fetchError } = await supabase
-        .from('od_requests')
-        .select('*')
-        .or(`register_no.eq.${registerNo},roll_no.eq.${registerNo},team_members.cs.[{"roll_no":"${registerNo}"}],team_members.cs.[{"register_no":"${registerNo}"}]`)
-        .order('created_at', { ascending: false });
+      const term = searchQuery.trim();
+      const isNumericLike = /^[0-9]/.test(term) && term.length >= 4;
+
+      let query = supabase.from('od_requests').select('*').order('created_at', { ascending: false });
+
+      if (isNumericLike) {
+        query = query.or(
+          `register_no.eq.${term},roll_no.eq.${term},team_members.cs.[{"roll_no":"${term}"}],team_members.cs.[{"register_no":"${term}"}]`
+        );
+      } else {
+        query = query.or(
+          `student_name.ilike.%${term}%,event_title.ilike.%${term}%,register_no.ilike.%${term}%`
+        );
+      }
+
+      const { data, error: fetchError } = await query;
 
       if (fetchError) throw fetchError;
       
-      if (data && data.length > 0) {
+      let resultData = (data as ODRequest[]) || [];
+      if (deptFilter.trim() && (profile?.role === 'hod' || profile?.role === 'coordinator' || profile?.role === 'admin')) {
+        resultData = resultData.filter(r => r.department?.toLowerCase().includes(deptFilter.toLowerCase()));
+      }
+
+      if (resultData.length > 0) {
         // Check department restriction
-        const firstRequest = data[0] as ODRequest;
+        const firstRequest = resultData[0];
         
         // Admins can see everything
         if (profile && profile.role !== 'admin') {
@@ -58,7 +74,7 @@ const TrackingView: React.FC<TrackingViewProps> = ({ profile }) => {
           }
         }
 
-        setResults(data as ODRequest[]);
+        setResults(resultData);
       } else {
         setResults([]);
         setError('No submittals found for this technical identification.');
@@ -140,8 +156,11 @@ const TrackingView: React.FC<TrackingViewProps> = ({ profile }) => {
     switch (status) {
       case 'Approved': return 'bg-green-100 text-green-700 border-green-200';
       case 'Pending': return 'bg-amber-100 text-amber-700 border-amber-200';
+      case 'Pending Coordinator': return 'bg-amber-50 text-amber-600 border-amber-200';
+      case 'Pending HOD': return 'bg-orange-100 text-orange-700 border-orange-200';
       case 'Rejected': return 'bg-red-100 text-red-700 border-red-200';
       case 'Completed': return 'bg-blue-100 text-blue-700 border-blue-200';
+      case 'Archived': return 'bg-slate-100 text-slate-500 border-slate-200';
       default: return 'bg-slate-100 text-slate-700 border-slate-200';
     }
   };
@@ -155,15 +174,27 @@ const TrackingView: React.FC<TrackingViewProps> = ({ profile }) => {
         <h2 className="text-4xl font-black text-slate-900 tracking-tight italic uppercase">Tracking Terminal</h2>
         <p className="text-pencil-gray mt-2 font-bold uppercase tracking-widest text-[10px]">Technical Progress Verification Center</p>
         
+        {profile && (profile.role === 'hod' || profile.role === 'coordinator' || profile.role === 'admin') && (
+          <div className="mt-4 flex justify-center">
+            <input
+              type="text"
+              placeholder="Filter by department (optional)..."
+              value={deptFilter}
+              onChange={(e) => setDeptFilter(e.target.value)}
+              className="w-full max-w-xl px-5 py-3 rounded-2xl border-2 border-slate-200 focus:border-blueprint-blue outline-none text-sm"
+            />
+          </div>
+        )}
+
         <form onSubmit={handleSearch} className="mt-8 flex flex-col sm:flex-row gap-3 max-w-xl mx-auto">
           <div className="relative flex-1">
             <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
             <input
               type="text"
               required
-              placeholder="Registration ID..."
-              value={registerNo}
-              onChange={(e) => setRegisterNo(e.target.value.trim())}
+              placeholder="Name, Reg No, Roll No, or Event..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-12 pr-4 py-4 rounded-2xl border-2 border-slate-200 focus:border-blueprint-blue outline-none transition-all font-mono"
             />
           </div>

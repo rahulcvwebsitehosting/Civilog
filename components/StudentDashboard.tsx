@@ -8,26 +8,28 @@ import SubmissionForm from './SubmissionForm';
 import FeedCard from './FeedCard';
 import { Link } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
+import { BASE_URL } from '../constants';
 
 interface PrizeDetailsPromptModalProps {
   onClose: () => void;
-  onConfirm: (prizeType: string, prizeEvent: string) => void;
+  onConfirm: (prizeType: string, prizeEvent: string, prizeRank: string) => void;
   isLoading: boolean;
 }
 
 const PrizeDetailsPromptModal: React.FC<PrizeDetailsPromptModalProps> = ({ onClose, onConfirm, isLoading }) => {
   const [prizeType, setPrizeType] = useState('');
   const [prizeEvent, setPrizeEvent] = useState('');
+  const [prizeRank, setPrizeRank] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (!prizeType.trim() || !prizeEvent.trim()) {
-      setError('Both prize type and associated event are required.');
+    if (!prizeType.trim() || !prizeEvent.trim() || !prizeRank) {
+      setError('Prize type, event, and achievement level are required.');
       return;
     }
-    onConfirm(prizeType, prizeEvent);
+    onConfirm(prizeType, prizeEvent, prizeRank);
   };
 
   return (
@@ -54,6 +56,23 @@ const PrizeDetailsPromptModal: React.FC<PrizeDetailsPromptModalProps> = ({ onClo
               className="w-full px-4 py-4 min-h-[48px] rounded-xl border border-slate-200 focus:border-blueprint-blue outline-none text-sm"
               required
             />
+            <div className="mt-4">
+              <select
+                value={prizeRank}
+                onChange={(e) => setPrizeRank(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-sm outline-none focus:border-blueprint-blue"
+                required
+              >
+                <option value="">Select Achievement Level</option>
+                <option value="1st Place">🥇 1st Place</option>
+                <option value="2nd Place">🥈 2nd Place</option>
+                <option value="3rd Place">🥉 3rd Place</option>
+                <option value="Runner Up">Runner Up</option>
+                <option value="Participation">Participation</option>
+                <option value="Special Award">Special Award</option>
+                <option value="Merit Award">Merit Award</option>
+              </select>
+            </div>
           </div>
           <div>
             <label htmlFor="prizeEvent" className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Associated Event</label>
@@ -231,6 +250,41 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
       }
       
       setRequests((data as ODRequest[]) || []);
+      
+      // 24-hour evidence deadline check
+      const now = new Date();
+      const deadlineRequests = (data || []).filter((r: any) => {
+        if (r.status !== 'Approved') return false;
+        const endDate = new Date(r.event_end_date || r.event_date);
+        endDate.setDate(endDate.getDate() + 1); // 24h after event ends
+        const hasEvidence = (r.geotag_photo_urls?.filter(Boolean).length > 0) &&
+                            (r.certificate_urls?.filter(Boolean).length > 0);
+        return !hasEvidence && now > endDate && !r.deadline_reminder_sent;
+      });
+    
+      for (const req of deadlineRequests) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          await fetch('/api/send-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+            body: JSON.stringify({
+              to: profile.email,
+              subject: `⚠️ Evidence Deadline: ${req.event_title}`,
+              message: `<div style="font-family:sans-serif;padding:20px;color:#333;max-width:600px;">
+                <h2 style="color:#b45309;">Evidence Upload Deadline</h2>
+                <p>Dear <strong>${profile.full_name}</strong>,</p>
+                <p>Your OD for <strong>${req.event_title}</strong> was approved and the event ended on <strong>${req.event_end_date || req.event_date}</strong>.</p>
+                <p>You have <strong>not yet uploaded</strong> your geotagged photo and participation certificate. Please upload them immediately to complete your OD cycle.</p>
+                <p style="margin-top:20px;"><a href="${BASE_URL}" style="background:#003366;color:white;padding:12px 24px;text-decoration:none;border-radius:8px;font-weight:bold;">Open Portal</a></p>
+              </div>`
+            })
+          });
+          await supabase.from('od_requests').update({ deadline_reminder_sent: true }).eq('id', req.id);
+        } catch (e) {
+          console.error('Deadline reminder failed:', e);
+        }
+      }
     } catch (err: any) {
       console.error("[DASHBOARD] Exception:", err);
       setError('An unexpected error occurred.');
@@ -383,7 +437,7 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
   };
 
   // This function handles the modal confirmation, using the already uploaded URL
-  const handlePrizeDetailsConfirmed = async (prizeType: string, prizeEvent: string) => {
+  const handlePrizeDetailsConfirmed = async (prizeType: string, prizeEvent: string, prizeRank: string) => {
     if (!currentPrizeRequest || currentPrizeIndex === null || !tempPrizeUploadUrl) {
       showToast('Missing prize upload context. Please try again.', "error");
       return;
@@ -397,7 +451,7 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
       const currentPrizeDetails = Array.isArray(currentPrizeRequest.prize_details) ? currentPrizeRequest.prize_details : [];
 
       const nextPrizeDetails = [...currentPrizeDetails];
-      nextPrizeDetails[currentPrizeIndex] = { type: prizeType, event: prizeEvent, url: tempPrizeUploadUrl };
+      nextPrizeDetails[currentPrizeIndex] = { type: prizeType, event: prizeEvent, url: tempPrizeUploadUrl, rank: prizeRank };
       updates.prize_details = nextPrizeDetails;
       
       // Auto-complete logic: Mark as Completed if a certificate is uploaded
@@ -642,7 +696,7 @@ const StudentDashboard: React.FC<{ profile: Profile }> = ({ profile }) => {
 
       {showForm && (
         <div 
-          className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
+          className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-md flex items-start justify-center p-4 overflow-y-auto pt-8"
           onClick={(e) => {
             // Only close if the click was directly on the backdrop, not on the form itself
             if (e.target === e.currentTarget) setShowForm(false);

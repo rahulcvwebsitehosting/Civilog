@@ -15,6 +15,7 @@ const getOrdinalYear = (year: string) => {
     case '2': return '2nd Year';
     case '3': return '3rd Year';
     case '4': return '4th Year';
+    case '5': return '5th Year (M.Tech)';
     default: return `${y} Year`;
   }
 };

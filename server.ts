@@ -173,6 +173,17 @@ async function startServer() {
     }
   });
 
+  app.post('/api/verify-admin', (req, res) => {
+    const { password } = req.body;
+    const ADMIN_PASSWORD = process.env.VITE_ADMIN_PASSWORD || 'Adminesec@123';
+    
+    if (password === ADMIN_PASSWORD) {
+      res.json({ success: true });
+    } else {
+      res.json({ success: false, error: 'Unauthorized' });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

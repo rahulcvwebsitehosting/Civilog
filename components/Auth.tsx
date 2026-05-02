@@ -15,9 +15,9 @@ const Auth: React.FC = () => {
   const [message, setMessage] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  const COORDINATOR_PASSWORD = import.meta.env.VITE_COORDINATOR_PASSWORD || '';
-  const HOD_PASSWORD = import.meta.env.VITE_HOD_PASSWORD || '';
-  const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || '';
+  const COORDINATOR_PASSWORD = import.meta.env.VITE_COORDINATOR_PASSWORD || 'Coordesec@123';
+  const HOD_PASSWORD = import.meta.env.VITE_HOD_PASSWORD || 'Hodesec@123';
+  const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || 'Adminesec@123';
 
   const getRoleFromPassword = (pwd: string) => {
     if (pwd === ADMIN_PASSWORD) return 'admin';

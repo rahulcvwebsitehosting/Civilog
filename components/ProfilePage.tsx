@@ -20,6 +20,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ profile, onUpdate }) => {
   const [deletionReason, setDeletionReason] = useState('');
   const [hasPendingRequest, setHasPendingRequest] = useState(false);
   const [requestingDeletion, setRequestingDeletion] = useState(false);
+  const [adminDeleteConfirm, setAdminDeleteConfirm] = useState('');
   const [isProfileLocked, setIsProfileLocked] = useState(false);
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [requestReason, setRequestReason] = useState('');
@@ -213,6 +214,12 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ profile, onUpdate }) => {
     setRequestingDeletion(true);
     try {
       if (profile.role === 'admin') {
+        if (adminDeleteConfirm !== 'DELETE') {
+          showToast("Please type DELETE to confirm.", "error");
+          setRequestingDeletion(false);
+          return;
+        }
+
         const { error } = await supabase.from('profiles').delete().eq('id', profile.id);
         if (error) throw error;
         await supabase.auth.signOut();
@@ -469,7 +476,19 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ profile, onUpdate }) => {
                   </div>
                 ) : (
                   <form onSubmit={handleRequestDeletion} className="space-y-4">
-                    {profile.role !== 'admin' && (
+                    {profile.role === 'admin' ? (
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-red-600 uppercase tracking-widest block">Type DELETE to confirm</label>
+                        <input
+                          type="text"
+                          value={adminDeleteConfirm}
+                          onChange={(e) => setAdminDeleteConfirm(e.target.value)}
+                          placeholder="DELETE"
+                          required
+                          className="w-full px-5 py-3.5 rounded-xl bg-white border border-red-100 outline-none text-sm focus:border-red-500"
+                        />
+                      </div>
+                    ) : (
                       <textarea 
                         placeholder={profile.role === 'student' ? "Please provide a reason for account deletion..." : "Optional: provide a reason for account deletion"}
                         value={deletionReason}
@@ -481,7 +500,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ profile, onUpdate }) => {
                     )}
                     <button 
                       type="submit" 
-                      disabled={requestingDeletion || (profile.role === 'student' && !deletionReason.trim())}
+                      disabled={requestingDeletion || (profile.role === 'student' && !deletionReason.trim()) || (profile.role === 'admin' && adminDeleteConfirm !== 'DELETE')}
                       className="bg-red-600 text-white px-8 py-3.5 rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center gap-2 shadow-lg shadow-red-500/20 hover:bg-red-700 transition-all disabled:opacity-50"
                     >
                       {requestingDeletion ? <Loader2 className="animate-spin" size={16} /> : <Trash2 size={16} />}

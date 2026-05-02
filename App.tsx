@@ -267,8 +267,10 @@ const App: React.FC = () => {
       
       if (error) {
         if (error.code === 'PGRST116') {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user) updateProfileFromUser(user, true);
+          console.warn("[AUTH] Profile not found. It may have been deleted. Forcing sign out.");
+          await supabase.auth.signOut();
+          setSession(null);
+          setProfile(null);
           return;
         }
         throw error;

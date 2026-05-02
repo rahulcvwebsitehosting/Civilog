@@ -1092,6 +1092,31 @@ const AdminDashboard: React.FC = () => {
                                 )}
                               </div>
                             )}
+
+                            {p.id !== adminProfile.id && (
+                              <button
+                                onClick={async () => {
+                                  if (window.confirm('Are you sure you want to permanently delete this user? They will not be able to log in again.')) {
+                                    if (processingId) return;
+                                    setProcessingId(p.id);
+                                    try {
+                                      const { error } = await supabase.from('profiles').delete().eq('id', p.id);
+                                      if (error) throw error;
+                                      showToast("User deleted successfully", "success");
+                                      fetchData();
+                                    } catch (err: any) {
+                                      showToast(err.message || "Failed to delete user", "error");
+                                    } finally {
+                                      setProcessingId(null);
+                                    }
+                                  }
+                                }}
+                                disabled={processingId === p.id}
+                                className="mt-2 px-3 py-1.5 bg-red-600/10 text-red-600 border border-red-200 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all disabled:opacity-50"
+                              >
+                                {processingId === p.id ? <RefreshCw size={10} className="animate-spin" /> : 'Delete User'}
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>

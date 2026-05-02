@@ -71,18 +71,23 @@ const Auth: React.FC = () => {
         if (error) throw error;
 
         if (data.user) {
-          const { data: existingProfile } = await supabase
+          const { data: existingProfile, error: profileError } = await supabase
             .from('profiles')
             .select('role, is_blacklisted')
             .eq('id', data.user.id)
             .single();
+
+          if (profileError || !existingProfile) {
+            await supabase.auth.signOut();
+            throw new Error('This account has been deleted or deactivated.');
+          }
 
           if (existingProfile?.is_blacklisted) {
             await supabase.auth.signOut();
             throw new Error('Your account has been suspended. Please contact the college admin.');
           }
 
-          const role = existingProfile?.role ?? getRoleFromPassword(password);
+          const role = existingProfile.role;
 
           if (data.user.user_metadata?.role !== role) {
             await supabase.auth.updateUser({ data: { role } });
